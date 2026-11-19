@@ -64,6 +64,8 @@ export interface ClassSeries {
   overrides: Record<LocalDate, TimeOverride>;
   /** Per-date change of what the session is, e.g. this week's lab is a quiz. */
   kindOverrides: Record<LocalDate, ClassKind>;
+  /** Per-date details, e.g. "Midterm review". */
+  details?: Record<LocalDate, string>;
 }
 
 /**
@@ -85,6 +87,8 @@ export interface Activity {
   until?: LocalDate;
   skipDates: LocalDate[];
   overrides: Record<LocalDate, TimeOverride>;
+  /** Per-date details, e.g. "Guest talk" or "Full team meeting". */
+  details?: Record<LocalDate, string>;
 }
 
 export type RoutineCategory = 'meal' | 'hygiene' | 'sleep' | 'chores' | 'exercise' | 'other';
@@ -229,4 +233,6 @@ export interface Occ {
   warning?: string;
   /** Exam / quiz / presentation: drawn with extra emphasis. */
   assessment?: boolean;
+  /** What's special about this one, e.g. "Guest talk". Shown after the title. */
+  detail?: string;
 }

@@ -175,3 +175,20 @@ export function replan(scope: ReplanScope, now = new Date()) {
     }
   });
 }
+
+/** Details for one session of a class or CCA ("Guest talk", "Full team meeting"), or an event's notes. Empty clears it. */
+export function setDetail(o: Occ, text: string) {
+  const v = text.trim();
+  const src = o.source;
+  commit(v ? `Details: ${v}` : `Clear details of ${o.title}`, (d) => {
+    const put = (rec: { details?: Record<string, string> } | undefined, dk: string) => {
+      if (!rec) return;
+      rec.details ??= {};
+      if (v) rec.details[dk] = v; else delete rec.details[dk];
+    };
+    if (src.type === 'class') put(d.classes.find((x) => x.id === src.seriesId), src.date);
+    if (src.type === 'activity') put(d.activities.find((x) => x.id === src.activityId), src.date);
+    if (src.type === 'event') { const e = d.events.find((x) => x.id === src.eventId); if (e) e.notes = v || undefined; }
+    if (src.type === 'task') { const t = d.tasks.find((x) => x.id === src.taskId); if (t) t.notes = v || undefined; }
+  });
+}

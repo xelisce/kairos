@@ -94,6 +94,7 @@ export function expand(data: AppData, from: Date, to: Date, opts: ExpandOpts = {
         color: mod.color,
         movable: true,
         assessment: ASSESSMENT_KINDS.includes(kind),
+        detail: c.details?.[dk],
       });
     }
 
@@ -111,6 +112,7 @@ export function expand(data: AppData, from: Date, to: Date, opts: ExpandOpts = {
         location: a.location,
         color: a.color,
         movable: true,
+        detail: a.details?.[dk],
       });
     }
   }
@@ -134,6 +136,7 @@ export function expand(data: AppData, from: Date, to: Date, opts: ExpandOpts = {
       color: mod?.color ?? act?.color ?? CATEGORY_COLORS[e.category] ?? CATEGORY_COLORS.other,
       movable: true,
       assessment: ASSESSMENT_EVENTS.includes(e.category),
+      detail: e.notes?.split('\n')[0],
     });
   }
 
@@ -225,6 +228,17 @@ function fitRoutine(r: Routine, day: Date, dk: string, busy: Occ[]): Occ {
     if (free(m)) {
       const s = atMin(day, m);
       return routineOcc(r, dk, s, addMinutes(s, r.durationMin));
+    }
+  }
+  // No room inside the window: use the nearest free time just outside it (up to 3h away),
+  // flagged so you notice, instead of overlapping a class or CCA.
+  for (let d = 5; d <= 180; d += 5) {
+    for (const m of [we - r.durationMin + d, ws - d]) {
+      if (free(m)) {
+        const s = atMin(day, m);
+        return routineOcc(r, dk, s, addMinutes(s, r.durationMin),
+          `No free ${r.durationMin}m between ${r.windowStart} and ${r.windowEnd}, so it's moved just outside that window`);
+      }
     }
   }
   const s = atMin(day, prefN);

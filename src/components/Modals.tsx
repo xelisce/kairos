@@ -6,7 +6,7 @@ import type { Activity, AppData, CalEvent, ClassKind, ClassSeries, EventCategory
 import { ColorPicker, Field, LocationInput, Modal, NumberInput, Row, DayPicker, useUI } from './ui';
 import { at, dateKey, fmtDur, fmtTime, fromLocal, toLocal, uid, WEEKDAYS } from '../lib/time';
 import { formatLayout, formatWeeks, LAYOUT_PRESETS, maxTeachingWeek, parseLayout, parseWeeks, SEMESTER_PRESETS, semesterFromPreset, weekLabelText, DAY_PRESETS, US_DAY_LETTERS } from '../lib/weeks';
-import { resetOcc, setSessionKind, setTravel, skipOcc } from '../lib/actions';
+import { resetOcc, setDetail, setSessionKind, setTravel, skipOcc } from '../lib/actions';
 import { EVENT_LABELS } from '../lib/expand';
 import { MODULE_COLORS } from '../lib/defaults';
 import { importNusmods } from '../lib/nusmods';
@@ -47,6 +47,9 @@ function OccDetail() {
 
   const task = src.type === 'task' ? data.tasks.find((t) => t.id === src.taskId) : undefined;
   const series = src.type === 'class' ? data.classes.find((c) => c.id === src.seriesId) : undefined;
+  const currentNotes = src.type === 'event' ? data.events.find((e) => e.id === src.eventId)?.notes ?? ''
+    : src.type === 'task' ? task?.notes ?? '' : '';
+  const [detail, setDetailText] = useState(() => (src.type === 'event' || src.type === 'task' ? currentNotes : o.detail ?? ''));
   const moved =
     (src.type === 'class' && !!data.classes.find((c) => c.id === src.seriesId)?.overrides[src.date]) ||
     (src.type === 'routine' && !!data.routines.find((r) => r.id === src.routineId)?.overrides[src.date]) ||
@@ -63,6 +66,17 @@ function OccDetail() {
         {o.location && <><br />at {o.location}</>}
       </p>
       {o.warning && <p className="warn-box">⚠️ {o.warning}</p>}
+
+      {(src.type === 'class' || src.type === 'activity' || src.type === 'event' || src.type === 'task') && (
+        <Field label={src.type === 'class' || src.type === 'activity' ? 'Details for this session only' : 'Details'}
+          hint={src.type === 'activity' ? 'e.g. Guest talk by …, Full team meeting' : src.type === 'class' ? 'e.g. Midterm review, bring laptop' : undefined}>
+          <div className="detail-row">
+            <input value={detail} onChange={(e) => setDetailText(e.target.value)} placeholder="What's special about this one?"
+              onKeyDown={(e) => { if (e.key === 'Enter') { setDetail(o, detail); close(); } }} />
+            <button className="btn" disabled={detail === (o.detail ?? currentNotes)} onClick={act(() => setDetail(o, detail))}>Save</button>
+          </div>
+        </Field>
+      )}
 
       {src.type === 'travel' && (
         <>
@@ -566,7 +580,7 @@ function RoutineForm() {
         <Field label="Usual start"><input type="time" value={r.preferredStart} onChange={(e) => up({ preferredStart: e.target.value })} /></Field>
         <Field label="Length (min)"><NumberInput min={5} value={r.durationMin} onCommit={(durationMin) => up({ durationMin })} /></Field>
       </Row>
-      <label className="check"><input type="checkbox" checked={r.flexible} onChange={(e) => up({ flexible: e.target.checked })} /> Flexible: slide it to avoid clashes</label>
+      <label className="check"><input type="checkbox" checked={r.flexible} onChange={(e) => up({ flexible: e.target.checked })} /> Auto-schedule: find a free time inside a window (otherwise it stays at the usual start)</label>
       {r.flexible && (
         <Row>
           <Field label="Not earlier than"><input type="time" value={r.windowStart} onChange={(e) => up({ windowStart: e.target.value })} /></Field>
@@ -577,7 +591,7 @@ function RoutineForm() {
         </Row>
       )}
       <Field label="Location (optional)" hint="Routines with a location stay at their usual time so travel can be planned"><LocationInput value={r.location ?? ''} onChange={(v) => up({ location: v || undefined })} places={placeNames(data)} /></Field>
-      <label className="check"><input type="checkbox" checked={r.enabled} onChange={(e) => up({ enabled: e.target.checked })} /> Enabled</label>
+      <label className="check"><input type="checkbox" checked={r.enabled} onChange={(e) => up({ enabled: e.target.checked })} /> On: show it on the calendar (turn off to pause it without deleting)</label>
     </Modal>
   );
 }

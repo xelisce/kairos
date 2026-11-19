@@ -189,3 +189,26 @@ describe('day markers', () => {
     expect(dayMarker(sems, fromLocal('2026-11-18'))).toBeNull();
   });
 });
+
+describe('per-session details', () => {
+  it('CCA detail on one date only; event notes first line', () => {
+    const d = sample();
+    d.activities.push({ id: 'a', title: 'Robotics', recurring: true, days: [0, 2], start: '18:00', end: '20:00', color: '#000', skipDates: [], overrides: {}, details: { '2026-09-02': 'Full team meeting' } });
+    d.events.push({ id: 'e', title: 'Hoofers', category: 'cca', start: '2026-09-03T14:00', end: '2026-09-03T16:00', notes: 'Guest talk\nbring jacket' });
+    const occs = expand(d, fromLocal('2026-08-31'), fromLocal('2026-09-07'));
+    const robo = occs.filter((o) => o.source.type === 'activity');
+    expect(robo.map((o) => o.detail)).toEqual([undefined, 'Full team meeting']);
+    expect(occs.find((o) => o.id === 'event:e')!.detail).toBe('Guest talk');
+  });
+});
+
+describe('routine with no room in its window', () => {
+  it('goes just outside the window instead of overlapping', () => {
+    const d = defaultData();
+    d.routines = d.routines.filter((r) => r.title === 'Dinner'); // 60m, 17:00-21:00
+    d.events = [{ id: 'e', title: 'Robotics', category: 'cca', start: '2026-11-18T17:05', end: '2026-11-18T20:30' }];
+    const dinner = expand(d, fromLocal('2026-11-18'), fromLocal('2026-11-19')).find((o) => o.title === 'Dinner')!;
+    expect(dinner.start >= fromLocal('2026-11-18T20:30') || dinner.end <= fromLocal('2026-11-18T17:05')).toBe(true);
+    expect(dinner.warning).toMatch(/outside/);
+  });
+});

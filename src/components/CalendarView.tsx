@@ -111,7 +111,7 @@ function renderEvent(arg: EventContentArg) {
   // The placeholder block FullCalendar draws while you drag-select empty time has no occurrence.
   if (!o) return <div className="ev"><div className="ev-meta">{arg.timeText}</div></div>;
   const mins = (o.end.getTime() - o.start.getTime()) / 60000;
-  const tip = [o.title, `${fmtTime(o.start)}–${fmtTime(o.end)}`, o.subtitle, o.warning && `⚠️ ${o.warning}`].filter(Boolean).join('\n');
+  const tip = [o.detail ? `${o.title} · ${o.detail}` : o.title, `${fmtTime(o.start)}–${fmtTime(o.end)}${o.location ? `, ${o.location}` : ''}`, o.subtitle, o.warning && `⚠️ ${o.warning}`].filter(Boolean).join('\n');
   // Travel: always one horizontal line, cut off with "…" if it doesn't fit.
   if (o.source.type === 'travel') {
     return (
@@ -120,14 +120,24 @@ function renderEvent(arg: EventContentArg) {
       </div>
     );
   }
-  // Others: title always; time when there's room; the extra line (course name etc.) only on long blocks.
+  const where = o.location ? `, ${o.location}` : '';
+  // Short blocks: one line "Title · detail, place", cut off with "…".
+  if (mins < 30) {
+    return (
+      <div className="ev ev-line" title={tip}>
+        {o.warning && '⚠️ '}{o.title}{o.detail && <span className="ev-detail"> · {o.detail}</span>}<span className="ev-where">{where}</span>
+      </div>
+    );
+  }
+  // Longer: title (+ detail), then "time, place" on one line (cut off if it doesn't fit),
+  // then the extra line (course name etc.) only on long blocks.
   return (
     <div className="ev" title={tip}>
       <div className="ev-title">
         {o.warning && <span className="ev-warn" aria-label="Warning">⚠️ </span>}
-        {o.title}
+        {o.title}{o.detail && <span className="ev-detail"> · {o.detail}</span>}
       </div>
-      {mins >= 30 && <div className="ev-meta">{fmtTime(o.start)}–{fmtTime(o.end)}</div>}
+      <div className="ev-meta">{fmtTime(o.start)}–{fmtTime(o.end)}{where}</div>
       {mins >= 90 && o.subtitle && <div className="ev-meta ev-sub">{o.subtitle}</div>}
     </div>
   );

@@ -201,18 +201,22 @@ export function RoutinesPanel() {
   return (
     <div className="panel">
       <div className="panel-actions"><button className="btn primary" onClick={() => open({ kind: 'routine' })}>+ Routine</button></div>
-      <p className="muted small">Meals, shower, sleep, meal prep… Flexible ones slide around classes inside their window. Drag one on the calendar to move it for that day only.</p>
+      <p className="muted small">The switch turns a routine on or off (off = paused, not deleted). <b>Auto</b> routines find a free time inside their window around classes and CCAs; <b>fixed</b> ones stay at their usual time. Drag one on the calendar to move it for that day only.</p>
       <ul className="routines">
         {data.routines.map((r) => (
           <li key={r.id} className={r.enabled ? '' : 'off'} style={{ borderLeftColor: r.color }}>
-            <input type="checkbox" checked={r.enabled} aria-label="Enabled" onChange={() => commit(`${r.enabled ? 'Disable' : 'Enable'} ${r.title}`, (d) => {
-              const x = d.routines.find((y) => y.id === r.id); if (x) x.enabled = !x.enabled;
-            })} />
+            <label className="switch" title={r.enabled ? 'On: shown on the calendar. Click to pause.' : 'Paused: not on the calendar. Click to turn on.'}>
+              <input type="checkbox" role="switch" checked={r.enabled} aria-label={`${r.title} on`} onChange={() => commit(`${r.enabled ? 'Pause' : 'Turn on'} ${r.title}`, (d) => {
+                const x = d.routines.find((y) => y.id === r.id); if (x) x.enabled = !x.enabled;
+              })} />
+              <span className="switch-track" aria-hidden="true" />
+            </label>
             <button className="task-main" onClick={() => open({ kind: 'routine', id: r.id })}>
               <span className="task-title">{r.title}</span>
               <span className="task-meta">
                 {r.preferredStart} · {fmtDur(r.durationMin)} · {r.days.length === 7 ? 'daily' : r.days.map((d) => short[d]).join('')}
-                {r.flexible ? ` · flexible ${r.windowStart}–${r.windowEnd}${r.windowEnd < r.windowStart ? ' (next day)' : ''}` : ' · fixed'}
+                {r.flexible ? ` · auto ${r.windowStart}–${r.windowEnd}${r.windowEnd < r.windowStart ? ' (next day)' : ''}` : ' · fixed'}
+                {!r.enabled && ' · paused'}
               </span>
             </button>
           </li>

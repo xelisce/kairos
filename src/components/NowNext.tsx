@@ -58,9 +58,9 @@ function Card({ label, occ, now, onClick, empty }: { label: string; occ?: Occ; n
   return (
     <button className={`nn-card ${occ.warning ? 'warn' : ''}`} style={{ borderLeftColor: occ.color }} onClick={() => onClick(occ)}>
       <span className="nn-label">{label}</span>
-      <span className="nn-title">{occ.warning && '⚠️ '}{occ.title}</span>
+      <span className="nn-title">{occ.warning && '⚠️ '}{occ.title}{occ.detail ? ` · ${occ.detail}` : ''}</span>
       <span className="nn-meta">
-        {fmtTime(occ.start)}–{fmtTime(occ.end)} · {startsIn > 0 ? `in ${fmtDur(startsIn)}` : `${fmtDur(endsIn)} left`}
+        {fmtTime(occ.start)}–{fmtTime(occ.end)}{occ.location ? `, ${occ.location}` : ''} · {startsIn > 0 ? `in ${fmtDur(startsIn)}` : `${fmtDur(endsIn)} left`}
       </span>
     </button>
   );
