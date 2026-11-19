@@ -1,7 +1,7 @@
 // High-level edits used by the calendar and panels.
 import { addMinutes } from 'date-fns';
 import { useStore } from '../store';
-import type { Occ } from '../types';
+import type { ClassKind, Occ } from '../types';
 import { fromLocal, toLocal } from './time';
 
 const commit = (...a: Parameters<ReturnType<typeof useStore.getState>['commit']>) => useStore.getState().commit(...a);
@@ -41,8 +41,20 @@ export function moveOcc(o: Occ, start: Date, end: Date) {
         }
       });
       break;
-    case 'travel':
+    case 'activity':
+      commit(`Move ${o.title}`, (d) => {
+        const a = d.activities.find((x) => x.id === src.activityId);
+        if (a) a.overrides[src.date] = { start: s, end: e };
+      });
       break;
+    case 'travel': {
+      const minutes = Math.round((end.getTime() - start.getTime()) / 60000);
+      commit(`Move trip to ${src.to}`, (d) => {
+        d.travelMoves[src.key] = s;
+        if (minutes !== src.minutes) d.travelOverrides[src.key] = minutes;
+      });
+      break;
+    }
   }
 }
 
@@ -59,6 +71,11 @@ export function skipOcc(o: Occ) {
       const r = d.routines.find((x) => x.id === src.routineId);
       if (r && !r.skipDates.includes(src.date)) r.skipDates.push(src.date);
     });
+  } else if (src.type === 'activity') {
+    commit(`Skip ${o.title} on ${src.date}`, (d) => {
+      const a = d.activities.find((x) => x.id === src.activityId);
+      if (a && !a.skipDates.includes(src.date)) a.skipDates.push(src.date);
+    });
   }
 }
 
@@ -68,6 +85,8 @@ export function resetOcc(o: Occ) {
   commit(`Reset ${o.title}`, (d) => {
     if (src.type === 'class') delete d.classes.find((x) => x.id === src.seriesId)?.overrides[src.date];
     if (src.type === 'routine') delete d.routines.find((x) => x.id === src.routineId)?.overrides[src.date];
+    if (src.type === 'activity') delete d.activities.find((x) => x.id === src.activityId)?.overrides[src.date];
+    if (src.type === 'travel') delete d.travelMoves[src.key];
     if (src.type === 'task') { const t = d.tasks.find((x) => x.id === src.taskId); if (t) t.pinned = false; }
   });
 }
@@ -104,3 +123,15 @@ export function runningLate(occs: Occ[], min: number, now = new Date()) {
 }
 
 export const isoToDate = fromLocal;
+
+/** This one class session is something else (quiz, exam, help session...), or back to normal with null. */
+export function setSessionKind(o: Occ, kind: ClassKind | null) {
+  const src = o.source;
+  if (src.type !== 'class') return;
+  commit(kind ? `${o.title} → ${kind}` : `Reset ${o.title}`, (d) => {
+    const c = d.classes.find((x) => x.id === src.seriesId);
+    if (!c) return;
+    if (!kind || kind === c.kind) delete c.kindOverrides[src.date];
+    else c.kindOverrides[src.date] = kind;
+  });
+}

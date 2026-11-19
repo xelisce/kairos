@@ -30,7 +30,7 @@ export function CalendarView({ range, onRange }: { range: { start: Date; end: Da
     borderColor: o.warning ? 'var(--bad)' : o.color,
     textColor: o.source.type === 'travel' ? 'var(--text-2)' : '#fff',
     editable: o.movable,
-    classNames: [`k-${o.source.type}`, o.warning ? 'k-warn' : '', isDone(o) ? 'k-done' : ''].filter(Boolean),
+    classNames: [`k-${o.source.type}`, o.warning ? 'k-warn' : '', isDone(o) ? 'k-done' : '', o.assessment ? 'k-assess' : ''].filter(Boolean),
     extendedProps: { occ: o },
   })), [occs]);
 
@@ -92,7 +92,9 @@ export function CalendarView({ range, onRange }: { range: { start: Date; end: Da
 const isDone = (o: Occ) => o.source.type === 'task' && o.title.startsWith('✓');
 
 function renderEvent(arg: EventContentArg) {
-  const o = arg.event.extendedProps.occ as Occ;
+  const o = arg.event.extendedProps.occ as Occ | undefined;
+  // The placeholder block FullCalendar draws while you drag-select empty time has no occurrence.
+  if (!o) return <div className="ev"><div className="ev-meta">{arg.timeText}</div></div>;
   const mins = (o.end.getTime() - o.start.getTime()) / 60000;
   return (
     <div className="ev" title={o.warning ?? ''}>

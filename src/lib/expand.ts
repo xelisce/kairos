@@ -2,6 +2,7 @@
 // classes (by academic week), events, scheduled tasks, routines that slide
 // around clashes, and travel blocks between places.
 import { addDays, addMinutes, differenceInMinutes, format, startOfDay } from 'date-fns';
+import { ASSESSMENT_KINDS } from '../types';
 import type { AppData, Occ, Place, Routine } from '../types';
 import { at, dateKey, eachDay, fmtTime, fromLocal, hmToMin, overlaps, weekdayMon0, atMin } from './time';
 import { weekIndex } from './weeks';
@@ -14,7 +15,18 @@ export const CATEGORY_COLORS: Record<string, string> = {
   homework: '#6d5dfc',
   personal: '#4b9be0',
   travel: '#9aa3b5',
+  exam: '#d65f5f',
+  quiz: '#d65f5f',
+  presentation: '#b35fd6',
+  help: '#3fa7a0',
 };
+
+export const EVENT_LABELS: Record<string, string> = {
+  hangout: 'Hangout / outing', appointment: 'Appointment', admin: 'Admin',
+  exam: 'Exam', quiz: 'Quiz', presentation: 'Presentation', help: 'Help session', other: 'Other',
+};
+const ASSESSMENT_EVENTS = ['exam', 'quiz', 'presentation'];
+const KIND_ICON: Partial<Record<string, string>> = { Quiz: '📝 ', Exam: '📝 ', Presentation: '🎤 ', 'Help session': '🙋 ' };
 
 // ---------- Places & travel ----------
 
@@ -33,7 +45,9 @@ export function resolvePlace(data: AppData, location?: string): ResolvedPlace | 
 export const homePlace = (data: AppData): Place | undefined => data.places.find((p) => p.isHome);
 
 export function travelMinutes(data: AppData, a: ResolvedPlace, b: ResolvedPlace): { minutes: number; saved: boolean } {
-  const r = data.routes.find((r) => (r.a === a.id && r.b === b.id) || (r.a === b.id && r.b === a.id));
+  // Exact direction first, then a two-way route saved the other way round.
+  const r = data.routes.find((r) => r.a === a.id && r.b === b.id)
+    ?? data.routes.find((r) => r.bidirectional !== false && r.a === b.id && r.b === a.id);
   return r ? { minutes: r.minutes, saved: true } : { minutes: data.settings.defaultTravelMin, saved: false };
 }
 
@@ -67,15 +81,34 @@ export function expand(data: AppData, from: Date, to: Date, opts: ExpandOpts = {
       if (wl.type !== 'teaching' || !c.weeks.includes(wl.n)) continue;
       if (c.skipDates.includes(dk) || sem.holidays.some((h) => h.date === dk)) continue;
       const ov = c.overrides[dk];
+      const kind = c.kindOverrides?.[dk] ?? c.kind;
       fixed.push({
         id: `class:${c.id}:${dk}`,
         source: { type: 'class', seriesId: c.id, date: dk },
-        title: `${mod.code} ${c.kind}`,
-        subtitle: mod.name,
+        title: `${KIND_ICON[kind] ?? ''}${mod.code} ${kind}`,
+        subtitle: kind !== c.kind ? `instead of ${c.kind} · ${mod.name}` : mod.name,
         start: ov ? fromLocal(ov.start) : at(day, c.start),
         end: ov ? fromLocal(ov.end) : at(day, c.end),
         location: c.location,
         color: mod.color,
+        movable: true,
+        assessment: ASSESSMENT_KINDS.includes(kind),
+      });
+    }
+
+    // CCAs / clubs
+    for (const a of data.activities) {
+      if (!a.days.includes(wd) || a.skipDates.includes(dk)) continue;
+      if ((a.from && dk < a.from) || (a.until && dk > a.until)) continue;
+      const ov = a.overrides[dk];
+      fixed.push({
+        id: `activity:${a.id}:${dk}`,
+        source: { type: 'activity', activityId: a.id, date: dk },
+        title: a.title,
+        start: ov ? fromLocal(ov.start) : at(day, a.start),
+        end: ov ? fromLocal(ov.end) : at(day, a.end),
+        location: a.location,
+        color: a.color,
         movable: true,
       });
     }
@@ -86,15 +119,19 @@ export function expand(data: AppData, from: Date, to: Date, opts: ExpandOpts = {
     const s = fromLocal(e.start);
     const en = fromLocal(e.end);
     if (!overlaps(s, en, pFrom, pTo)) continue;
+    const mod = e.moduleId ? modules.get(e.moduleId) : undefined;
+    const icon = e.category === 'exam' || e.category === 'quiz' ? '📝 ' : e.category === 'presentation' ? '🎤 ' : e.category === 'help' ? '🙋 ' : '';
     fixed.push({
       id: `event:${e.id}`,
       source: { type: 'event', eventId: e.id },
-      title: e.title,
+      title: `${icon}${mod && !e.title.toUpperCase().includes(mod.code.toUpperCase()) ? `${mod.code} ` : ''}${e.title}`,
+      subtitle: mod ? `${EVENT_LABELS[e.category]} · ${mod.name}` : undefined,
       start: s,
       end: en,
       location: e.location,
-      color: CATEGORY_COLORS[e.category] ?? CATEGORY_COLORS.other,
+      color: mod?.color ?? CATEGORY_COLORS[e.category] ?? CATEGORY_COLORS.other,
       movable: true,
+      assessment: ASSESSMENT_EVENTS.includes(e.category),
     });
   }
 
@@ -220,12 +257,16 @@ function computeTravel(data: AppData, items: Occ[]): Occ[] {
         const tm = travelMinutes(data, cur, place);
         const ovr = data.travelOverrides[key];
         const minutes = ovr ?? tm.minutes + extra;
-        const start = addMinutes(occ.start, -minutes);
+        const movedTo = data.travelMoves?.[key];
+        const start = movedTo ? fromLocal(movedTo) : addMinutes(occ.start, -minutes);
+        const end = addMinutes(start, minutes);
         let warning: string | undefined;
-        if (prevEnd && start < prevEnd) {
+        if (end > occ.start) {
+          warning = `You'd arrive ${differenceInMinutes(end, occ.start)}m late for ${occ.title}`;
+        } else if (prevEnd && start < prevEnd) {
           warning = `Only ${Math.max(0, differenceInMinutes(occ.start, prevEnd))}m to get from ${cur.name} to ${place.name}, but the trip takes ${minutes}m`;
         }
-        out.push(travelOcc(key, cur.name, place.name, start, occ.start, minutes, ovr !== undefined, tm.saved, warning));
+        out.push(travelOcc(key, cur.name, place.name, start, end, minutes, ovr !== undefined, !!movedTo, tm.saved, warning));
       }
       cur = place;
       if (prevEnd === null || occ.end.getTime() > (prevEnd as Date).getTime()) prevEnd = occ.end;
@@ -236,23 +277,27 @@ function computeTravel(data: AppData, items: Occ[]): Occ[] {
       const tm = travelMinutes(data, cur, homeR);
       const ovr = data.travelOverrides[key];
       const minutes = ovr ?? tm.minutes;
-      out.push(travelOcc(key, cur.name, homeR.name, prevEnd, addMinutes(prevEnd, minutes), minutes, ovr !== undefined, tm.saved));
+      const movedTo = data.travelMoves?.[key];
+      const start = movedTo ? fromLocal(movedTo) : prevEnd;
+      const warning = start < prevEnd ? `Leaving ${cur.name} before ${last.title} ends` : undefined;
+      out.push(travelOcc(key, cur.name, homeR.name, start, addMinutes(start, minutes), minutes, ovr !== undefined, !!movedTo, tm.saved, warning));
     }
   }
   return out;
 }
 
 function travelOcc(key: string, from: string, to: string, start: Date, end: Date, minutes: number,
-  overridden: boolean, saved: boolean, warning?: string): Occ {
+  overridden: boolean, moved: boolean, saved: boolean, warning?: string): Occ {
   return {
     id: `travel:${key}`,
-    source: { type: 'travel', key, minutes, from, to, overridden },
+    source: { type: 'travel', key, minutes, from, to, overridden, moved },
     title: `🚶 ${to}`,
-    subtitle: `Leave ${from} by ${fmtTime(start)}${saved || overridden ? '' : ' (estimate)'}`,
+    subtitle: `Leave ${from} ${key.endsWith(':home') ? 'at' : 'by'} ${fmtTime(start)}${saved || overridden ? '' : ' (estimate)'}`,
     start,
     end,
     color: CATEGORY_COLORS.travel,
-    movable: false,
+    // Drag to leave earlier/later; drag the bottom edge to change this trip's length.
+    movable: true,
     warning,
   };
 }

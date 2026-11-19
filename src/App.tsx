@@ -11,9 +11,35 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'calendar', label: 'Day', icon: '🗓' },
   { id: 'tasks', label: 'Tasks', icon: '📝' },
   { id: 'classes', label: 'Classes', icon: '🎓' },
-  { id: 'routines', label: 'Routines', icon: '🍽' },
+  { id: 'routines', label: 'Routines', icon: '🕐' },
   { id: 'places', label: 'Places', icon: '📍' },
 ];
+
+const SIDEBAR_MIN = 260;
+const SIDEBAR_MAX = 600;
+const readPref = <T,>(k: string, fallback: T): T => {
+  try { const v = localStorage.getItem(k); return v === null ? fallback : (JSON.parse(v) as T); } catch { return fallback; }
+};
+const writePref = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* ignore */ } };
+
+/** Sidebar width (drag the edge) and open/closed state, remembered per browser. */
+function useSidebar() {
+  const [width, setWidth] = useState(() => readPref('kairos:sidebarWidth', 360));
+  const [open, setOpen] = useState(() => readPref('kairos:sidebarOpen', true));
+  useEffect(() => writePref('kairos:sidebarWidth', width), [width]);
+  useEffect(() => writePref('kairos:sidebarOpen', open), [open]);
+  const startDrag = (e: React.PointerEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = width;
+    const move = (ev: PointerEvent) => setWidth(Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, startW + ev.clientX - startX)));
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); document.body.classList.remove('resizing'); };
+    document.body.classList.add('resizing');
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+  return { width, setWidth, open, setOpen, startDrag };
+}
 
 function useNarrow() {
   const [narrow, setNarrow] = useState(() => window.innerWidth < 900);
@@ -31,6 +57,9 @@ export default function App() {
   const [mobileTab, setMobileTab] = useState<Tab>('calendar');
   const [range, setRange] = useState<{ start: Date; end: Date } | null>(null);
   const narrow = useNarrow();
+  const sb = useSidebar();
+  // Let the calendar re-measure when the sidebar is resized or hidden.
+  useEffect(() => { window.dispatchEvent(new Event('resize')); }, [sb.width, sb.open]);
 
   // Keyboard undo/redo (not while typing).
   useEffect(() => {
@@ -56,6 +85,9 @@ export default function App() {
   return (
     <div className={`app ${narrow ? 'narrow' : ''}`}>
       <header className="topbar">
+        {!narrow && (
+          <button className="icon-btn" onClick={() => sb.setOpen(!sb.open)} aria-label={sb.open ? 'Hide sidebar' : 'Show sidebar'} aria-expanded={sb.open} title={sb.open ? 'Hide sidebar' : 'Show sidebar'}>☰</button>
+        )}
         <div className="brand"><img src="/icon.svg" alt="" width={24} height={24} /> Kairos</div>
         {wk && <span className="tag neutral" title={wk.sem.name}>{weekLabelText(wk.label)}</span>}
         <span className="spacer" />
@@ -81,8 +113,8 @@ export default function App() {
           </nav>
         </main>
       ) : (
-        <main className="desktop-main">
-          <aside className="sidebar">
+        <main className="desktop-main" style={{ gridTemplateColumns: sb.open ? `${sb.width}px 6px 1fr` : '1fr' }}>
+          {sb.open && <aside className="sidebar">
             <NowNext />
             <nav className="side-tabs">
               {TABS.filter((t) => t.id !== 'calendar').map((t) => (
@@ -90,7 +122,16 @@ export default function App() {
               ))}
             </nav>
             <div className="side-panel">{panel(tab)}</div>
-          </aside>
+          </aside>}
+          {sb.open && (
+            <div className="resizer" role="separator" aria-orientation="vertical" aria-label="Resize sidebar" tabIndex={0}
+              aria-valuemin={SIDEBAR_MIN} aria-valuemax={SIDEBAR_MAX} aria-valuenow={sb.width}
+              onPointerDown={sb.startDrag} onDoubleClick={() => sb.setWidth(360)}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowLeft') sb.setWidth(Math.max(SIDEBAR_MIN, sb.width - 20));
+                if (e.key === 'ArrowRight') sb.setWidth(Math.min(SIDEBAR_MAX, sb.width + 20));
+              }} title="Drag to resize · double-click to reset" />
+          )}
           <CalendarView range={range} onRange={setRange} />
         </main>
       )}

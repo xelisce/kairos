@@ -1,16 +1,17 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { create } from 'zustand';
-import type { Occ } from '../types';
+import type { EventCategory, Occ } from '../types';
 
 export type ModalState =
   | null
   | { kind: 'occ'; occ: Occ }
   | { kind: 'task'; id?: string; start?: Date; end?: Date }
-  | { kind: 'event'; id?: string; start?: Date; end?: Date }
+  | { kind: 'event'; id?: string; start?: Date; end?: Date; category?: EventCategory; moduleId?: string }
   | { kind: 'class'; id?: string; moduleId?: string }
   | { kind: 'module'; id?: string; semesterId?: string }
   | { kind: 'semester'; id?: string }
   | { kind: 'routine'; id?: string }
+  | { kind: 'activity'; id?: string }
   | { kind: 'newChoice'; start: Date; end: Date }
   | { kind: 'nusmods'; semesterId: string };
 

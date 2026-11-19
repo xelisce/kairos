@@ -36,7 +36,11 @@ function load(): AppData {
 function migrate(d: AppData): AppData {
   for (const c of d.classes as (AppData['classes'][number] & { weekday?: number })[]) {
     if (!Array.isArray(c.days)) { c.days = [c.weekday ?? 0]; delete c.weekday; }
+    c.kindOverrides ??= {};
   }
+  d.activities ??= [];
+  d.travelMoves ??= {};
+  for (const r of d.routes) r.bidirectional ??= true;
   for (const s of d.semesters) {
     if (!s.style) s.style = s.layout.some((w) => w.type === 'break' && /recess/i.test(w.name)) ? 'nus' : 'us';
   }

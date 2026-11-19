@@ -34,6 +34,7 @@ export function defaultData(): AppData {
     semesters: [semesterFromPreset(SEMESTER_PRESETS[0], uid())],
     modules: [],
     classes: [],
+    activities: [],
     routines: [
       routine({ title: 'Breakfast', category: 'meal', durationMin: 20, preferredStart: '08:00', windowStart: '07:00', windowEnd: '10:30', color: '#e4a13a' }),
       routine({ title: 'Lunch', category: 'meal', durationMin: 45, preferredStart: '12:30', windowStart: '11:00', windowEnd: '15:00', color: '#e4a13a' }),
@@ -47,6 +48,7 @@ export function defaultData(): AppData {
     places: [home],
     routes: [],
     travelOverrides: {},
+    travelMoves: {},
   };
 }
 

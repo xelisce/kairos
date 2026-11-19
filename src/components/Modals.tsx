@@ -2,11 +2,12 @@ import { useMemo, useState } from 'react';
 import { addDays, addMinutes, format, startOfWeek } from 'date-fns';
 import { useStore } from '../store';
 import type { SemesterStyle } from '../types';
-import type { AppData, CalEvent, ClassKind, ClassSeries, EventCategory, Module, Routine, RoutineCategory, Semester, Task, TaskCategory } from '../types';
+import type { Activity, AppData, CalEvent, ClassKind, ClassSeries, EventCategory, Module, Routine, RoutineCategory, Semester, Task, TaskCategory } from '../types';
 import { ColorPicker, Field, LocationInput, Modal, NumberInput, Row, DayPicker, useUI } from './ui';
 import { dateKey, fmtDur, fmtTime, fromLocal, toLocal, uid, WEEKDAYS } from '../lib/time';
 import { formatLayout, formatWeeks, LAYOUT_PRESETS, maxTeachingWeek, parseLayout, parseWeeks, SEMESTER_PRESETS, semesterFromPreset, weekLabelText, DAY_PRESETS, US_DAY_LETTERS } from '../lib/weeks';
-import { resetOcc, setTravel, skipOcc } from '../lib/actions';
+import { resetOcc, setSessionKind, setTravel, skipOcc } from '../lib/actions';
+import { EVENT_LABELS } from '../lib/expand';
 import { MODULE_COLORS } from '../lib/defaults';
 import { importNusmods } from '../lib/nusmods';
 
@@ -26,6 +27,7 @@ export function ModalHost() {
     case 'module': return <ModuleForm key={modal.id ?? 'new'} />;
     case 'semester': return <SemesterForm key={modal.id ?? 'new'} />;
     case 'routine': return <RoutineForm key={modal.id ?? 'new'} />;
+    case 'activity': return <ActivityForm key={modal.id ?? 'new'} />;
     case 'nusmods': return <NusmodsForm />;
     case 'newChoice': return <NewChoice />;
     default: close(); return null;
@@ -44,9 +46,11 @@ function OccDetail() {
   const [travelMin, setTravelMin] = useState(src.type === 'travel' ? String(src.minutes) : '');
 
   const task = src.type === 'task' ? data.tasks.find((t) => t.id === src.taskId) : undefined;
+  const series = src.type === 'class' ? data.classes.find((c) => c.id === src.seriesId) : undefined;
   const moved =
     (src.type === 'class' && !!data.classes.find((c) => c.id === src.seriesId)?.overrides[src.date]) ||
     (src.type === 'routine' && !!data.routines.find((r) => r.id === src.routineId)?.overrides[src.date]) ||
+    (src.type === 'activity' && !!data.activities.find((a) => a.id === src.activityId)?.overrides[src.date]) ||
     (src.type === 'task' && !!task?.pinned);
 
   const act = (fn: () => void) => () => { fn(); close(); };
@@ -72,8 +76,17 @@ function OccDetail() {
             <button className="btn primary" onClick={act(() => setTravel(src.key, Math.max(0, Number(travelMin) || 0)))}>Save</button>
             {src.overridden && <button className="btn" onClick={act(() => setTravel(src.key, null))}>Use saved route time</button>}
           </div>
-          <p className="muted small">To change the default for this route, go to Places.</p>
+          {src.moved && <div className="actions"><button className="btn" onClick={act(() => resetOcc(o))}>Back to usual leaving time</button></div>}
+          <p className="muted small">Not going straight there? Drag this block on the calendar to leave earlier or later. To change the default for this route, go to Places.</p>
         </>
+      )}
+
+      {series && src.type === 'class' && (
+        <Field label="This session is" hint="e.g. this week's lab is a quiz, or the lecture is a help session">
+          <select value={series.kindOverrides?.[src.date] ?? series.kind} onChange={(e) => { setSessionKind(o, e.target.value as ClassKind); close(); }}>
+            {KINDS.map((k) => <option key={k} value={k}>{k}{k === series.kind ? ' (usual)' : ''}</option>)}
+          </select>
+        </Field>
       )}
 
       {src.type !== 'travel' && (
@@ -83,7 +96,7 @@ function OccDetail() {
               const t = d.tasks.find((x) => x.id === task.id); if (t) t.done = !t.done;
             }))}>{task.done ? 'Mark not done' : '✓ Mark done'}</button>
           )}
-          {(src.type === 'class' || src.type === 'routine') && (
+          {(src.type === 'class' || src.type === 'routine' || src.type === 'activity') && (
             <button className="btn" onClick={act(() => skipOcc(o))}>Skip this one</button>
           )}
           {moved && <button className="btn" onClick={act(() => resetOcc(o))}>{src.type === 'task' ? 'Let auto-schedule move it' : 'Back to usual time'}</button>}
@@ -97,7 +110,8 @@ function OccDetail() {
             else if (src.type === 'event') open({ kind: 'event', id: src.eventId });
             else if (src.type === 'class') open({ kind: 'class', id: src.seriesId });
             else if (src.type === 'routine') open({ kind: 'routine', id: src.routineId });
-          }}>Edit{src.type === 'class' || src.type === 'routine' ? ' all' : ''}…</button>
+            else if (src.type === 'activity') open({ kind: 'activity', id: src.activityId });
+          }}>Edit{src.type === 'class' || src.type === 'routine' || src.type === 'activity' ? ' all' : ''}…</button>
         </div>
       )}
       <p className="muted small">Tip: drag on the calendar to move, or drag the bottom edge to change the length.</p>
@@ -113,6 +127,7 @@ function NewChoice() {
       <div className="choice-grid">
         <button className="btn big" onClick={() => open({ kind: 'task', start: m.start, end: m.end })}>📝 Task here<small>homework, admin, applications</small></button>
         <button className="btn big" onClick={() => open({ kind: 'event', start: m.start, end: m.end })}>📅 Event here<small>hangout, appointment</small></button>
+        <button className="btn big" onClick={() => open({ kind: 'event', start: m.start, end: m.end, category: 'exam' })}>📝 Exam / quiz here<small>or presentation, help session</small></button>
       </div>
     </Modal>
   );
@@ -191,7 +206,7 @@ function EventForm() {
   const existing = m.id ? data.events.find((e) => e.id === m.id) : undefined;
   const now = new Date();
   const [ev, setEv] = useState<CalEvent>(() => existing ?? {
-    id: uid(), title: '', category: 'hangout',
+    id: uid(), title: '', category: m.category ?? 'hangout', moduleId: m.moduleId,
     start: toLocal(m.start ?? now), end: toLocal(m.end ?? addMinutes(now, 120)),
   });
   const up = (p: Partial<CalEvent>) => setEv((x) => ({ ...x, ...p }));
@@ -211,10 +226,16 @@ function EventForm() {
       <button className="btn" onClick={close}>Cancel</button>
       <button className="btn primary" onClick={save} disabled={!valid}>Save</button>
     </>}>
-      <Field label="What"><input autoFocus value={ev.title} onChange={(e) => up({ title: e.target.value })} placeholder="e.g. Dinner with friends" /></Field>
+      <Field label="What"><input autoFocus value={ev.title} onChange={(e) => up({ title: e.target.value })} placeholder={['exam', 'quiz'].includes(ev.category) ? 'e.g. Midterm 2' : ev.category === 'presentation' ? 'e.g. Project demo' : 'e.g. Dinner with friends'} /></Field>
       <Field label="Type">
         <select value={ev.category} onChange={(e) => up({ category: e.target.value as EventCategory })}>
-          <option value="hangout">Hangout / outing</option><option value="appointment">Appointment</option><option value="admin">Admin</option><option value="other">Other</option>
+          {Object.entries(EVENT_LABELS).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+        </select>
+      </Field>
+      <Field label="Course (optional)">
+        <select value={ev.moduleId ?? ''} onChange={(e) => up({ moduleId: e.target.value || undefined })}>
+          <option value="">None</option>
+          {data.modules.map((mo) => <option key={mo.id} value={mo.id}>{mo.code}</option>)}
         </select>
       </Field>
       <Row>
@@ -232,7 +253,7 @@ function EventForm() {
 
 // ---------- Class series ----------
 
-const KINDS: ClassKind[] = ['Lecture', 'Discussion', 'Tutorial', 'Lab', 'Recitation', 'Seminar', 'Other'];
+const KINDS: ClassKind[] = ['Lecture', 'Discussion', 'Tutorial', 'Lab', 'Recitation', 'Seminar', 'Quiz', 'Exam', 'Presentation', 'Help session', 'Other'];
 
 function ClassForm() {
   const m = useUI((s) => s.modal) as Extract<ReturnType<typeof useUI.getState>['modal'], { kind: 'class' }>;
@@ -242,7 +263,7 @@ function ClassForm() {
   const existing = m.id ? data.classes.find((c) => c.id === m.id) : undefined;
   const [c, setC] = useState<ClassSeries>(() => existing ?? {
     id: uid(), moduleId: m.moduleId ?? data.modules[0]?.id ?? '', kind: 'Lecture', days: [0], start: '10:00', end: '12:00',
-    weeks: [], skipDates: [], overrides: {},
+    weeks: [], skipDates: [], overrides: {}, kindOverrides: {},
   });
   const mod = data.modules.find((x) => x.id === c.moduleId);
   const sem = data.semesters.find((s) => s.id === mod?.semesterId);
@@ -527,6 +548,59 @@ function RoutineForm() {
       )}
       <Field label="Location (optional)" hint="Routines with a location stay at their usual time so travel can be planned"><LocationInput value={r.location ?? ''} onChange={(v) => up({ location: v || undefined })} places={placeNames(data)} /></Field>
       <label className="check"><input type="checkbox" checked={r.enabled} onChange={(e) => up({ enabled: e.target.checked })} /> Enabled</label>
+    </Modal>
+  );
+}
+
+// ---------- CCA / club ----------
+
+function ActivityForm() {
+  const m = useUI((s) => s.modal) as Extract<ReturnType<typeof useUI.getState>['modal'], { kind: 'activity' }>;
+  const close = useUI((s) => s.close);
+  const data = useStore((s) => s.data);
+  const commit = useStore((s) => s.commit);
+  const existing = m.id ? data.activities.find((x) => x.id === m.id) : undefined;
+  const [a, setA] = useState<Activity>(() => existing ?? {
+    id: uid(), title: '', days: [0, 2, 3], start: '18:00', end: '20:00', color: '#5fa83f', skipDates: [], overrides: {},
+  });
+  const up = (p: Partial<Activity>) => setA((x) => ({ ...x, ...p }));
+  const valid = a.title.trim() && a.days.length > 0 && a.end > a.start;
+  const save = () => {
+    if (!valid) return;
+    commit(existing ? `Edit ${a.title}` : `Add ${a.title}`, (d) => {
+      const next = { ...a, title: a.title.trim() };
+      const i = d.activities.findIndex((x) => x.id === a.id);
+      if (i >= 0) d.activities[i] = next; else d.activities.push(next);
+    });
+    close();
+  };
+  return (
+    <Modal title={existing ? `Edit ${existing.title}` : 'New CCA / club'} onClose={close} footer={<>
+      {existing && <button className="btn danger" onClick={() => { commit(`Delete ${a.title}`, (d) => { d.activities = d.activities.filter((x) => x.id !== a.id); }); close(); }}>Delete</button>}
+      <span className="spacer" />
+      <button className="btn" onClick={close}>Cancel</button>
+      <button className="btn primary" onClick={save} disabled={!valid}>Save</button>
+    </>}>
+      <Field label="Name"><input autoFocus value={a.title} onChange={(e) => up({ title: e.target.value })} placeholder="e.g. Robotics" /></Field>
+      <Field label="Days"><DayPicker value={a.days} onChange={(days) => up({ days })} letters={US_DAY_LETTERS} presets={DAY_PRESETS} /></Field>
+      <Row>
+        <Field label="Start"><input type="time" value={a.start} onChange={(e) => up({ start: e.target.value })} /></Field>
+        <Field label="End"><input type="time" value={a.end} onChange={(e) => up({ end: e.target.value })} /></Field>
+      </Row>
+      <Row>
+        <Field label="From (optional)"><input type="date" value={a.from ?? ''} onChange={(e) => up({ from: e.target.value || undefined })} /></Field>
+        <Field label="Until (optional)"><input type="date" value={a.until ?? ''} onChange={(e) => up({ until: e.target.value || undefined })} /></Field>
+      </Row>
+      <Field label="Location (optional)" hint="Travel time is added automatically"><LocationInput value={a.location ?? ''} onChange={(v) => up({ location: v || undefined })} places={placeNames(data)} /></Field>
+      <Field label="Color"><ColorPicker value={a.color} onChange={(color) => up({ color })} /></Field>
+      {a.skipDates.length > 0 && (
+        <div>
+          <span className="field-label">Skipped dates</span>
+          <div className="chips">{[...a.skipDates].sort().map((dk) => (
+            <button key={dk} className="chip" title="Restore" onClick={() => up({ skipDates: a.skipDates.filter((x) => x !== dk) })}>{format(fromLocal(dk), 'd MMM')} ✕</button>
+          ))}</div>
+        </div>
+      )}
     </Modal>
   );
 }

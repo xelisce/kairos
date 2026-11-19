@@ -36,7 +36,10 @@ export interface Module {
   color: string;
 }
 
-export type ClassKind = 'Lecture' | 'Discussion' | 'Tutorial' | 'Lab' | 'Recitation' | 'Seminar' | 'Other';
+export type ClassKind = 'Lecture' | 'Discussion' | 'Tutorial' | 'Lab' | 'Recitation' | 'Seminar' | 'Quiz' | 'Exam' | 'Presentation' | 'Help session' | 'Other';
+
+/** Kinds that count as assessments (shown with emphasis). */
+export const ASSESSMENT_KINDS: ClassKind[] = ['Quiz', 'Exam', 'Presentation'];
 
 /** A moved single occurrence. */
 export interface TimeOverride {
@@ -58,6 +61,24 @@ export interface ClassSeries {
   /** Dates where this class is cancelled. */
   skipDates: LocalDate[];
   /** Per-date moves, keyed by the original date. */
+  overrides: Record<LocalDate, TimeOverride>;
+  /** Per-date change of what the session is, e.g. this week's lab is a quiz. */
+  kindOverrides: Record<LocalDate, ClassKind>;
+}
+
+/** CCA / club / recurring commitment with fixed times, e.g. Robotics MWR 18:00-20:00. */
+export interface Activity {
+  id: ID;
+  title: string;
+  days: number[];
+  start: HHMM;
+  end: HHMM;
+  location?: string;
+  color: string;
+  /** Optional date range it runs in. */
+  from?: LocalDate;
+  until?: LocalDate;
+  skipDates: LocalDate[];
   overrides: Record<LocalDate, TimeOverride>;
 }
 
@@ -83,7 +104,7 @@ export interface Routine {
   overrides: Record<LocalDate, TimeOverride>;
 }
 
-export type EventCategory = 'hangout' | 'admin' | 'appointment' | 'other';
+export type EventCategory = 'hangout' | 'admin' | 'appointment' | 'exam' | 'quiz' | 'presentation' | 'help' | 'other';
 
 /** One-off fixed-time thing: hangout, appointment, admin slot. */
 export interface CalEvent {
@@ -94,6 +115,8 @@ export interface CalEvent {
   end: LocalDateTime;
   location?: string;
   notes?: string;
+  /** Link to a course (exams, quizzes, presentations, help sessions). */
+  moduleId?: ID;
 }
 
 export type TaskCategory = 'homework' | 'admin' | 'personal' | 'other';
@@ -136,6 +159,8 @@ export interface Route {
   a: ID;
   b: ID;
   minutes: number;
+  /** Same time both ways (default). When false, only a -> b. */
+  bidirectional: boolean;
 }
 
 export interface Settings {
@@ -160,6 +185,7 @@ export interface AppData {
   semesters: Semester[];
   modules: Module[];
   classes: ClassSeries[];
+  activities: Activity[];
   routines: Routine[];
   events: CalEvent[];
   tasks: Task[];
@@ -167,6 +193,8 @@ export interface AppData {
   routes: Route[];
   /** Per-trip travel minute overrides, keyed by travel occurrence key. */
   travelOverrides: Record<string, number>;
+  /** Travel blocks dragged to a different start time, keyed by travel key. */
+  travelMoves: Record<string, LocalDateTime>;
 }
 
 // ---------- Derived (computed, never stored) ----------
@@ -174,9 +202,10 @@ export interface AppData {
 export type OccSource =
   | { type: 'class'; seriesId: ID; date: LocalDate }
   | { type: 'routine'; routineId: ID; date: LocalDate }
+  | { type: 'activity'; activityId: ID; date: LocalDate }
   | { type: 'event'; eventId: ID }
   | { type: 'task'; taskId: ID }
-  | { type: 'travel'; key: string; minutes: number; from: string; to: string; overridden: boolean };
+  | { type: 'travel'; key: string; minutes: number; from: string; to: string; overridden: boolean; moved: boolean };
 
 export interface Occ {
   id: string;
@@ -191,4 +220,6 @@ export interface Occ {
   movable: boolean;
   /** Red + warning icon with this message. */
   warning?: string;
+  /** Exam / quiz / presentation: drawn with extra emphasis. */
+  assessment?: boolean;
 }

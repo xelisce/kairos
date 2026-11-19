@@ -110,7 +110,7 @@ export function ClassesPanel() {
             <header className="sem-head">
               <button className="linkish strong" onClick={() => open({ kind: 'semester', id: sem.id })}>{sem.name}</button>
               {wi !== null && <span className="tag neutral">Now: {weekLabelText(sem.layout[wi])}</span>}
-              <button className="linkish" onClick={() => open({ kind: 'nusmods', semesterId: sem.id })}>Import NUSMods</button>
+              {sem.style === 'nus' && <button className="linkish" onClick={() => open({ kind: 'nusmods', semesterId: sem.id })}>Import NUSMods</button>}
             </header>
             {data.modules.filter((m) => m.semesterId === sem.id).map((m) => (
               <div key={m.id} className="mod" style={{ borderLeftColor: m.color }}>
@@ -119,6 +119,7 @@ export function ClassesPanel() {
                   <span className="muted">{m.name}</span>
                   <span className="spacer" />
                   <button className="chip" onClick={() => open({ kind: 'class', moduleId: m.id })}>+ class</button>
+                  <button className="chip" title="Exam, quiz, presentation or help session" onClick={() => open({ kind: 'event', category: 'exam', moduleId: m.id })}>+ exam</button>
                 </div>
                 <ul className="lessons">
                   {data.classes.filter((c) => c.moduleId === m.id).map((c) => (
@@ -129,12 +130,36 @@ export function ClassesPanel() {
                     </li>
                   ))}
                 </ul>
+                <ul className="mod-tasks">
+                  {data.events.filter((e) => e.moduleId === m.id && fromLocal(e.end) >= today).sort((a, b) => a.start.localeCompare(b.start)).map((e) => (
+                    <li key={e.id}><button className="linkish" onClick={() => open({ kind: 'event', id: e.id })}>
+                      {['exam', 'quiz'].includes(e.category) ? '📝' : e.category === 'presentation' ? '🎤' : e.category === 'help' ? '🙋' : '📅'} {e.title} · {format(fromLocal(e.start), 'EEE d MMM HH:mm')}
+                    </button></li>
+                  ))}
+                </ul>
                 <TaskCount moduleId={m.id} />
               </div>
             ))}
           </section>
         );
       })}
+
+      <section className="sem">
+        <header className="sem-head">
+          <span className="strong">CCAs &amp; clubs</span>
+          <span className="spacer" />
+          <button className="chip" onClick={() => open({ kind: 'activity' })}>+ CCA</button>
+        </header>
+        {!data.activities.length && <p className="muted small">Recurring things with fixed times, e.g. Robotics MWR 18:00–20:00.</p>}
+        {data.activities.map((a) => (
+          <div key={a.id} className="mod" style={{ borderLeftColor: a.color }}>
+            <button className="linkish" onClick={() => open({ kind: 'activity', id: a.id })}>
+              <b>{a.title}</b> · {formatDays(a.days, 'us')} {a.start}–{a.end}{a.location ? ` · 📍${a.location}` : ''}
+              {(a.from || a.until) && <span className="muted"> · {a.from ? format(fromLocal(a.from), 'd MMM') : '…'}–{a.until ? format(fromLocal(a.until), 'd MMM') : '…'}</span>}
+            </button>
+          </div>
+        ))}
+      </section>
     </div>
   );
 }
@@ -189,7 +214,7 @@ export function PlacesPanel() {
   const data = useStore((s) => s.data);
   const commit = useStore((s) => s.commit);
   const [name, setName] = useState('');
-  const [route, setRoute] = useState({ a: '', b: '', minutes: '20' });
+  const [route, setRoute] = useState({ a: '', b: '', minutes: '20', both: true });
   const pname = (id: string) => data.places.find((p) => p.id === id)?.name ?? '?';
   const st = data.settings;
   const setS = (k: keyof typeof st, v: string | number) => commit(`Setting ${k}`, (d) => { (d.settings as unknown as Record<string, unknown>)[k] = v; });
@@ -224,10 +249,15 @@ export function PlacesPanel() {
       <ul className="routes">
         {data.routes.map((r) => (
           <li key={r.id}>
-            {pname(r.a)} ↔ {pname(r.b)}
+            <span className="route-name">{pname(r.a)} {r.bidirectional !== false ? '↔' : '→'} {pname(r.b)}</span>
             <NumberInput className="mins" value={r.minutes} aria-label="Minutes" onCommit={(v) => {
               commit(`Route ${pname(r.a)}–${pname(r.b)} ${v}m`, (d) => { const x = d.routes.find((y) => y.id === r.id); if (x) x.minutes = v; });
             }} /> min
+            <label className="check small" title="Same time both ways">
+              <input type="checkbox" checked={r.bidirectional !== false} onChange={(e) => commit(`${pname(r.a)}–${pname(r.b)} ${e.target.checked ? 'both ways' : 'one way'}`, (d) => {
+                const x = d.routes.find((y) => y.id === r.id); if (x) x.bidirectional = e.target.checked;
+              })} /> both ways
+            </label>
             <button className="icon-btn" aria-label="Delete route" onClick={() => commit('Delete route', (d) => { d.routes = d.routes.filter((x) => x.id !== r.id); })}>✕</button>
           </li>
         ))}
@@ -237,13 +267,14 @@ export function PlacesPanel() {
         <Field label="To"><select value={route.b} onChange={(e) => setRoute({ ...route, b: e.target.value })}><option value="">…</option>{data.places.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
         <Field label="Min"><input type="text" inputMode="numeric" value={route.minutes} onChange={(e) => setRoute({ ...route, minutes: e.target.value.replace(/[^\d]/g, '') })} /></Field>
         <button className="btn align-end" disabled={!route.a || !route.b || route.a === route.b} onClick={() => {
-          commit(`Route ${pname(route.a)}–${pname(route.b)}`, (d) => {
-            d.routes = d.routes.filter((r) => !((r.a === route.a && r.b === route.b) || (r.a === route.b && r.b === route.a)));
-            d.routes.push({ id: uid(), a: route.a, b: route.b, minutes: Math.max(0, Number(route.minutes) || 0) });
+          commit(`Route ${pname(route.a)}${route.both ? '↔' : '→'}${pname(route.b)}`, (d) => {
+            d.routes = d.routes.filter((r) => !((r.a === route.a && r.b === route.b) || (route.both && r.a === route.b && r.b === route.a)));
+            d.routes.push({ id: uid(), a: route.a, b: route.b, minutes: Math.max(0, Number(route.minutes) || 0), bidirectional: route.both });
           });
-          setRoute({ a: '', b: '', minutes: '20' });
+          setRoute({ a: '', b: '', minutes: '20', both: true });
         }}>Save</button>
       </Row>
+      <label className="check"><input type="checkbox" checked={route.both} onChange={(e) => setRoute({ ...route, both: e.target.checked })} /> Same time both ways (untick if e.g. the way back takes longer)</label>
 
       <h3>Settings</h3>
       <Row>

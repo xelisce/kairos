@@ -32,9 +32,9 @@ function sample(): AppData {
   d.semesters = [{ id: 's', name: 'S', style: 'nus', startDate: '2026-08-31', layout: parseLayout('1-6, Recess, 7-13'), holidays: [] }];
   d.modules = [{ id: 'm', semesterId: 's', code: 'CS1', name: 'x', color: '#000' }];
   // Monday 11:30-13:30 in odd weeks, at COM1
-  d.classes = [{ id: 'c', moduleId: 'm', kind: 'Lecture', days: [0], start: '11:30', end: '13:30', weeks: parseWeeks('odd'), location: 'COM1-0204', skipDates: [], overrides: {} }];
+  d.classes = [{ id: 'c', moduleId: 'm', kind: 'Lecture', days: [0], start: '11:30', end: '13:30', weeks: parseWeeks('odd'), location: 'COM1-0204', skipDates: [], overrides: {}, kindOverrides: {} }];
   d.places.push({ id: 'p', name: 'COM1', aliases: [] });
-  d.routes.push({ id: 'r', a: d.places[0].id, b: 'p', minutes: 30 });
+  d.routes.push({ id: 'r', a: d.places[0].id, b: 'p', minutes: 30, bidirectional: true });
   return d;
 }
 
@@ -85,7 +85,7 @@ describe('UW–Madison Fall 2026 preset', () => {
     d.routines = [];
     d.semesters = [semesterFromPreset(SEMESTER_PRESETS[0], 's')];
     d.modules = [{ id: 'm', semesterId: 's', code: 'CS 642', name: 'x', color: '#000' }];
-    d.classes = [{ id: 'c', moduleId: 'm', kind: 'Lecture', days: [0, 2, 4], start: '09:30', end: '10:45', weeks: parseWeeks('1-15'), skipDates: [], overrides: {} }];
+    d.classes = [{ id: 'c', moduleId: 'm', kind: 'Lecture', days: [0, 2, 4], start: '09:30', end: '10:45', weeks: parseWeeks('1-15'), skipDates: [], overrides: {}, kindOverrides: {} }];
     const occs = expand(d, fromLocal('2026-08-24'), fromLocal('2026-12-31'));
     const days = occs.map((o) => o.start.toISOString().slice(0, 10));
     expect(occs[0].start.getDate()).toBe(2); // Wed Sep 2
@@ -116,5 +116,40 @@ describe('UW multi-day classes', () => {
   it('rejects odd/even when parity is off', () => {
     expect(() => parseWeeks('odd', 15, false)).toThrow();
     expect(formatWeeks([1, 3, 5, 7], false)).toBe('1, 3, 5, 7');
+  });
+});
+
+describe('CCAs, session kinds, routes, travel moves', () => {
+  it('CCA runs on its days within its range, with travel', () => {
+    const d = sample();
+    d.places.push({ id: 'eh', name: 'Engineering Hall', aliases: [] });
+    d.activities.push({ id: 'a', title: 'Robotics', days: [0, 2, 3], start: '18:00', end: '20:00', location: 'Engineering Hall', color: '#000', until: '2026-09-09', skipDates: [], overrides: {} });
+    const occs = expand(d, fromLocal('2026-08-31'), fromLocal('2026-09-14'));
+    const robo = occs.filter((o) => o.source.type === 'activity');
+    expect(robo.map((o) => o.start.getDate())).toEqual([31, 2, 3, 7, 9]);
+    expect(occs.some((o) => o.source.type === 'travel' && o.title.includes('Engineering Hall'))).toBe(true);
+  });
+  it('one class session can become a quiz', () => {
+    const d = sample();
+    d.classes[0].kindOverrides['2026-08-31'] = 'Quiz';
+    const [c] = expand(d, fromLocal('2026-08-31'), fromLocal('2026-09-01')).filter((o) => o.source.type === 'class');
+    expect(c.title).toContain('Quiz');
+    expect(c.assessment).toBe(true);
+  });
+  it('one-way routes only apply in their direction', () => {
+    const d = sample();
+    d.routes[0].bidirectional = false; // Home -> COM1 30m only
+    const occs = expand(d, fromLocal('2026-08-31'), fromLocal('2026-09-01'));
+    const back = occs.find((o) => o.source.type === 'travel' && o.id.endsWith(':home'))!;
+    expect((back.end.getTime() - back.start.getTime()) / 60000).toBe(d.settings.defaultTravelMin);
+  });
+  it('moving travel later warns about arriving late', () => {
+    const d = sample();
+    const t = expand(d, fromLocal('2026-08-31'), fromLocal('2026-09-01')).find((o) => o.source.type === 'travel' && o.id.endsWith(':in'))!;
+    if (t.source.type !== 'travel') throw new Error();
+    d.travelMoves[t.source.key] = '2026-08-31T11:10';
+    const moved = expand(d, fromLocal('2026-08-31'), fromLocal('2026-09-01')).find((o) => o.id === t.id)!;
+    expect(moved.start.getHours() * 60 + moved.start.getMinutes()).toBe(11 * 60 + 10);
+    expect(moved.warning).toMatch(/late/);
   });
 });

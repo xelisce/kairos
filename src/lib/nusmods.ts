@@ -68,7 +68,7 @@ export async function importNusmods(link: string, sem: Semester, colorOffset: nu
         classes.push({
           id: uid(), moduleId: mod.id, kind: kindOf(l.lessonType), days: [DAYS[l.day] ?? 0],
           start: hhmm(l.startTime), end: hhmm(l.endTime), weeks: l.weeks as number[],
-          location: l.venue || undefined, skipDates: [], overrides: {},
+          location: l.venue || undefined, skipDates: [], overrides: {}, kindOverrides: {},
         });
       }
     }
