@@ -156,11 +156,11 @@ code { background: var(--surface-2); padding: 0 4px; border-radius: 4px; }
 .sem { margin-top: 12px; }
 .sem-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
 .mod { border-left: 4px solid; padding: 6px 0 6px 10px; margin: 8px 0; background: var(--surface-2); border-radius: 0 8px 8px 0; }
-/* Course/CCA header: the name shrinks first, then the code, then the buttons wrap one by one. */
-.mod-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-right: 8px; }
-.mod-id { flex: 1 1 0; min-width: 4ch; display: flex; align-items: baseline; gap: 8px; overflow: hidden; }
-.mod-code { flex: 0 1 auto; min-width: 3ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mod-name { flex: 0 1000 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Course/CCA header: the name shrinks first, then the buttons wrap one by one ("+ exam" first).
+   The code is never cut off: if it alone doesn't fit, it breaks onto a new line at a space. */
+.mod-head { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; row-gap: 4px; padding-right: 8px; }
+.mod-code { flex: 0 1 auto; min-width: 0; white-space: normal; overflow-wrap: normal; text-align: left; }
+.mod-name { flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mod-head .chip { flex: none; }
 /* Pieces of a line ("MWF 13:00–14:15 · wk 1-15 · Morgridge Hall") wrap as whole pieces. */
 .part { display: inline-block; max-width: 100%; vertical-align: top; }
@@ -312,3 +312,12 @@ body.resizing { cursor: col-resize; user-select: none; }
 .place-name { cursor: text; border-radius: 4px; padding: 1px 3px; }
 .place-name:hover, .place-name:focus-visible { background: var(--surface-2); outline: none; }
 .place-edit { width: auto; flex: 0 1 160px; padding: 3px 6px; font-weight: 600; }
+
+/* dd/mm/yyyy date box */
+.dateinput { position: relative; display: flex; min-width: 0; }
+.dateinput input[type='text'] { padding-right: 30px; }
+.dateinput.bad-input input[type='text'] { border-color: var(--bad); }
+.hidden-picker { position: absolute; left: 0; bottom: 0; width: 1px !important; height: 1px; opacity: 0; pointer-events: none; padding: 0; border: 0; }
+.datetimeinput { display: flex; gap: 6px; min-width: 0; }
+.datetimeinput .dateinput { flex: 1 1 130px; }
+.datetimeinput input[type='time'] { flex: 0 1 110px; }

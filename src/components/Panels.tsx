@@ -115,10 +115,8 @@ export function ClassesPanel() {
             {data.modules.filter((m) => m.semesterId === sem.id).map((m) => (
               <div key={m.id} className="mod" style={{ borderLeftColor: m.color }}>
                 <div className="mod-head">
-                  <span className="mod-id">
-                    <button className="linkish strong mod-code" title={`${m.code} ${m.name}`} onClick={() => open({ kind: 'module', id: m.id })}>{m.code}</button>
-                    <span className="muted mod-name" title={m.name}>{m.name}</span>
-                  </span>
+                  <button className="linkish strong mod-code" title={`${m.code} ${m.name}`} onClick={() => open({ kind: 'module', id: m.id })}>{m.code}</button>
+                  <span className="muted mod-name" title={m.name}>{m.name}</span>
                   <button className="chip" onClick={() => open({ kind: 'class', moduleId: m.id })}>+ class</button>
                   <button className="chip" title="Exam, quiz, presentation or help session" onClick={() => open({ kind: 'event', category: 'exam', moduleId: m.id })}>+ exam</button>
                 </div>
@@ -147,7 +145,7 @@ export function ClassesPanel() {
 
       <section className="sem">
         <header className="sem-head">
-          <span className="strong">CCAs &amp; clubs</span>
+          <span className="strong">CCAs, clubs &amp; activities</span>
           <span className="spacer" />
           <button className="chip" onClick={() => open({ kind: 'activity' })}>+ CCA</button>
         </header>
@@ -157,9 +155,8 @@ export function ClassesPanel() {
           return (
             <div key={a.id} className="mod" style={{ borderLeftColor: a.color }}>
               <div className="mod-head">
-                <span className="mod-id">
-                  <button className="linkish strong mod-code" title={a.title} onClick={() => open({ kind: 'activity', id: a.id })}>{a.title}</button>
-                </span>
+                <button className="linkish strong mod-code" title={a.title} onClick={() => open({ kind: 'activity', id: a.id })}>{a.title}</button>
+                <span className="mod-name" />
                 <button className="chip" title="Add a session you booked" onClick={() => open({ kind: 'event', category: 'cca', activityId: a.id })}>+ session</button>
               </div>
               <ul className="lessons">

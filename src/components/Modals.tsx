@@ -3,7 +3,7 @@ import { addDays, addMinutes, format, startOfWeek } from 'date-fns';
 import { useStore } from '../store';
 import type { SemesterStyle } from '../types';
 import type { Activity, AppData, CalEvent, ClassKind, ClassSeries, EventCategory, Module, Routine, RoutineCategory, Semester, Task, TaskCategory } from '../types';
-import { ColorPicker, Field, LocationInput, Modal, NumberInput, Row, DayPicker, useUI } from './ui';
+import { ColorPicker, DateInput, DateTimeInput, Field, LocationInput, Modal, NumberInput, Row, DayPicker, useUI } from './ui';
 import { at, dateKey, fmtDur, fmtTime, fromLocal, toLocal, uid, WEEKDAYS } from '../lib/time';
 import { formatLayout, formatWeeks, LAYOUT_PRESETS, maxTeachingWeek, parseLayout, parseWeeks, SEMESTER_PRESETS, semesterFromPreset, weekLabelText, DAY_PRESETS, US_DAY_LETTERS } from '../lib/weeks';
 import { resetOcc, setDetail, setSessionKind, setTravel, skipOcc } from '../lib/actions';
@@ -150,7 +150,7 @@ function NewChoice() {
         <button className="btn big" onClick={() => open({ kind: 'task', start: m.start, end: m.end })}>📝 Task here<small>homework, admin, applications</small></button>
         <button className="btn big" onClick={() => open({ kind: 'event', start: m.start, end: m.end })}>📅 Event here<small>hangout, appointment</small></button>
         <button className="btn big" onClick={() => open({ kind: 'event', start: m.start, end: m.end, category: 'exam' })}>📝 Exam / quiz here<small>or presentation, help session</small></button>
-        <button className="btn big" onClick={() => open({ kind: 'event', start: m.start, end: m.end, category: 'cca' })}>🧗 CCA session here<small>a session you booked</small></button>
+        <button className="btn big" onClick={() => open({ kind: 'event', start: m.start, end: m.end, category: 'cca' })}>🧗 CCA / activity here<small>a session you booked</small></button>
       </div>
     </Modal>
   );
@@ -205,11 +205,11 @@ function TaskForm() {
       <Row>
         <Field label="How long (min)"><NumberInput min={5} value={t.durationMin} onCommit={(durationMin) => up({ durationMin })} /></Field>
         <Field label="Deadline" hint="It won't be scheduled after this; if it has to be, it shows red ⚠️">
-          <input type="datetime-local" value={t.deadline ?? ''} onChange={(e) => up({ deadline: e.target.value || undefined })} />
+          <DateTimeInput value={t.deadline ?? ''} defaultTime="23:59" onChange={(v) => up({ deadline: v || undefined })} />
         </Field>
       </Row>
       <Row>
-        <Field label="Not before (optional)"><input type="datetime-local" value={t.earliest ?? ''} onChange={(e) => up({ earliest: e.target.value || undefined })} /></Field>
+        <Field label="Not before (optional)"><DateTimeInput value={t.earliest ?? ''} onChange={(v) => up({ earliest: v || undefined })} /></Field>
         <Field label="Location (optional)"><LocationInput value={t.location ?? ''} onChange={(v) => up({ location: v || undefined })} places={placeNames(data)} /></Field>
       </Row>
       <label className="check"><input type="checkbox" checked={t.onCalendar} onChange={(e) => up({ onCalendar: e.target.checked, pinned: e.target.checked ? t.pinned : false })} /> Put on calendar (auto-finds a slot)</label>
@@ -274,7 +274,7 @@ function EventForm() {
         </select>
       </Field>
       {ev.category === 'cca' && (
-        <Field label="CCA / club">
+        <Field label="CCA, club or activity">
           <select value={ev.activityId ?? ''} onChange={(e) => {
             const act = data.activities.find((x) => x.id === e.target.value);
             up({ activityId: act?.id, ...(act ? { title: act.title, location: ev.location ?? act.location } : {}) });
@@ -291,11 +291,13 @@ function EventForm() {
         </select>
       </Field>}
       <Row>
-        <Field label="Start"><input type="datetime-local" value={ev.start} onChange={(e) => {
+        <Field label="Start"><DateTimeInput value={ev.start} onChange={(v) => {
+          if (!v) return;
+          // Keep the same length when the start moves.
           const dur = fromLocal(ev.end).getTime() - fromLocal(ev.start).getTime();
-          up({ start: e.target.value, end: toLocal(new Date(fromLocal(e.target.value).getTime() + dur)) });
+          up({ start: v, end: toLocal(new Date(fromLocal(v).getTime() + dur)) });
         }} /></Field>
-        <Field label="End"><input type="datetime-local" value={ev.end} onChange={(e) => up({ end: e.target.value })} /></Field>
+        <Field label="End"><DateTimeInput value={ev.end} onChange={(v) => v && up({ end: v })} /></Field>
       </Row>
       <Field label="Location (optional)" hint="Travel time is added automatically if you're going somewhere else"><LocationInput value={ev.location ?? ''} onChange={(v) => up({ location: v || undefined })} places={placeNames(data)} /></Field>
       <Field label="Notes"><textarea rows={2} value={ev.notes ?? ''} onChange={(e) => up({ notes: e.target.value || undefined })} /></Field>
@@ -504,7 +506,7 @@ function SemesterForm() {
       <Row>
         <Field label="Name"><input autoFocus value={sem.name} onChange={(e) => up({ name: e.target.value })} placeholder="Fall 2026" /></Field>
         <Field label="Monday of first week" hint={!isMonday ? <span className="bad">Pick a Monday</span> : undefined}>
-          <input type="date" value={sem.startDate} onChange={(e) => e.target.value && up({ startDate: dateKey(startOfWeek(fromLocal(e.target.value), { weekStartsOn: 1 })) })} />
+          <DateInput value={sem.startDate} onChange={(v) => v && up({ startDate: dateKey(startOfWeek(fromLocal(v), { weekStartsOn: 1 })) })} />
         </Field>
       </Row>
       <Field label="Class style" hint={sem.style === 'us' ? 'Classes can meet several days a week (MWF, TR), every week' : 'One day per lesson; odd/even week patterns allowed'}>
@@ -532,7 +534,7 @@ function SemesterForm() {
         ))}
       </div>
       <Row>
-        <Field label="Date"><input type="date" value={hol.date} onChange={(e) => setHol({ ...hol, date: e.target.value })} /></Field>
+        <Field label="Date"><DateInput value={hol.date} onChange={(v) => setHol({ ...hol, date: v })} /></Field>
         <Field label="Name"><input value={hol.name} onChange={(e) => setHol({ ...hol, name: e.target.value })} placeholder="Good Friday" /></Field>
         <button type="button" className="btn align-end" disabled={!hol.date} onClick={() => {
           up({ holidays: [...sem.holidays.filter((x) => x.date !== hol.date), { date: hol.date, name: hol.name || 'Holiday' }].sort((a, b) => a.date.localeCompare(b.date)) });
@@ -637,7 +639,7 @@ function ActivityForm() {
     close();
   };
   return (
-    <Modal title={existing ? `Edit ${existing.title}` : 'New CCA / club'} onClose={close} footer={<>
+    <Modal title={existing ? `Edit ${existing.title}` : 'New CCA, club or activity'} onClose={close} footer={<>
       {existing && <button className="btn danger" onClick={() => {
         const sessions = data.events.filter((e) => e.activityId === a.id).length;
         if (sessions && !confirm(`Delete ${a.title} and its ${sessions} booked session(s)?`)) return;
@@ -663,11 +665,11 @@ function ActivityForm() {
       </Row>
       {a.recurring ? (
         <Row>
-          <Field label="From (optional)"><input type="date" value={a.from ?? ''} onChange={(e) => up({ from: e.target.value || undefined })} /></Field>
-          <Field label="Until (optional)"><input type="date" value={a.until ?? ''} onChange={(e) => up({ until: e.target.value || undefined })} /></Field>
+          <Field label="From (optional)"><DateInput value={a.from ?? ''} onChange={(v) => up({ from: v || undefined })} /></Field>
+          <Field label="Until (optional)"><DateInput value={a.until ?? ''} onChange={(v) => up({ until: v || undefined })} /></Field>
         </Row>
       ) : (
-        <p className="muted small">After saving, add each session you book with “+ session” in the Classes tab, or drag on the calendar and pick “CCA session here”. The usual times above are pre-filled.</p>
+        <p className="muted small">After saving, add each session you book with “+ session” in the Classes tab, or drag on the calendar and pick “CCA / activity here”. The usual times above are pre-filled.</p>
       )}
       <Field label="Location (optional)" hint="Travel time is added automatically"><LocationInput value={a.location ?? ''} onChange={(v) => up({ location: v || undefined })} places={placeNames(data)} /></Field>
       <Field label="Color"><ColorPicker value={a.color} onChange={(color) => up({ color })} /></Field>

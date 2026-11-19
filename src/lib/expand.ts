@@ -23,7 +23,7 @@ export const CATEGORY_COLORS: Record<string, string> = {
 };
 
 export const EVENT_LABELS: Record<string, string> = {
-  hangout: 'Hangout / outing', cca: 'CCA / club session', appointment: 'Appointment', admin: 'Admin',
+  hangout: 'Hangout / outing', cca: 'CCA / club / activity session', appointment: 'Appointment', admin: 'Admin',
   exam: 'Exam', quiz: 'Quiz', presentation: 'Presentation', help: 'Help session', other: 'Other',
 };
 const ASSESSMENT_EVENTS = ['exam', 'quiz', 'presentation'];
@@ -31,16 +31,35 @@ const KIND_ICON: Partial<Record<string, string>> = { Quiz: '📝 ', Exam: '📝 
 
 // ---------- Places & travel ----------
 
-export interface ResolvedPlace { id: string; name: string; known: boolean }
+/** `name` is the place's full name; `short` is its shortest name or alias, used on travel blocks. */
+export interface ResolvedPlace { id: string; name: string; short: string; known: boolean }
 
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** Does `text` contain `word` as a whole word (not inside another word), any capitalisation? */
+export const hasWord = (text: string, word: string) =>
+  new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(word)}(?![\\p{L}\\p{N}])`, 'iu').test(text);
+
+/**
+ * Which saved place is this location? A place matches when its name or any alias
+ * appears in the location as a whole word: "107 BPB" -> BPB, "2532 MH" -> MH,
+ * "COM1-0204" -> COM1, but "PS" doesn't match "Psychology". Longest match wins.
+ */
 export function resolvePlace(data: AppData, location?: string): ResolvedPlace | null {
-  const loc = location?.trim().toLowerCase();
+  const loc = location?.trim();
   if (!loc) return null;
+  let best: { p: Place; len: number } | null = null;
   for (const p of data.places) {
-    const names = [p.name, ...p.aliases].map((n) => n.trim().toLowerCase()).filter(Boolean);
-    if (names.some((n) => n === loc || (n.length >= 3 && loc.includes(n)))) return { id: p.id, name: p.name, known: true };
+    for (const n of [p.name, ...p.aliases].map((x) => x.trim()).filter(Boolean)) {
+      if (hasWord(loc, n) && (!best || n.length > best.len)) best = { p, len: n.length };
+    }
   }
-  return { id: `loc:${loc}`, name: location!.trim(), known: false };
+  if (best) return placeRef(best.p);
+  return { id: `loc:${loc.toLowerCase()}`, name: loc, short: loc, known: false };
+}
+
+export function placeRef(p: Place): ResolvedPlace {
+  const short = [p.name, ...p.aliases].map((x) => x.trim()).filter(Boolean).reduce((a, b) => (b.length < a.length ? b : a), p.name);
+  return { id: p.id, name: p.name, short, known: true };
 }
 
 export const homePlace = (data: AppData): Place | undefined => data.places.find((p) => p.isHome);
@@ -256,7 +275,7 @@ function fitRoutine(r: Routine, day: Date, dk: string, busy: Occ[]): Occ {
  */
 function computeTravel(data: AppData, items: Occ[]): Occ[] {
   const home = homePlace(data);
-  const homeR: ResolvedPlace | null = home ? { id: home.id, name: home.name, known: true } : null;
+  const homeR: ResolvedPlace | null = home ? placeRef(home) : null;
   const byDay = new Map<string, { occ: Occ; place: ResolvedPlace }[]>();
   for (const o of items) {
     const p = resolvePlace(data, o.location);
@@ -286,7 +305,7 @@ function computeTravel(data: AppData, items: Occ[]): Occ[] {
         } else if (prevEnd && start < prevEnd) {
           warning = `Only ${Math.max(0, differenceInMinutes(occ.start, prevEnd))}m to get from ${cur.name} to ${place.name}, but the trip takes ${minutes}m`;
         }
-        out.push(travelOcc(key, cur.name, place.name, start, end, minutes, ovr !== undefined, !!movedTo, tm.saved, warning));
+        out.push(travelOcc(key, cur, place, start, end, minutes, ovr !== undefined, !!movedTo, tm.saved, warning));
       }
       cur = place;
       if (prevEnd === null || occ.end.getTime() > (prevEnd as Date).getTime()) prevEnd = occ.end;
@@ -300,19 +319,21 @@ function computeTravel(data: AppData, items: Occ[]): Occ[] {
       const movedTo = data.travelMoves?.[key];
       const start = movedTo ? fromLocal(movedTo) : prevEnd;
       const warning = start < prevEnd ? `Leaving ${cur.name} before ${last.title} ends` : undefined;
-      out.push(travelOcc(key, cur.name, homeR.name, start, addMinutes(start, minutes), minutes, ovr !== undefined, !!movedTo, tm.saved, warning));
+      out.push(travelOcc(key, cur, homeR, start, addMinutes(start, minutes), minutes, ovr !== undefined, !!movedTo, tm.saved, warning));
     }
   }
   return out;
 }
 
-function travelOcc(key: string, from: string, to: string, start: Date, end: Date, minutes: number,
+function travelOcc(key: string, from: ResolvedPlace, to: ResolvedPlace, start: Date, end: Date, minutes: number,
   overridden: boolean, moved: boolean, saved: boolean, warning?: string): Occ {
+  const full = (r: ResolvedPlace) => (r.short !== r.name ? `${r.name} (${r.short})` : r.name);
   return {
     id: `travel:${key}`,
-    source: { type: 'travel', key, minutes, from, to, overridden, moved },
-    title: `🚶 ${to}`,
-    subtitle: `Leave ${from} ${key.endsWith(':home') ? 'at' : 'by'} ${fmtTime(start)}${saved || overridden ? '' : ' (estimate)'}`,
+    // Full names in the dialog; the short name on the calendar block.
+    source: { type: 'travel', key, minutes, from: full(from), to: full(to), overridden, moved },
+    title: `🚶 ${to.short}`,
+    subtitle: `Leave ${from.short} ${key.endsWith(':home') ? 'at' : 'by'} ${fmtTime(start)}${saved || overridden ? '' : ' (estimate)'}`,
     start,
     end,
     color: CATEGORY_COLORS.travel,

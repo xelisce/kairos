@@ -270,3 +270,44 @@ describe('rename place', () => {
     expect(d.places.find((p) => p.id === 'b')!.name).toBe('Brogden');
   });
 });
+
+describe('alias matching (whole words, any length) and short travel names', () => {
+  it('matches 107 BPB, 2532 MH, 108 PS; not PS inside Psychology', async () => {
+    const { resolvePlace } = await import('./expand');
+    const d = defaultData();
+    d.places.push(
+      { id: 'b', name: 'Brogden Psychology Building', aliases: ['BPB'] },
+      { id: 'm', name: 'Morgridge Hall', aliases: ['MH'] },
+      { id: 'p', name: 'Plant Sciences', aliases: ['PS'] },
+      { id: 'c', name: 'COM1', aliases: [] },
+    );
+    expect(resolvePlace(d, '107 BPB')!.id).toBe('b');
+    expect(resolvePlace(d, '2532 MH')!.id).toBe('m');
+    expect(resolvePlace(d, '108 PS')!.id).toBe('p');
+    expect(resolvePlace(d, 'COM1-0204')!.id).toBe('c');
+    expect(resolvePlace(d, '107 Brogden Psychology Building')!.id).toBe('b');
+    expect(resolvePlace(d, 'Psychology dept')!.known).toBe(false);
+    expect(resolvePlace(d, '107 BPB')!.short).toBe('BPB');
+  });
+  it('travel blocks use the short name and the saved route time', () => {
+    const d = defaultData();
+    d.routines = [];
+    d.places.push({ id: 'b', name: 'Brogden Psychology Building', aliases: ['BPB'] });
+    d.routes.push({ id: 'r', a: d.places[0].id, b: 'b', minutes: 30, bidirectional: true });
+    d.events = [{ id: 'e', title: 'Class', category: 'other', start: '2026-11-20T13:00', end: '2026-11-20T14:00', location: '107 BPB' }];
+    const t = expand(d, fromLocal('2026-11-20'), fromLocal('2026-11-21')).find((o) => o.source.type === 'travel' && o.id.endsWith(':in'))!;
+    expect(t.title).toBe('🚶 BPB');
+    expect((t.end.getTime() - t.start.getTime()) / 60000).toBe(30 + d.settings.travelBufferMin);
+  });
+});
+
+describe('dd/mm/yyyy', () => {
+  it('reads and shows day-first dates', async () => {
+    const { parseDMY, toDMY } = await import('../components/ui');
+    expect(parseDMY('20/11/2026')).toBe('2026-11-20');
+    expect(parseDMY('2-9-26')).toBe('2026-09-02');
+    expect(parseDMY('31/02/2026')).toBeNull();
+    expect(parseDMY('11/20/2026')).toBeNull(); // month 20 isn't a date
+    expect(toDMY('2026-09-07')).toBe('07/09/2026');
+  });
+});

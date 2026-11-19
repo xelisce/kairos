@@ -3,6 +3,7 @@ import FullCalendar from '@fullcalendar/react';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
+import enGbLocale from '@fullcalendar/core/locales/en-gb';
 import type { EventContentArg, EventDropArg, DatesSetArg, EventClickArg, DateSelectArg } from '@fullcalendar/core';
 import type { EventResizeDoneArg } from '@fullcalendar/interaction';
 import { useStore } from '../store';
@@ -54,6 +55,9 @@ export function CalendarView({ range, onRange }: { range: { start: Date; end: Da
           ? { left: 'prev,next today', center: '', right: 'timeGridDay,timeGrid3' }
           : { left: 'prev,next today', center: 'title', right: 'timeGridDay,timeGrid3,timeGridWeek,dayGridMonth' }}
         firstDay={1}
+        // Day before month everywhere: "Mon 16/11", "16 – 22 Nov 2026".
+        locale={enGbLocale}
+        dayHeaderFormat={{ weekday: 'short', day: 'numeric', month: 'numeric', omitCommas: true }}
         nowIndicator
         allDaySlot={false}
         slotDuration="00:15:00"

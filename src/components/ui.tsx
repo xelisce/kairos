@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { create } from 'zustand';
 import type { EventCategory, Occ } from '../types';
 
@@ -160,6 +160,68 @@ export function ColorPicker({ value, onChange }: { value: string; onChange: (v: 
       ))}
       <button type="button" className={`chip ${custom ? 'on' : ''}`} onClick={() => setCustom(!custom)}>Custom…</button>
       {custom && <input type="color" value={value} onChange={(e) => onChange(e.target.value)} aria-label="Custom color" />}
+    </div>
+  );
+}
+
+// ---------- Dates: always shown as dd/mm/yyyy ----------
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+/** "2026-11-20" -> "20/11/2026" */
+export const toDMY = (iso: string) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : '');
+/** "20/11/2026", "20-11-26", "20.11.2026" -> "2026-11-20"; null if not a real date. */
+export function parseDMY(text: string): string | null {
+  const m = text.trim().match(/^(\d{1,2})[/.\-\s](\d{1,2})[/.\-\s](\d{2}|\d{4})$/);
+  if (!m) return null;
+  const d = Number(m[1]);
+  const mo = Number(m[2]);
+  const y = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
+  const dt = new Date(y, mo - 1, d);
+  if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return null;
+  return `${y}-${pad2(mo)}-${pad2(d)}`;
+}
+
+/**
+ * Date box that always reads dd/mm/yyyy, whatever the browser's region.
+ * Type it (checked when you leave the box) or use 📅 for the usual picker.
+ * `value`/`onChange` use "yyyy-mm-dd" ('' = empty).
+ */
+export function DateInput({ value, onChange, 'aria-label': ariaLabel }: { value: string; onChange: (v: string) => void; 'aria-label'?: string }) {
+  const [text, setText] = useState(toDMY(value));
+  const [focused, setFocused] = useState(false);
+  const [bad, setBad] = useState(false);
+  const picker = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (!focused) setText(toDMY(value)); }, [value, focused]);
+  const commit = () => {
+    setFocused(false);
+    if (!text.trim()) { setBad(false); if (value) onChange(''); return; }
+    const iso = parseDMY(text);
+    if (!iso) { setBad(true); setText(toDMY(value)); setTimeout(() => setBad(false), 1500); return; }
+    setBad(false);
+    setText(toDMY(iso));
+    if (iso !== value) onChange(iso);
+  };
+  return (
+    <div className={`dateinput ${bad ? 'bad-input' : ''}`}>
+      <input type="text" inputMode="numeric" placeholder="dd/mm/yyyy" value={text} aria-label={ariaLabel}
+        onFocus={() => setFocused(true)} onChange={(e) => setText(e.target.value)} onBlur={commit}
+        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
+      <button type="button" className="combo-btn" tabIndex={-1} aria-label="Pick a date"
+        onClick={() => { const el = picker.current; if (!el) return; try { el.showPicker(); } catch { el.focus(); } }}>📅</button>
+      <input ref={picker} type="date" className="hidden-picker" tabIndex={-1} aria-hidden="true" value={value}
+        onChange={(e) => { if (e.target.value) onChange(e.target.value); }} />
+    </div>
+  );
+}
+
+/** Date (dd/mm/yyyy) + time. `value`/`onChange` use "yyyy-mm-ddTHH:mm" ('' = empty). */
+export function DateTimeInput({ value, onChange, defaultTime = '09:00' }: { value: string; onChange: (v: string) => void; defaultTime?: string }) {
+  const date = value ? value.slice(0, 10) : '';
+  const time = value ? value.slice(11, 16) : '';
+  return (
+    <div className="datetimeinput">
+      <DateInput value={date} aria-label="Date" onChange={(d) => onChange(d ? `${d}T${time || defaultTime}` : '')} />
+      <input type="time" aria-label="Time" value={time} disabled={!date} onChange={(e) => date && onChange(`${date}T${e.target.value || defaultTime}`)} />
     </div>
   );
 }
