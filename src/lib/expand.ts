@@ -168,12 +168,15 @@ export function expand(data: AppData, from: Date, to: Date, opts: ExpandOpts = {
   const flexQueue: { r: Routine; day: Date; dk: string }[] = [];
   for (const day of eachDay(pFrom, pTo)) {
     const dk = dateKey(day);
-    for (const r of data.routines) {
-      if (!r.enabled || !r.days.includes(weekdayMon0(day)) || r.skipDates.includes(dk)) continue;
+    for (const base of data.routines) {
+      if (!base.enabled || !base.days.includes(weekdayMon0(day)) || base.skipDates.includes(dk)) continue;
+      // This day's own length, if you changed it.
+      const len = base.durationOverrides?.[dk];
+      const r = len ? { ...base, durationMin: len } : base;
       const ov = r.overrides[dk];
       if (ov || !r.flexible || r.location) {
         const s = ov ? fromLocal(ov.start) : at(day, r.preferredStart);
-        fixed.push(routineOcc(r, dk, s, ov ? fromLocal(ov.end) : addMinutes(s, r.durationMin)));
+        fixed.push(routineOcc(r, dk, s, ov ? fromLocal(ov.end) : addMinutes(s, r.durationMin), undefined, ov ? 'Moved by hand: stays here until you Reset it' : undefined));
       } else flexQueue.push({ r, day, dk });
     }
   }
@@ -193,11 +196,12 @@ export function expand(data: AppData, from: Date, to: Date, opts: ExpandOpts = {
   return [...fixed, ...travel, ...placed].filter((o) => overlaps(o.start, o.end, from, to));
 }
 
-function routineOcc(r: Routine, dk: string, start: Date, end: Date, warning?: string): Occ {
+function routineOcc(r: Routine, dk: string, start: Date, end: Date, warning?: string, subtitle?: string): Occ {
   return {
     id: `routine:${r.id}:${dk}`,
     source: { type: 'routine', routineId: r.id, date: dk },
     title: r.title,
+    subtitle,
     start,
     end,
     location: r.location,

@@ -92,6 +92,7 @@ export function formatLayout(layout: WeekLabel[]): string {
 export const DAY_PRESETS: { label: string; days: number[] }[] = [
   { label: 'MWF', days: [0, 2, 4] },
   { label: 'MW', days: [0, 2] },
+  { label: 'MF', days: [0, 4] },
   { label: 'TR', days: [1, 3] },
   { label: 'MTWR', days: [0, 1, 2, 3] },
 ];

@@ -110,7 +110,10 @@ export interface Routine {
   location?: string;
   color: string;
   skipDates: LocalDate[];
+  /** Moved by hand on that day: pinned there, Re-plan leaves it alone until Reset. */
   overrides: Record<LocalDate, TimeOverride>;
+  /** Length changed for that day only (minutes). Still auto-scheduled, keeps this length until Reset. */
+  durationOverrides?: Record<LocalDate, number>;
 }
 
 export type EventCategory = 'hangout' | 'cca' | 'admin' | 'appointment' | 'exam' | 'quiz' | 'presentation' | 'help' | 'other';

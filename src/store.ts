@@ -1,4 +1,4 @@
-// App state with undo/redo (last 10 edits).
+// App state with undo/redo (last 30 edits).
 // Saved to the local database by lib/sync.ts; localStorage is only an offline fallback copy.
 // Every edit goes through `commit`, which snapshots the previous data
 // and re-runs the auto-scheduler so tasks stay out of clashes.
@@ -8,7 +8,7 @@ import { defaultData } from './lib/defaults';
 import { planTasks } from './lib/scheduler';
 
 const KEY = 'kairos:data:v1';
-const HISTORY = 10;
+const HISTORY = 30;
 
 interface Snapshot { data: AppData; label: string }
 

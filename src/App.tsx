@@ -5,7 +5,7 @@ import { NowNext } from './components/NowNext';
 import { ModalHost } from './components/Modals';
 import { ClassesPanel, PlacesPanel, RoutinesPanel, TasksPanel } from './components/Panels';
 import { academicWeekFor, weekLabelText } from './lib/weeks';
-import { ReplanButton } from './components/ReplanButton';
+import { ReplanButton, ResetButton } from './components/ReplanButton';
 import { SyncBadge } from './components/SyncBadge';
 
 type Tab = 'calendar' | 'tasks' | 'classes' | 'routines' | 'places';
@@ -95,6 +95,7 @@ export default function App() {
         <span className="spacer" />
         <SyncBadge />
         <ReplanButton />
+        <ResetButton />
         <button className="icon-btn" onClick={undo} disabled={!past.length} title={past.length ? `Undo: ${past[past.length - 1].label} (Ctrl+Z)` : 'Nothing to undo'} aria-label="Undo">↶<sup>{past.length || ''}</sup></button>
         <button className="icon-btn" onClick={redo} disabled={!future.length} title={future.length ? `Redo: ${future[0].label} (Ctrl+Y)` : 'Nothing to redo'} aria-label="Redo">↷<sup>{future.length || ''}</sup></button>
       </header>

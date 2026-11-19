@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -17,6 +17,8 @@ export function CalendarView({ range, onRange }: { range: { start: Date; end: Da
   const data = useStore((s) => s.data);
   const open = useUI((s) => s.open);
   const calRef = useRef<FullCalendar>(null);
+  // Computed once: a value that changes every render makes FullCalendar scroll back each time.
+  const [initialScroll] = useState(() => new Date(Date.now() - 3600_000).toTimeString().slice(0, 8));
   const narrow = typeof window !== 'undefined' && window.innerWidth < 720;
 
   const occs = useMemo(() => (range ? expand(data, range.start, range.end) : []), [data, range]);
@@ -35,10 +37,10 @@ export function CalendarView({ range, onRange }: { range: { start: Date; end: Da
     extendedProps: { occ: o },
   })), [occs]);
 
-  const onDrop = (info: EventDropArg | EventResizeDoneArg) => {
+  const onChange = (how: 'move' | 'resize') => (info: EventDropArg | EventResizeDoneArg) => {
     const o = byId.get(info.event.id);
     if (!o || !o.movable || !info.event.start) return info.revert();
-    moveOcc(o, info.event.start, info.event.end ?? info.event.start);
+    moveOcc(o, info.event.start, info.event.end ?? info.event.start, how);
   };
 
   return (
@@ -57,7 +59,9 @@ export function CalendarView({ range, onRange }: { range: { start: Date; end: Da
         slotDuration="00:15:00"
         slotLabelInterval="01:00"
         snapDuration="00:05:00"
-        scrollTime={new Date(Date.now() - 3600_000).toTimeString().slice(0, 8)}
+        scrollTime={initialScroll}
+        // Prev/next week keeps the time you were looking at.
+        scrollTimeReset={false}
         height="100%"
         expandRows
         editable
@@ -72,8 +76,8 @@ export function CalendarView({ range, onRange }: { range: { start: Date; end: Da
         eventTimeFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
         slotLabelFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
         events={events}
-        eventDrop={onDrop}
-        eventResize={onDrop}
+        eventDrop={onChange('move')}
+        eventResize={onChange('resize')}
         eventClick={(info: EventClickArg) => {
           const o = byId.get(info.event.id);
           if (o) open({ kind: 'occ', occ: o });

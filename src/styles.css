@@ -156,7 +156,15 @@ code { background: var(--surface-2); padding: 0 4px; border-radius: 4px; }
 .sem { margin-top: 12px; }
 .sem-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
 .mod { border-left: 4px solid; padding: 6px 0 6px 10px; margin: 8px 0; background: var(--surface-2); border-radius: 0 8px 8px 0; }
-.mod-head { display: flex; align-items: center; gap: 8px; padding-right: 8px; }
+/* Course/CCA header: the name shrinks first, then the code, then the buttons wrap one by one. */
+.mod-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-right: 8px; }
+.mod-id { flex: 1 1 0; min-width: 4ch; display: flex; align-items: baseline; gap: 8px; overflow: hidden; }
+.mod-code { flex: 0 1 auto; min-width: 3ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mod-name { flex: 0 1000 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mod-head .chip { flex: none; }
+/* Pieces of a line ("MWF 13:00–14:15 · wk 1-15 · Morgridge Hall") wrap as whole pieces. */
+.part { display: inline-block; max-width: 100%; vertical-align: top; }
+.part + .part { margin-left: 0.3em; }
 .lessons li, .mod-tasks li { font-size: 12px; padding: 2px 0; }
 .places li, .routes li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); }
 .places .alias { flex: 1; font-size: 12px; }
@@ -289,3 +297,18 @@ body.resizing { cursor: col-resize; user-select: none; }
 .narrow .sync { padding: 3px; }
 .narrow .sync { font-size: 0; gap: 0; }
 .narrow .sync .sync-dot { width: 10px; height: 10px; }
+
+/* Location combobox */
+.combo { position: relative; display: flex; }
+.combo input { padding-right: 30px; }
+.combo-btn { position: absolute; right: 2px; top: 2px; bottom: 2px; width: 26px; border: none; background: transparent; cursor: pointer; color: var(--text-2); border-radius: 6px; }
+.combo-btn:hover { background: var(--surface-2); }
+.combo-list { position: absolute; z-index: 60; top: calc(100% + 4px); left: 0; right: 0; max-height: 220px; overflow: auto; margin: 0; padding: 4px;
+  list-style: none; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow); }
+.combo-list li { padding: 7px 10px; border-radius: 6px; cursor: pointer; }
+.combo-list li.on { background: var(--surface-2); }
+.combo-list .combo-empty { color: var(--text-2); cursor: default; font-size: 12px; }
+
+.place-name { cursor: text; border-radius: 4px; padding: 1px 3px; }
+.place-name:hover, .place-name:focus-visible { background: var(--surface-2); outline: none; }
+.place-edit { width: auto; flex: 0 1 160px; padding: 3px 6px; font-weight: 600; }

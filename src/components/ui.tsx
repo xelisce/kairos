@@ -56,12 +56,41 @@ export function Row({ children }: { children: ReactNode }) {
 }
 
 /** Location input with suggestions from saved places. */
+/**
+ * Location box with its own dropdown (saved places first, then places you've used before).
+ * Type to filter; ▾ shows everything; arrow keys + Enter pick; Escape closes.
+ */
 export function LocationInput({ value, onChange, places }: { value: string; onChange: (v: string) => void; places: string[] }) {
+  const [open, setOpen] = useState(false);
+  const [showAll, setShowAll] = useState(false);
+  const [active, setActive] = useState(0);
+  const q = value.trim().toLowerCase();
+  const options = (showAll || !q ? places : places.filter((p) => p.toLowerCase().includes(q) && p.toLowerCase() !== q));
+  const pick = (v: string) => { onChange(v); setOpen(false); };
   return (
-    <>
-      <input list="kairos-places" value={value} onChange={(e) => onChange(e.target.value)} placeholder="Optional, e.g. COM1, Home" />
-      <datalist id="kairos-places">{places.map((p) => <option key={p} value={p} />)}</datalist>
-    </>
+    <div className="combo">
+      <input value={value} placeholder="Optional, e.g. Morgridge Hall" role="combobox" aria-expanded={open} aria-autocomplete="list"
+        onChange={(e) => { onChange(e.target.value); setOpen(true); setShowAll(false); setActive(0); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowDown') { e.preventDefault(); setOpen(true); setActive((a) => Math.min(a + 1, options.length - 1)); }
+          else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)); }
+          else if (e.key === 'Enter' && open && options[active]) { e.preventDefault(); pick(options[active]); }
+          else if (e.key === 'Escape' && open) { e.stopPropagation(); setOpen(false); }
+        }} />
+      <button type="button" className="combo-btn" tabIndex={-1} aria-label="Show places"
+        onMouseDown={(e) => { e.preventDefault(); setShowAll(true); setOpen((o) => !o || !showAll); setActive(0); }}>▾</button>
+      {open && (
+        <ul className="combo-list" role="listbox">
+          {options.length === 0 && <li className="combo-empty">{places.length ? 'No match. Your text will be used as is.' : 'No saved places yet. Add some in the Places tab, or just type one.'}</li>}
+          {options.map((p, i) => (
+            <li key={p} role="option" aria-selected={i === active} className={i === active ? 'on' : ''}
+              onMouseDown={(e) => { e.preventDefault(); pick(p); }} onMouseEnter={() => setActive(i)}>{p}</li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

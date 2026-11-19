@@ -7,7 +7,7 @@ import { fromLocal, toLocal } from './time';
 const commit = (...a: Parameters<ReturnType<typeof useStore.getState>['commit']>) => useStore.getState().commit(...a);
 
 /** Move or resize any occurrence to a new start/end. */
-export function moveOcc(o: Occ, start: Date, end: Date) {
+export function moveOcc(o: Occ, start: Date, end: Date, how: 'move' | 'resize' = 'move') {
   const s = toLocal(start);
   const e = toLocal(end);
   const src = o.source;
@@ -18,12 +18,19 @@ export function moveOcc(o: Occ, start: Date, end: Date) {
         if (c) c.overrides[src.date] = { start: s, end: e };
       });
       break;
-    case 'routine':
-      commit(`Move ${o.title}`, (d) => {
+    case 'routine': {
+      const minutes = Math.round((end.getTime() - start.getTime()) / 60000);
+      commit(how === 'resize' ? `${o.title} ${minutes}m` : `Move ${o.title}`, (d) => {
         const r = d.routines.find((x) => x.id === src.routineId);
-        if (r) r.overrides[src.date] = { start: s, end: e };
+        if (!r) return;
+        // Length for this day: kept by Re-plan, cleared by Reset.
+        r.durationOverrides ??= {};
+        if (minutes === r.durationMin) delete r.durationOverrides[src.date]; else r.durationOverrides[src.date] = minutes;
+        // Moving pins it there. Resizing only pins it if it was already pinned.
+        if (how === 'move' || r.overrides[src.date]) r.overrides[src.date] = { start: s, end: e };
       });
       break;
+    }
     case 'event':
       commit(`Move ${o.title}`, (d) => {
         const ev = d.events.find((x) => x.id === src.eventId);
@@ -84,7 +91,10 @@ export function resetOcc(o: Occ) {
   const src = o.source;
   commit(`Reset ${o.title}`, (d) => {
     if (src.type === 'class') delete d.classes.find((x) => x.id === src.seriesId)?.overrides[src.date];
-    if (src.type === 'routine') delete d.routines.find((x) => x.id === src.routineId)?.overrides[src.date];
+    if (src.type === 'routine') {
+      const r = d.routines.find((x) => x.id === src.routineId);
+      if (r) { delete r.overrides[src.date]; delete r.durationOverrides?.[src.date]; }
+    }
     if (src.type === 'activity') delete d.activities.find((x) => x.id === src.activityId)?.overrides[src.date];
     if (src.type === 'travel') delete d.travelMoves[src.key];
     if (src.type === 'task') { const t = d.tasks.find((x) => x.id === src.taskId); if (t) t.pinned = false; }
@@ -156,20 +166,15 @@ export function replanRange(scope: ReplanScope, now = new Date()): { from: Date 
 }
 
 /**
- * Re-plan: undo hand-made moves of flexible things in the range and let
- * auto-scheduling place them again.
- * - Routines (meals, shower...) go back to auto-fit around classes.
- * - Auto-scheduled tasks lose their slot and get re-placed (earliest deadline first).
+ * Re-plan: auto-scheduled tasks in the range lose their slot and get re-placed
+ * (earliest deadline first). Routines always auto-fit around everything, keep a
+ * length you changed, and stay where you moved them (Reset frees those).
  * Untouched: classes, events, CCAs, travel moves, and tasks you dragged (pinned).
  */
 export function replan(scope: ReplanScope, now = new Date()) {
   const { from, to } = replanRange(scope, now);
   const inRange = (d: Date) => (!from || d >= from) && (!to || d < to);
-  const dateIn = (dk: string) => inRange(fromLocal(dk));
   commit(REPLAN_LABELS[scope], (d) => {
-    for (const r of d.routines) {
-      for (const dk of Object.keys(r.overrides)) if (dateIn(dk)) delete r.overrides[dk];
-    }
     for (const t of d.tasks) {
       if (!t.done && t.onCalendar && !t.pinned && t.scheduled && inRange(fromLocal(t.scheduled.start))) t.scheduled = undefined;
     }
@@ -190,5 +195,24 @@ export function setDetail(o: Occ, text: string) {
     if (src.type === 'activity') put(d.activities.find((x) => x.id === src.activityId), src.date);
     if (src.type === 'event') { const e = d.events.find((x) => x.id === src.eventId); if (e) e.notes = v || undefined; }
     if (src.type === 'task') { const t = d.tasks.find((x) => x.id === src.taskId); if (t) t.notes = v || undefined; }
+  });
+}
+
+export const RESET_LABELS: Record<ReplanScope, string> = {
+  today: 'Reset routines today',
+  week: 'Reset routines this week',
+  future: 'Reset routines, all future',
+  all: 'Reset routines, all time (incl. past)',
+};
+
+/** Reset: routines in the range go back to their usual length and auto-schedule again (moves and length changes undone). */
+export function resetRoutines(scope: ReplanScope, now = new Date()) {
+  const { from, to } = replanRange(scope, now);
+  const dateIn = (dk: string) => { const d = fromLocal(dk); return (!from || d >= from) && (!to || d < to); };
+  commit(RESET_LABELS[scope], (d) => {
+    for (const r of d.routines) {
+      for (const dk of Object.keys(r.overrides)) if (dateIn(dk)) delete r.overrides[dk];
+      for (const dk of Object.keys(r.durationOverrides ?? {})) if (dateIn(dk)) delete r.durationOverrides![dk];
+    }
   });
 }

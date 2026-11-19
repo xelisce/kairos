@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { useStore } from '../store';
-import type { Task } from '../types';
+import type { AppData, Task } from '../types';
 import { taskWarning } from '../lib/scheduler';
 import { fmtDur, fromLocal, toLocal, uid } from '../lib/time';
 import { formatDays, formatWeeks, SEMESTER_PRESETS, semesterFromPreset, weekLabelText, weekIndex } from '../lib/weeks';
@@ -115,9 +115,10 @@ export function ClassesPanel() {
             {data.modules.filter((m) => m.semesterId === sem.id).map((m) => (
               <div key={m.id} className="mod" style={{ borderLeftColor: m.color }}>
                 <div className="mod-head">
-                  <button className="linkish strong" onClick={() => open({ kind: 'module', id: m.id })}>{m.code}</button>
-                  <span className="muted">{m.name}</span>
-                  <span className="spacer" />
+                  <span className="mod-id">
+                    <button className="linkish strong mod-code" title={`${m.code} ${m.name}`} onClick={() => open({ kind: 'module', id: m.id })}>{m.code}</button>
+                    <span className="muted mod-name" title={m.name}>{m.name}</span>
+                  </span>
                   <button className="chip" onClick={() => open({ kind: 'class', moduleId: m.id })}>+ class</button>
                   <button className="chip" title="Exam, quiz, presentation or help session" onClick={() => open({ kind: 'event', category: 'exam', moduleId: m.id })}>+ exam</button>
                 </div>
@@ -125,7 +126,7 @@ export function ClassesPanel() {
                   {data.classes.filter((c) => c.moduleId === m.id).map((c) => (
                     <li key={c.id}>
                       <button className="linkish" onClick={() => open({ kind: 'class', id: c.id })}>
-                        {c.kind} · {formatDays(c.days, sem.style)} {c.start}–{c.end} · wk {formatWeeks(c.weeks, sem.style !== 'us')}{c.location ? ` · ${c.location}` : ''}
+                        <Parts items={[c.kind, `${formatDays(c.days, sem.style)} ${c.start}–${c.end}`, `wk ${formatWeeks(c.weeks, sem.style !== 'us')}`, c.location]} />
                       </button>
                     </li>
                   ))}
@@ -133,7 +134,7 @@ export function ClassesPanel() {
                 <ul className="mod-tasks">
                   {data.events.filter((e) => e.moduleId === m.id && fromLocal(e.end) >= today).sort((a, b) => a.start.localeCompare(b.start)).map((e) => (
                     <li key={e.id}><button className="linkish" onClick={() => open({ kind: 'event', id: e.id })}>
-                      {['exam', 'quiz'].includes(e.category) ? '📝' : e.category === 'presentation' ? '🎤' : e.category === 'help' ? '🙋' : '📅'} {e.title} · {format(fromLocal(e.start), 'EEE d MMM HH:mm')}
+                      <Parts items={[`${['exam', 'quiz'].includes(e.category) ? '📝' : e.category === 'presentation' ? '🎤' : e.category === 'help' ? '🙋' : '📅'} ${e.title}`, format(fromLocal(e.start), 'EEE d MMM HH:mm'), e.location]} />
                     </button></li>
                   ))}
                 </ul>
@@ -156,17 +157,26 @@ export function ClassesPanel() {
           return (
             <div key={a.id} className="mod" style={{ borderLeftColor: a.color }}>
               <div className="mod-head">
-                <button className="linkish" onClick={() => open({ kind: 'activity', id: a.id })}>
-                  <b>{a.title}</b> · {a.recurring === false ? 'booked sessions' : `${formatDays(a.days, 'us')} ${a.start}–${a.end}`}{a.location ? ` · ${a.location}` : ''}
-                  {a.recurring !== false && (a.from || a.until) && <span className="muted"> · {a.from ? format(fromLocal(a.from), 'd MMM') : '…'}–{a.until ? format(fromLocal(a.until), 'd MMM') : '…'}</span>}
-                </button>
-                <span className="spacer" />
+                <span className="mod-id">
+                  <button className="linkish strong mod-code" title={a.title} onClick={() => open({ kind: 'activity', id: a.id })}>{a.title}</button>
+                </span>
                 <button className="chip" title="Add a session you booked" onClick={() => open({ kind: 'event', category: 'cca', activityId: a.id })}>+ session</button>
               </div>
+              <ul className="lessons">
+                <li>
+                  <button className="linkish" onClick={() => open({ kind: 'activity', id: a.id })}>
+                    <Parts items={[
+                      a.recurring === false ? 'booked sessions' : `${formatDays(a.days, 'us')} ${a.start}–${a.end}`,
+                      a.location,
+                      a.recurring !== false && (a.from || a.until) ? `${a.from ? format(fromLocal(a.from), 'd MMM') : '…'}–${a.until ? format(fromLocal(a.until), 'd MMM') : '…'}` : undefined,
+                    ]} />
+                  </button>
+                </li>
+              </ul>
               {sessions.length > 0 && (
                 <ul className="mod-tasks">
                   {sessions.map((e) => (
-                    <li key={e.id}><button className="linkish" onClick={() => open({ kind: 'event', id: e.id })}>🧗 {format(fromLocal(e.start), 'EEE d MMM HH:mm')}–{format(fromLocal(e.end), 'HH:mm')}{e.location && e.location !== a.location ? ` · ${e.location}` : ''}</button></li>
+                    <li key={e.id}><button className="linkish" onClick={() => open({ kind: 'event', id: e.id })}><Parts items={[`🧗 ${format(fromLocal(e.start), 'EEE d MMM HH:mm')}–${format(fromLocal(e.end), 'HH:mm')}`, e.location !== a.location ? e.location : undefined, e.notes?.split('\n')[0]]} /></button></li>
                   ))}
                 </ul>
               )}
@@ -244,7 +254,7 @@ export function PlacesPanel() {
       <ul className="places">
         {data.places.map((p) => (
           <li key={p.id}>
-            <b>{p.isHome ? '🏠 ' : ''}{p.name}</b>
+            <PlaceName name={p.name} home={!!p.isHome} onRename={(name) => commit(`Rename ${p.name} → ${name}`, (d) => renamePlace(d, p.id, name))} />
             <input className="alias" defaultValue={p.aliases.join(', ')} placeholder="aliases, comma separated"
               onBlur={(e) => {
                 const aliases = e.target.value.split(',').map((x) => x.trim()).filter(Boolean);
@@ -362,4 +372,55 @@ function DbBackups() {
       ))}
     </ul>
   );
+}
+
+/** Double-click (or Enter on focus) to rename; Enter/blur saves, Escape cancels. */
+function PlaceName({ name, home, onRename }: { name: string; home: boolean; onRename: (name: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(name);
+  const done = (save: boolean) => {
+    setEditing(false);
+    const v = text.trim();
+    if (save && v && v !== name) onRename(v); else setText(name);
+  };
+  if (editing) {
+    return (
+      <input className="place-edit" autoFocus value={text} aria-label="Place name" onChange={(e) => setText(e.target.value)}
+        onBlur={() => done(true)}
+        onKeyDown={(e) => { if (e.key === 'Enter') done(true); if (e.key === 'Escape') { e.stopPropagation(); done(false); } }} />
+    );
+  }
+  return (
+    <b className="place-name" tabIndex={0} title="Double-click to rename" onDoubleClick={() => { setText(name); setEditing(true); }}
+      onKeyDown={(e) => { if (e.key === 'Enter') { setText(name); setEditing(true); } }}>
+      {home ? '🏠 ' : ''}{name}
+    </b>
+  );
+}
+
+/**
+ * Rename a place, and the old name inside every location that uses it, so travel times keep working:
+ * renaming "Brogden Psychology Building" to "Brogden" turns "107 Brogden Psychology Building" into "107 Brogden".
+ */
+export function renamePlace(d: AppData, id: string, name: string) {
+  const place = d.places.find((x) => x.id === id);
+  if (!place) return;
+  const old = place.name.trim();
+  place.name = name;
+  if (!old) return;
+  // Whole name only (not inside another word), any capitalisation.
+  const re = new RegExp(`(?<![\\p{L}\\p{N}])${old.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'giu');
+  for (const x of [...d.classes, ...d.activities, ...d.events, ...d.tasks, ...d.routines]) {
+    if (x.location && re.test(x.location)) { re.lastIndex = 0; x.location = x.location.replace(re, name); }
+    re.lastIndex = 0;
+  }
+}
+
+/**
+ * "a · b · c" where each piece moves to the next line as a whole
+ * (e.g. a location stays together); a piece only breaks inside if it's wider than the line.
+ */
+function Parts({ items }: { items: (string | undefined | false | null)[] }) {
+  const parts = items.filter(Boolean) as string[];
+  return <>{parts.map((p, i) => <span key={i} className="part">{i > 0 ? `· ${p}` : p}</span>)}</>;
 }

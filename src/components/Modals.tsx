@@ -13,7 +13,15 @@ import { importNusmods } from '../lib/nusmods';
 
 const crossesMidnight = (r: Routine) => r.windowEnd <= r.windowStart && r.windowEnd !== r.windowStart;
 
-const placeNames = (d: AppData) => d.places.flatMap((p) => [p.name, ...p.aliases]);
+/** Location suggestions: saved places first, then other locations you've used. */
+const placeNames = (d: AppData) => {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const add = (v?: string) => { const t = v?.trim(); if (t && !seen.has(t.toLowerCase())) { seen.add(t.toLowerCase()); out.push(t); } };
+  d.places.forEach((p) => add(p.name));
+  [...d.classes, ...d.activities, ...d.events, ...d.tasks, ...d.routines].forEach((x) => add(x.location));
+  return out;
+};
 
 export function ModalHost() {
   const modal = useUI((s) => s.modal);

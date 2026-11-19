@@ -212,3 +212,61 @@ describe('routine with no room in its window', () => {
     expect(dinner.warning).toMatch(/outside/);
   });
 });
+
+describe('routine length vs move, Re-plan vs Reset', () => {
+  it('resize keeps auto-scheduling at the new length; move pins; Re-plan keeps both; Reset clears', async () => {
+    const { useStore } = await import('../store');
+    const { moveOcc, replan, resetRoutines } = await import('./actions');
+    const d = defaultData();
+    d.routines = d.routines.filter((r) => r.title === 'Lunch' || r.title === 'Dinner');
+    useStore.setState({ data: d, past: [], future: [] });
+    const now = new Date();
+    const day = new Date(now); day.setHours(0, 0, 0, 0);
+    const next = new Date(day); next.setDate(day.getDate() + 1);
+    const find = (t: string) => expand(useStore.getState().data, day, next).find((o) => o.title === t)!;
+
+    // Resize lunch to 90m: still auto (no pin), new length.
+    const lunch = find('Lunch');
+    moveOcc(lunch, lunch.start, new Date(lunch.start.getTime() + 90 * 60000), 'resize');
+    let r = useStore.getState().data.routines.find((x) => x.title === 'Lunch')!;
+    expect(Object.keys(r.overrides)).toHaveLength(0);
+    expect(Object.values(r.durationOverrides!)).toEqual([90]);
+    expect((find('Lunch').end.getTime() - find('Lunch').start.getTime()) / 60000).toBe(90);
+
+    // Move dinner to 20:00: pinned.
+    const dinner = find('Dinner');
+    const s = new Date(day); s.setHours(20, 0, 0, 0);
+    moveOcc(dinner, s, new Date(s.getTime() + 60 * 60000), 'move');
+    expect(find('Dinner').start.getHours()).toBe(20);
+
+    // Re-plan keeps lunch length and dinner pin.
+    replan('today', now);
+    r = useStore.getState().data.routines.find((x) => x.title === 'Lunch')!;
+    expect(Object.values(r.durationOverrides!)).toEqual([90]);
+    expect(find('Dinner').start.getHours()).toBe(20);
+
+    // Reset clears both.
+    resetRoutines('today', now);
+    const after = useStore.getState().data.routines;
+    expect(Object.keys(after.find((x) => x.title === 'Lunch')!.durationOverrides!)).toHaveLength(0);
+    expect(Object.keys(after.find((x) => x.title === 'Dinner')!.overrides)).toHaveLength(0);
+    expect(find('Dinner').start.getHours()).toBe(18);
+  });
+});
+
+describe('rename place', () => {
+  it('renames the old name inside locations, whole words only', async () => {
+    const { renamePlace } = await import('../components/Panels');
+    const d = defaultData();
+    d.places.push({ id: 'b', name: 'Brogden Psychology Building', aliases: [] }, { id: 'e', name: 'EH', aliases: [] });
+    d.events = [
+      { id: '1', title: 'x', category: 'other', start: '2026-11-20T10:00', end: '2026-11-20T11:00', location: '107 Brogden Psychology Building' },
+      { id: '2', title: 'y', category: 'other', start: '2026-11-20T10:00', end: '2026-11-20T11:00', location: 'brogden psychology building' },
+      { id: '3', title: 'z', category: 'other', start: '2026-11-20T10:00', end: '2026-11-20T11:00', location: 'Chemistry' },
+    ];
+    renamePlace(d, 'b', 'Brogden');
+    renamePlace(d, 'e', 'Engineering Hall');
+    expect(d.events.map((e) => e.location)).toEqual(['107 Brogden', 'Brogden', 'Chemistry']);
+    expect(d.places.find((p) => p.id === 'b')!.name).toBe('Brogden');
+  });
+});
