@@ -66,8 +66,10 @@ describe('scheduler', () => {
     const s = tasks[0].scheduled!;
     expect(s).toBeTruthy();
     expect(fromLocal(s.end) <= fromLocal('2026-09-02T23:59')).toBe(true);
-    const busy = expand(d, fromLocal('2026-08-31'), fromLocal('2026-09-03'));
-    expect(busy.some((o) => o.start < fromLocal(s.end) && fromLocal(s.start) < o.end)).toBe(false);
+    // In the final layout (with the task in it), nothing else sits on top of the task.
+    const final = expand({ ...d, tasks }, fromLocal('2026-08-31'), fromLocal('2026-09-03'));
+    expect(final.some((o) => o.id !== 'task:t' && !o.skipped && o.start < fromLocal(s.end) && fromLocal(s.start) < o.end)).toBe(false);
+    expect(final.filter((o) => o.warning)).toHaveLength(0);
   });
   it('rolls missed tasks forward', () => {
     const d = sample();
@@ -166,7 +168,7 @@ describe('re-plan scopes', () => {
     const tm = replanRange('tomorrow', now);
     expect([tm.from!.getDate(), tm.to!.getDate()]).toEqual([20, 21]);
     const n3 = replanRange('next3', now);
-    expect([n3.from!.getDate(), n3.to!.getDate()]).toEqual([19, 22]);
+    expect([n3.from!.getDate(), n3.to!.getDate()]).toEqual([19, 23]);
     expect(replanRange('all', now).from).toBeNull();
   });
 });
@@ -438,5 +440,25 @@ describe('tasks you place by hand stay put', () => {
     const [t] = planTasks(d, fromLocal('2026-11-19T17:23')).filter((x) => x.id === 'k');
     expect(t.scheduled).toEqual({ start: '2026-11-19T15:00', end: '2026-11-19T17:00' });
     expect(t.rolledForward).toBeFalsy();
+  });
+});
+
+describe('tasks can use a flexible routine time; trips must fit', () => {
+  it('glaze at the studio goes right after Code Kairos, dinner after you get home', () => {
+    const d = defaultData();
+    d.routines = d.routines.filter((r) => r.title === 'Dinner');
+    Object.assign(d.routines[0], { location: 'Home', preferredStart: '18:30', windowStart: '18:30', windowEnd: '23:30' });
+    d.places.push({ id: 'w', name: 'Memorial Union', aliases: ['Wheelhouse Studios'] });
+    d.tasks = [
+      { id: 'k', title: 'Code Kairos', category: 'personal', durationMin: 190, onCalendar: true, pinned: true, done: false, createdAt: '2026-11-19T15:00', scheduled: { start: '2026-11-19T15:30', end: '2026-11-19T18:40' } },
+      { id: 'g', title: 'Glaze', category: 'personal', durationMin: 30, onCalendar: true, pinned: false, done: false, createdAt: '2026-11-19T15:00', location: 'Wheelhouse Studios' },
+    ];
+    const tasks = planTasks(d, fromLocal('2026-11-19T17:27'));
+    const g = tasks.find((t) => t.id === 'g')!.scheduled!;
+    const occs = expand({ ...d, tasks }, fromLocal('2026-11-19'), fromLocal('2026-11-20'));
+    const dinner = occs.find((o) => o.title === 'Dinner')!;
+    expect(fromLocal(g.start) < fromLocal('2026-11-19T20:00')).toBe(true); // earlier than before
+    expect(occs.filter((o) => o.warning)).toHaveLength(0);
+    expect(dinner.start >= fromLocal(g.end)).toBe(true);
   });
 });

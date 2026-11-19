@@ -261,4 +261,6 @@ export interface Occ {
   detail?: string;
   /** Skipped: drawn faded behind everything, ignored when planning. */
   skipped?: boolean;
+  /** A routine placed automatically (it can make room for a task by sliding in its window). */
+  auto?: boolean;
 }

@@ -219,7 +219,7 @@ export function expand(data: AppData, from: Date, to: Date, opts: ExpandOpts = {
   // Fit flexible routines (including ones with a location, e.g. dinner at Home).
   const placed: Occ[] = [];
   for (const { r, day, dk } of flexQueue) {
-    const occ = fitRoutine(r, day, dk, busy);
+    const occ = { ...fitRoutine(r, day, dk, busy), auto: true };
     placed.push(occ);
     busy.push(occ);
   }

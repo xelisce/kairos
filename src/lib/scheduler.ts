@@ -1,12 +1,19 @@
 // Auto-scheduler: finds slots for tasks that are "on calendar" and not pinned.
 // Stable by default: a task keeps its slot unless that slot is in the past,
 // clashes with something, or is after the deadline when an earlier slot exists.
+//
+// Tasks may use time a flexible routine (lunch, dinner...) was using, as long as that
+// routine can still fit somewhere in its window. Tasks with a location need their trips
+// to fit too: a candidate is checked by laying out that day with the task in it.
 import { addDays, addMinutes, startOfDay } from 'date-fns';
 import type { AppData, Occ, Task } from '../types';
 import { expand } from './expand';
-import { atMin, eachDay, fromLocal, hmToMin, overlaps, toLocal } from './time';
+import { atMin, dateKey, eachDay, fromLocal, hmToMin, overlaps, toLocal } from './time';
 
-const STEP = 15;
+// Try every 5 minutes so a task can start right after a trip or another block.
+const STEP = 5;
+/** How many full day-layouts we try per task before settling for the first free gap. */
+const MAX_CHECKS = 80;
 
 const ceilTo = (d: Date, step: number) => {
   const ms = step * 60_000;
@@ -15,7 +22,8 @@ const ceilTo = (d: Date, step: number) => {
 
 interface Interval { start: Date; end: Date }
 
-function findSlot(data: AppData, busy: Interval[], durationMin: number, from: Date, until: Date): Interval | null {
+/** Free gaps of `durationMin` (with the buffer around them), earliest first. */
+function* candidates(data: AppData, busy: Interval[], durationMin: number, from: Date, until: Date) {
   const { dayStart, dayEnd, bufferMin } = data.settings;
   const ds = hmToMin(dayStart);
   const de = hmToMin(dayEnd);
@@ -24,14 +32,18 @@ function findSlot(data: AppData, busy: Interval[], durationMin: number, from: Da
       const s = atMin(day, m);
       if (s < from) continue;
       const e = addMinutes(s, durationMin);
-      if (e > until) return null;
+      if (e > until) return;
       const bs = addMinutes(s, -bufferMin);
       const be = addMinutes(e, bufferMin);
-      if (!busy.some((b) => overlaps(bs, be, b.start, b.end))) return { start: s, end: e };
+      if (!busy.some((b) => overlaps(bs, be, b.start, b.end))) yield { start: s, end: e };
     }
   }
-  return null;
 }
+
+const isTravel = (o: Occ) => o.source.type === 'travel';
+
+/** Problems on one day: warnings (routines squeezed out, trips too short...). */
+const warningsOn = (occs: Occ[], skipId?: string) => occs.filter((o) => o.warning && !o.skipped && o.id !== skipId).length;
 
 /** Returns a new tasks array. Pure: does not mutate `data`. */
 export function planTasks(data: AppData, now: Date): Task[] {
@@ -52,7 +64,46 @@ export function planTasks(data: AppData, now: Date): Task[] {
   const movable = tasks.filter((t) => t.onCalendar && !t.done && !t.pinned);
   const exclude = new Set(movable.map((t) => t.id));
   const base: Occ[] = expand({ ...data, tasks }, now, horizon, { excludeTaskIds: exclude });
-  const busy: Interval[] = base.filter((o) => !o.skipped).map((o) => ({ start: o.start, end: o.end }));
+  // Hard blocks: everything except skipped sessions and routines that can slide out of the way.
+  const busy: Interval[] = base.filter((o) => !o.skipped && !o.auto).map((o) => ({ start: o.start, end: o.end }));
+
+  // Lay out one day with the current task slots. Cached per day; cleared when a task lands there.
+  const dayCache = new Map<string, number>();
+  const layout = (day: Date, list: Task[]) => expand({ ...data, tasks: list }, startOfDay(day), addDays(startOfDay(day), 1));
+  const baseline = (day: Date) => {
+    const k = dateKey(day);
+    if (!dayCache.has(k)) dayCache.set(k, warningsOn(layout(day, tasks)));
+    return dayCache.get(k)!;
+  };
+
+  /** Would putting `t` at `slot` work? Its trips fit, nothing overlaps it, and no new warnings appear that day. */
+  const fits = (t: Task, slot: Interval) => {
+    const before = baseline(slot.start);
+    const trial = tasks.map((x) => (x.id === t.id ? { ...x, scheduled: { start: toLocal(slot.start), end: toLocal(slot.end) } } : x));
+    const occs = layout(slot.start, trial);
+    const id = `task:${t.id}`;
+    const others = occs.filter((o) => o.id !== id && !o.skipped && !isTravel(o));
+    // Nothing may sit on top of the task itself (a routine that couldn't move away would),
+    // and you can't do it while travelling somewhere else.
+    if (others.some((o) => overlaps(slot.start, slot.end, o.start, o.end))) return false;
+    if (occs.some((o) => isTravel(o) && !o.id.includes(id) && overlaps(slot.start, slot.end, o.start, o.end))) return false;
+    // Its own trips must not cut into anything else.
+    const myTrips = occs.filter((o) => isTravel(o) && o.id.includes(id));
+    if (myTrips.some((tr) => tr.warning || others.some((o) => overlaps(tr.start, tr.end, o.start, o.end)))) return false;
+    return warningsOn(occs, id) <= before;
+  };
+
+  /** First slot that fits; after MAX_CHECKS full checks, the first free gap. */
+  const findSlot = (t: Task, from: Date, until: Date): Interval | null => {
+    let firstFree: Interval | null = null;
+    let checks = 0;
+    for (const c of candidates(data, busy, t.durationMin, from, until)) {
+      firstFree ??= c;
+      if (checks++ >= MAX_CHECKS) break;
+      if (fits(t, c)) return c;
+    }
+    return firstFree;
+  };
 
   const start = ceilTo(now, STEP);
   const needsSlot: Task[] = [];
@@ -73,6 +124,9 @@ export function planTasks(data: AppData, now: Date): Task[] {
     }
     needsSlot.push(t);
   }
+  // Tasks being re-placed aren't anywhere until they get their new slot.
+  for (const t of needsSlot) t.scheduled = undefined;
+  dayCache.clear();
 
   // Pass 2: earliest deadline first, then oldest.
   needsSlot.sort((a, b) => {
@@ -83,11 +137,14 @@ export function planTasks(data: AppData, now: Date): Task[] {
   for (const t of needsSlot) {
     const from = t.earliest && fromLocal(t.earliest) > start ? fromLocal(t.earliest) : start;
     const deadline = t.deadline ? fromLocal(t.deadline) : null;
-    let slot = findSlot(data, busy, t.durationMin, from, deadline && deadline < horizon ? deadline : horizon);
+    let slot = findSlot(t, from, deadline && deadline < horizon ? deadline : horizon);
     // Nothing before the deadline: place it after anyway, the calendar will flag it red.
-    if (!slot && deadline && deadline < horizon) slot = findSlot(data, busy, t.durationMin, from, horizon);
+    if (!slot && deadline && deadline < horizon) slot = findSlot(t, from, horizon);
     t.scheduled = slot ? { start: toLocal(slot.start), end: toLocal(slot.end) } : undefined;
-    if (slot) busy.push(slot);
+    if (slot) {
+      busy.push(slot);
+      dayCache.delete(dateKey(slot.start));
+    }
   }
   return tasks;
 }
