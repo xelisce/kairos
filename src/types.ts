@@ -58,8 +58,10 @@ export interface ClassSeries {
   /** Teaching week numbers this class runs in. */
   weeks: number[];
   location?: string;
-  /** Dates where this class is cancelled. */
+  /** Skipped: still shown (faded), but other things can use that time. */
   skipDates: LocalDate[];
+  /** Deleted: not shown at all (restore from the Deleted tab). */
+  deletedDates?: LocalDate[];
   /** Per-date moves, keyed by the original date. */
   overrides: Record<LocalDate, TimeOverride>;
   /** Per-date change of what the session is, e.g. this week's lab is a quiz. */
@@ -85,7 +87,10 @@ export interface Activity {
   /** Optional date range it runs in. */
   from?: LocalDate;
   until?: LocalDate;
+  /** Skipped: still shown (faded), but other things can use that time. */
   skipDates: LocalDate[];
+  /** Deleted: not shown at all (restore from the Deleted tab). */
+  deletedDates?: LocalDate[];
   overrides: Record<LocalDate, TimeOverride>;
   /** Per-date details, e.g. "Guest talk" or "Full team meeting". */
   details?: Record<LocalDate, string>;
@@ -109,7 +114,10 @@ export interface Routine {
   windowEnd: HHMM;
   location?: string;
   color: string;
+  /** Skipped: still shown (faded), but other things can use that time. */
   skipDates: LocalDate[];
+  /** Deleted: not shown at all (restore from the Deleted tab). */
+  deletedDates?: LocalDate[];
   /** Moved by hand on that day: pinned there, Re-plan leaves it alone until Reset. */
   overrides: Record<LocalDate, TimeOverride>;
   /** Length changed for that day only (minutes). Still auto-scheduled, keeps this length until Reset. */
@@ -140,7 +148,10 @@ export interface Task {
   id: ID;
   title: string;
   category: TaskCategory;
+  /** Under a course... */
   moduleId?: ID;
+  /** ...or under a CCA / club / activity (e.g. "Glaze pottery" under Pottery). */
+  activityId?: ID;
   durationMin: number;
   /** Hard deadline: scheduling after this is flagged red. */
   deadline?: LocalDateTime;
@@ -194,7 +205,8 @@ export interface Settings {
 }
 
 export interface AppData {
-  version: 1;
+  /** 2 = skip/delete split (older data's skips were deletes). */
+  version: number;
   settings: Settings;
   semesters: Semester[];
   modules: Module[];
@@ -209,7 +221,16 @@ export interface AppData {
   travelOverrides: Record<string, number>;
   /** Travel blocks dragged to a different start time, keyed by travel key. */
   travelMoves: Record<string, LocalDateTime>;
+  /** Deleted events, tasks, classes, routines and CCAs, restorable from the Deleted tab. */
+  trash: TrashItem[];
 }
+
+export type TrashItem =
+  | { kind: 'event'; item: CalEvent; deletedAt: LocalDateTime }
+  | { kind: 'task'; item: Task; deletedAt: LocalDateTime }
+  | { kind: 'class'; item: ClassSeries; deletedAt: LocalDateTime }
+  | { kind: 'routine'; item: Routine; deletedAt: LocalDateTime }
+  | { kind: 'activity'; item: Activity; deletedAt: LocalDateTime };
 
 // ---------- Derived (computed, never stored) ----------
 
@@ -238,4 +259,6 @@ export interface Occ {
   assessment?: boolean;
   /** What's special about this one, e.g. "Guest talk". Shown after the title. */
   detail?: string;
+  /** Skipped: drawn faded behind everything, ignored when planning. */
+  skipped?: boolean;
 }

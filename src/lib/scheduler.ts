@@ -51,7 +51,7 @@ export function planTasks(data: AppData, now: Date): Task[] {
   const movable = tasks.filter((t) => t.onCalendar && !t.done && !t.pinned);
   const exclude = new Set(movable.map((t) => t.id));
   const base: Occ[] = expand({ ...data, tasks }, now, horizon, { excludeTaskIds: exclude });
-  const busy: Interval[] = base.map((o) => ({ start: o.start, end: o.end }));
+  const busy: Interval[] = base.filter((o) => !o.skipped).map((o) => ({ start: o.start, end: o.end }));
 
   const start = ceilTo(now, STEP);
   const needsSlot: Task[] = [];

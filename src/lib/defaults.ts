@@ -20,7 +20,7 @@ const routine = (r: Partial<Routine> & Pick<Routine, 'title' | 'category' | 'dur
 export function defaultData(): AppData {
   const home = { id: uid(), name: 'Home', isHome: true, aliases: [] };
   return {
-    version: 1,
+    version: 2,
     settings: {
       dayStart: '08:00',
       dayEnd: '22:00',
@@ -49,6 +49,7 @@ export function defaultData(): AppData {
     routes: [],
     travelOverrides: {},
     travelMoves: {},
+    trash: [],
   };
 }
 

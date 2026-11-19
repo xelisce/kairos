@@ -6,7 +6,7 @@ import type { Activity, AppData, CalEvent, ClassKind, ClassSeries, EventCategory
 import { ColorPicker, DateInput, DateTimeInput, Field, LocationInput, Modal, NumberInput, Row, DayPicker, useUI } from './ui';
 import { at, dateKey, fmtDur, fmtTime, fromLocal, toLocal, uid, WEEKDAYS } from '../lib/time';
 import { formatLayout, formatWeeks, LAYOUT_PRESETS, maxTeachingWeek, parseLayout, parseWeeks, SEMESTER_PRESETS, semesterFromPreset, weekLabelText, DAY_PRESETS, US_DAY_LETTERS } from '../lib/weeks';
-import { resetOcc, setDetail, setSessionKind, setTravel, skipOcc } from '../lib/actions';
+import { deleteOcc, resetOcc, setDetail, setSessionKind, setTravel, skipOcc, trashItem } from '../lib/actions';
 import { EVENT_LABELS } from '../lib/expand';
 import { MODULE_COLORS } from '../lib/defaults';
 import { importNusmods } from '../lib/nusmods';
@@ -119,8 +119,12 @@ function OccDetail() {
             }))}>{task.done ? 'Mark not done' : '✓ Mark done'}</button>
           )}
           {(src.type === 'class' || src.type === 'routine' || src.type === 'activity') && (
-            <button className="btn" onClick={act(() => skipOcc(o))}>Skip this one</button>
+            <button className="btn" title={o.skipped ? 'Count it again when planning' : 'Keep it on the calendar (faded) but let other things use this time'}
+              onClick={act(() => skipOcc(o))}>{o.skipped ? 'Un-skip' : 'Skip this one'}</button>
           )}
+          <button className="btn danger" title="Remove it. Restore it from the Deleted tab." onClick={act(() => deleteOcc(o))}>
+            {src.type === 'event' || src.type === 'task' ? 'Delete' : 'Delete this one'}
+          </button>
           {moved && <button className="btn" onClick={act(() => resetOcc(o))}>{src.type === 'task' ? 'Let auto-schedule move it' : 'Back to usual time'}</button>}
           {task && (
             <button className="btn" onClick={act(() => commit(`Unschedule ${task.title}`, (d) => {
@@ -165,7 +169,7 @@ function TaskForm() {
   const commit = useStore((s) => s.commit);
   const existing = m.id ? data.tasks.find((t) => t.id === m.id) : undefined;
   const [t, setT] = useState<Task>(() => existing ?? {
-    id: uid(), title: '', category: 'homework', durationMin: m.start && m.end ? Math.round((m.end.getTime() - m.start.getTime()) / 60000) : 60,
+    id: uid(), title: '', category: m.activityId ? 'personal' : 'homework', moduleId: m.moduleId, activityId: m.activityId, durationMin: m.start && m.end ? Math.round((m.end.getTime() - m.start.getTime()) / 60000) : 60,
     onCalendar: true, pinned: !!m.start, done: false, createdAt: toLocal(new Date()),
     scheduled: m.start && m.end ? { start: toLocal(m.start), end: toLocal(m.end) } : undefined,
   });
@@ -183,7 +187,7 @@ function TaskForm() {
   };
   return (
     <Modal title={existing ? 'Edit task' : 'New task'} onClose={close} footer={<>
-      {existing && <button className="btn danger" onClick={() => { commit(`Delete ${t.title}`, (d) => { d.tasks = d.tasks.filter((x) => x.id !== t.id); }); close(); }}>Delete</button>}
+      {existing && <button className="btn danger" onClick={() => { trashItem('task', t.id); close(); }}>Delete</button>}
       <span className="spacer" />
       <button className="btn" onClick={close}>Cancel</button>
       <button className="btn primary" onClick={save} disabled={!t.title.trim()}>Save</button>
@@ -195,10 +199,15 @@ function TaskForm() {
             <option value="homework">Homework</option><option value="admin">Admin</option><option value="personal">Personal</option><option value="other">Other</option>
           </select>
         </Field>
-        <Field label="Class (optional)">
-          <select value={t.moduleId ?? ''} onChange={(e) => up({ moduleId: e.target.value || undefined })}>
+        <Field label="Under (optional)">
+          <select value={t.moduleId ? `m:${t.moduleId}` : t.activityId ? `a:${t.activityId}` : ''}
+            onChange={(e) => {
+              const [k, id] = e.target.value.split(':');
+              up({ moduleId: k === 'm' ? id : undefined, activityId: k === 'a' ? id : undefined });
+            }}>
             <option value="">None</option>
-            {data.modules.map((mo) => <option key={mo.id} value={mo.id}>{mo.code}</option>)}
+            {data.modules.length > 0 && <optgroup label="Courses">{data.modules.map((mo) => <option key={mo.id} value={`m:${mo.id}`}>{mo.code}</option>)}</optgroup>}
+            {data.activities.length > 0 && <optgroup label="CCAs, clubs & activities">{data.activities.map((a) => <option key={a.id} value={`a:${a.id}`}>{a.title}</option>)}</optgroup>}
           </select>
         </Field>
       </Row>
@@ -262,7 +271,7 @@ function EventForm() {
   };
   return (
     <Modal title={existing ? 'Edit event' : 'New event'} onClose={close} footer={<>
-      {existing && <button className="btn danger" onClick={() => { commit(`Delete ${ev.title}`, (d) => { d.events = d.events.filter((x) => x.id !== ev.id); }); close(); }}>Delete</button>}
+      {existing && <button className="btn danger" onClick={() => { trashItem('event', ev.id); close(); }}>Delete</button>}
       <span className="spacer" />
       <button className="btn" onClick={close}>Cancel</button>
       <button className="btn primary" onClick={save} disabled={!valid}>Save</button>
@@ -341,7 +350,7 @@ function ClassForm() {
   if (!data.modules.length) return <Modal title="Add a class" onClose={close}><p>Add a course first (Classes tab → “+ Course”).</p></Modal>;
   return (
     <Modal title={existing ? 'Edit class' : 'New class'} onClose={close} footer={<>
-      {existing && <button className="btn danger" onClick={() => { commit(`Delete ${mod?.code} ${c.kind}`, (d) => { d.classes = d.classes.filter((x) => x.id !== c.id); }); close(); }}>Delete</button>}
+      {existing && <button className="btn danger" onClick={() => { trashItem('class', c.id); close(); }}>Delete</button>}
       <span className="spacer" />
       <button className="btn" onClick={close}>Cancel</button>
       <button className="btn primary" onClick={save} disabled={!valid}>Save</button>
@@ -384,9 +393,9 @@ function ClassForm() {
       {sem && <p className="muted small">Break weeks ({sem.layout.filter((w) => w.type === 'break').map((w) => (w as { name: string }).name).join(', ') || 'none'}) and holidays are skipped automatically.</p>}
       {c.skipDates.length > 0 && (
         <div>
-          <span className="field-label">Skipped dates</span>
+          <span className="field-label">Skipped dates (click to un-skip)</span>
           <div className="chips">{c.skipDates.sort().map((dk) => (
-            <button key={dk} className="chip" title="Restore" onClick={() => up({ skipDates: c.skipDates.filter((x) => x !== dk) })}>{format(fromLocal(dk), 'd MMM')} ✕</button>
+            <button key={dk} className="chip" title="Un-skip" onClick={() => up({ skipDates: c.skipDates.filter((x) => x !== dk) })}>{format(fromLocal(dk), 'd MMM')} ✕</button>
           ))}</div>
         </div>
       )}
@@ -576,7 +585,7 @@ function RoutineForm() {
   };
   return (
     <Modal title={existing ? `Edit ${existing.title}` : 'New routine'} onClose={close} footer={<>
-      {existing && <button className="btn danger" onClick={() => { commit(`Delete ${r.title}`, (d) => { d.routines = d.routines.filter((x) => x.id !== r.id); }); close(); }}>Delete</button>}
+      {existing && <button className="btn danger" onClick={() => { trashItem('routine', r.id); close(); }}>Delete</button>}
       <span className="spacer" />
       <button className="btn" onClick={close}>Cancel</button>
       <button className="btn primary" onClick={save} disabled={!valid}>Save</button>
@@ -643,12 +652,7 @@ function ActivityForm() {
   return (
     <Modal title={existing ? `Edit ${existing.title}` : 'New CCA, club or activity'} onClose={close} footer={<>
       {existing && <button className="btn danger" onClick={() => {
-        const sessions = data.events.filter((e) => e.activityId === a.id).length;
-        if (sessions && !confirm(`Delete ${a.title} and its ${sessions} booked session(s)?`)) return;
-        commit(`Delete ${a.title}`, (d) => {
-          d.activities = d.activities.filter((x) => x.id !== a.id);
-          d.events = d.events.filter((e) => e.activityId !== a.id);
-        });
+        trashItem('activity', a.id);
         close();
       }}>Delete</button>}
       <span className="spacer" />
@@ -677,9 +681,9 @@ function ActivityForm() {
       <Field label="Color"><ColorPicker value={a.color} onChange={(color) => up({ color })} /></Field>
       {a.recurring && a.skipDates.length > 0 && (
         <div>
-          <span className="field-label">Skipped dates</span>
+          <span className="field-label">Skipped dates (click to un-skip)</span>
           <div className="chips">{[...a.skipDates].sort().map((dk) => (
-            <button key={dk} className="chip" title="Restore" onClick={() => up({ skipDates: a.skipDates.filter((x) => x !== dk) })}>{format(fromLocal(dk), 'd MMM')} ✕</button>
+            <button key={dk} className="chip" title="Un-skip" onClick={() => up({ skipDates: a.skipDates.filter((x) => x !== dk) })}>{format(fromLocal(dk), 'd MMM')} ✕</button>
           ))}</div>
         </div>
       )}

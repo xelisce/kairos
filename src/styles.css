@@ -321,3 +321,10 @@ body.resizing { cursor: col-resize; user-select: none; }
 .datetimeinput { display: flex; gap: 6px; min-width: 0; }
 .datetimeinput .dateinput { flex: 1 1 130px; }
 .datetimeinput input[type='time'] { flex: 0 1 110px; }
+
+/* Skipped sessions: faded behind everything */
+.fc .fc-bg-event.k-skipped { opacity: 0.32; cursor: pointer;
+  background-image: repeating-linear-gradient(135deg, rgba(255,255,255,0.18) 0 6px, transparent 6px 12px) !important; }
+.fc .fc-bg-event.k-skipped:hover { opacity: 0.5; }
+.ev-skipped { color: var(--text); font-style: italic; text-decoration: line-through; padding: 2px 4px; }
+.side-tabs { flex-wrap: wrap; }

@@ -83,6 +83,9 @@ export function expand(data: AppData, from: Date, to: Date, opts: ExpandOpts = {
   const pFrom = addDays(startOfDay(from), -2);
   const pTo = addDays(startOfDay(to), 2);
   const fixed: Occ[] = [];
+  // Skipped sessions: drawn faded, never count as busy (no travel, things can go on top).
+  const skipped: Occ[] = [];
+  const place = (o: Occ, isSkipped: boolean) => { if (isSkipped) skipped.push({ ...o, skipped: true, movable: false, warning: undefined }); else fixed.push(o); };
 
   // Classes
   const modules = new Map(data.modules.map((m) => [m.id, m]));
@@ -99,10 +102,10 @@ export function expand(data: AppData, from: Date, to: Date, opts: ExpandOpts = {
       if (wi === null) continue;
       const wl = sem.layout[wi];
       if (wl.type !== 'teaching' || !c.weeks.includes(wl.n)) continue;
-      if (c.skipDates.includes(dk) || sem.holidays.some((h) => h.date === dk)) continue;
+      if (c.deletedDates?.includes(dk) || sem.holidays.some((h) => h.date === dk)) continue;
       const ov = c.overrides[dk];
       const kind = c.kindOverrides?.[dk] ?? c.kind;
-      fixed.push({
+      place({
         id: `class:${c.id}:${dk}`,
         source: { type: 'class', seriesId: c.id, date: dk },
         title: `${KIND_ICON[kind] ?? ''}${mod.code} ${kind}`,
@@ -114,15 +117,15 @@ export function expand(data: AppData, from: Date, to: Date, opts: ExpandOpts = {
         movable: true,
         assessment: ASSESSMENT_KINDS.includes(kind),
         detail: c.details?.[dk],
-      });
+      }, c.skipDates.includes(dk));
     }
 
     // CCAs / clubs
     for (const a of data.activities) {
-      if (a.recurring === false || !a.days.includes(wd) || a.skipDates.includes(dk)) continue;
+      if (a.recurring === false || !a.days.includes(wd) || a.deletedDates?.includes(dk)) continue;
       if ((a.from && dk < a.from) || (a.until && dk > a.until)) continue;
       const ov = a.overrides[dk];
-      fixed.push({
+      place({
         id: `activity:${a.id}:${dk}`,
         source: { type: 'activity', activityId: a.id, date: dk },
         title: a.title,
@@ -132,7 +135,7 @@ export function expand(data: AppData, from: Date, to: Date, opts: ExpandOpts = {
         color: a.color,
         movable: true,
         detail: a.details?.[dk],
-      });
+      }, a.skipDates.includes(dk));
     }
   }
 
@@ -166,17 +169,18 @@ export function expand(data: AppData, from: Date, to: Date, opts: ExpandOpts = {
     const en = fromLocal(t.scheduled.end);
     if (!overlaps(s, en, pFrom, pTo)) continue;
     const mod = t.moduleId ? modules.get(t.moduleId) : undefined;
+    const act = !mod && t.activityId ? data.activities.find((a) => a.id === t.activityId) : undefined;
     let warning: string | undefined;
     if (!t.done && t.deadline && en > fromLocal(t.deadline)) warning = `Scheduled after the deadline (${format(fromLocal(t.deadline), 'EEE d MMM HH:mm')})`;
     fixed.push({
       id: `task:${t.id}`,
       source: { type: 'task', taskId: t.id },
       title: `${t.done ? '✓ ' : ''}${t.title}`,
-      subtitle: mod?.code,
+      subtitle: mod?.code ?? act?.title,
       start: s,
       end: en,
       location: t.location,
-      color: mod?.color ?? CATEGORY_COLORS[t.category] ?? CATEGORY_COLORS.other,
+      color: mod?.color ?? act?.color ?? CATEGORY_COLORS[t.category] ?? CATEGORY_COLORS.other,
       movable: true,
       warning,
     });
@@ -188,11 +192,16 @@ export function expand(data: AppData, from: Date, to: Date, opts: ExpandOpts = {
   for (const day of eachDay(pFrom, pTo)) {
     const dk = dateKey(day);
     for (const base of data.routines) {
-      if (!base.enabled || !base.days.includes(weekdayMon0(day)) || base.skipDates.includes(dk)) continue;
+      if (!base.enabled || !base.days.includes(weekdayMon0(day)) || base.deletedDates?.includes(dk)) continue;
       // This day's own length, if you changed it.
       const len = base.durationOverrides?.[dk];
       const r = len ? { ...base, durationMin: len } : base;
       const ov = r.overrides[dk];
+      if (base.skipDates.includes(dk)) {
+        const s = ov ? fromLocal(ov.start) : at(day, r.preferredStart);
+        place(routineOcc(r, dk, s, ov ? fromLocal(ov.end) : addMinutes(s, r.durationMin)), true);
+        continue;
+      }
       if (ov || !r.flexible) {
         const s = ov ? fromLocal(ov.start) : at(day, r.preferredStart);
         fixed.push(routineOcc(r, dk, s, ov ? fromLocal(ov.end) : addMinutes(s, r.durationMin), undefined, ov ? 'Moved by hand: stays here until you Reset it' : undefined));
@@ -214,7 +223,7 @@ export function expand(data: AppData, from: Date, to: Date, opts: ExpandOpts = {
 
   // Final travel now that located routines have their times.
   const travel = placed.some((o) => o.location) ? computeTravel(data, [...fixed, ...placed]) : firstTravel;
-  return [...fixed, ...travel, ...placed].filter((o) => overlaps(o.start, o.end, from, to));
+  return [...fixed, ...travel, ...placed, ...skipped].filter((o) => overlaps(o.start, o.end, from, to));
 }
 
 function routineOcc(r: Routine, dk: string, start: Date, end: Date, warning?: string, subtitle?: string): Occ {

@@ -34,7 +34,9 @@ export function CalendarView({ range, onRange }: { range: { start: Date; end: Da
     borderColor: o.warning ? 'var(--bad)' : o.color,
     textColor: o.source.type === 'travel' ? 'var(--text-2)' : '#fff',
     editable: o.movable,
-    classNames: [`k-${o.source.type}`, o.warning ? 'k-warn' : '', isDone(o) ? 'k-done' : '', o.assessment ? 'k-assess' : ''].filter(Boolean),
+    // Skipped: drawn behind everything, so other blocks can sit on top of it.
+    display: o.skipped ? 'background' : 'auto',
+    classNames: [`k-${o.source.type}`, o.warning ? 'k-warn' : '', isDone(o) ? 'k-done' : '', o.assessment ? 'k-assess' : '', o.skipped ? 'k-skipped' : ''].filter(Boolean),
     extendedProps: { occ: o },
   })), [occs]);
 
@@ -87,8 +89,10 @@ export function CalendarView({ range, onRange }: { range: { start: Date; end: Da
           if (o) open({ kind: 'occ', occ: o });
         }}
         select={(info: DateSelectArg) => {
-          open({ kind: 'newChoice', start: info.start, end: info.end });
           calRef.current?.getApi().unselect();
+          // A plain click on a skipped (background) block opens that block, not "new here".
+          if ((info.jsEvent?.target as HTMLElement | null)?.closest('.fc-bg-event')) return;
+          open({ kind: 'newChoice', start: info.start, end: info.end });
         }}
         datesSet={(arg: DatesSetArg) => {
           if (!range || arg.start.getTime() !== range.start.getTime() || arg.end.getTime() !== range.end.getTime()) {
@@ -121,6 +125,9 @@ function renderEvent(arg: EventContentArg) {
   const mins = (o.end.getTime() - o.start.getTime()) / 60000;
   const tip = [o.detail ? `${o.title} · ${o.detail}` : o.title, `${fmtTime(o.start)}–${fmtTime(o.end)}${o.location ? `, ${o.location}` : ''}`, o.subtitle, o.warning && `⚠️ ${o.warning}`].filter(Boolean).join('\n');
   // Travel: always one horizontal line, cut off with "…" if it doesn't fit.
+  if (o.skipped) {
+    return <div className="ev ev-line ev-skipped" title={`Skipped: ${tip}`}>{o.title} · skipped</div>;
+  }
   if (o.source.type === 'travel') {
     return (
       <div className="ev ev-line" title={tip}>

@@ -1,7 +1,7 @@
 // High-level edits used by the calendar and panels.
 import { addDays, addMinutes, startOfWeek } from 'date-fns';
 import { useStore } from '../store';
-import type { ClassKind, Occ } from '../types';
+import type { AppData, ClassKind, Occ, TrashItem } from '../types';
 import { fromLocal, toLocal } from './time';
 
 const commit = (...a: Parameters<ReturnType<typeof useStore.getState>['commit']>) => useStore.getState().commit(...a);
@@ -65,25 +65,82 @@ export function moveOcc(o: Occ, start: Date, end: Date, how: 'move' | 'resize' =
   }
 }
 
-/** Skip one occurrence of a class or routine. */
-export function skipOcc(o: Occ) {
+type Series = { skipDates: string[]; deletedDates?: string[] };
+function seriesOf(d: AppData, o: Occ): Series | undefined {
   const src = o.source;
-  if (src.type === 'class') {
-    commit(`Skip ${o.title} on ${src.date}`, (d) => {
-      const c = d.classes.find((x) => x.id === src.seriesId);
-      if (c && !c.skipDates.includes(src.date)) c.skipDates.push(src.date);
-    });
-  } else if (src.type === 'routine') {
-    commit(`Skip ${o.title} on ${src.date}`, (d) => {
-      const r = d.routines.find((x) => x.id === src.routineId);
-      if (r && !r.skipDates.includes(src.date)) r.skipDates.push(src.date);
-    });
-  } else if (src.type === 'activity') {
-    commit(`Skip ${o.title} on ${src.date}`, (d) => {
-      const a = d.activities.find((x) => x.id === src.activityId);
-      if (a && !a.skipDates.includes(src.date)) a.skipDates.push(src.date);
-    });
-  }
+  if (src.type === 'class') return d.classes.find((x) => x.id === src.seriesId);
+  if (src.type === 'routine') return d.routines.find((x) => x.id === src.routineId);
+  if (src.type === 'activity') return d.activities.find((x) => x.id === src.activityId);
+  return undefined;
+}
+const dateOf = (o: Occ) => ('date' in o.source ? o.source.date : '');
+
+/** Skip one session: it stays on the calendar (faded) but other things can use the time. Toggle to un-skip. */
+export function skipOcc(o: Occ) {
+  const dk = dateOf(o);
+  commit(o.skipped ? `Un-skip ${o.title}` : `Skip ${o.title} on ${dk}`, (d) => {
+    const x = seriesOf(d, o);
+    if (!x) return;
+    x.skipDates = o.skipped ? x.skipDates.filter((v) => v !== dk) : [...new Set([...x.skipDates, dk])];
+  });
+}
+
+/** Delete one session (restore it from the Deleted tab). Events and tasks go to the Deleted tab whole. */
+export function deleteOcc(o: Occ) {
+  const src = o.source;
+  if (src.type === 'event') return trashItem('event', src.eventId);
+  if (src.type === 'task') return trashItem('task', src.taskId);
+  const dk = dateOf(o);
+  commit(`Delete ${o.title} on ${dk}`, (d) => {
+    const x = seriesOf(d, o);
+    if (!x) return;
+    x.skipDates = x.skipDates.filter((v) => v !== dk);
+    x.deletedDates = [...new Set([...(x.deletedDates ?? []), dk])];
+  });
+}
+
+/** Bring back one deleted session. */
+export function restoreDate(kind: 'class' | 'routine' | 'activity', id: string, dk: string, label: string) {
+  commit(`Restore ${label}`, (d) => {
+    const list = kind === 'class' ? d.classes : kind === 'routine' ? d.routines : d.activities;
+    const x = (list as Series[] & { id: string }[]).find((y) => (y as unknown as { id: string }).id === id);
+    if (x) x.deletedDates = (x.deletedDates ?? []).filter((v) => v !== dk);
+  });
+}
+
+/** Move a whole event/task/class/routine/CCA to the Deleted tab. */
+export function trashItem(kind: TrashItem['kind'], id: string) {
+  const d0 = useStore.getState().data;
+  const lists = { event: d0.events, task: d0.tasks, class: d0.classes, routine: d0.routines, activity: d0.activities } as const;
+  const item = (lists[kind] as { id: string }[]).find((x) => x.id === id) as { title?: string } | undefined;
+  commit(`Delete ${item?.title ?? kind}`, (d) => {
+    const key = { event: 'events', task: 'tasks', class: 'classes', routine: 'routines', activity: 'activities' }[kind] as 'events';
+    const arr = d[key] as unknown as { id: string }[];
+    const i = arr.findIndex((x) => x.id === id);
+    if (i < 0) return;
+    const [removed] = arr.splice(i, 1);
+    d.trash.unshift({ kind, item: removed, deletedAt: toLocal(new Date()) } as TrashItem);
+  });
+}
+
+/** Put a whole deleted item back. */
+export function restoreTrash(index: number) {
+  const t = useStore.getState().data.trash[index];
+  if (!t) return;
+  commit(`Restore ${(t.item as { title?: string }).title ?? t.kind}`, (d) => {
+    const [x] = d.trash.splice(index, 1);
+    if (!x) return;
+    if (x.kind === 'event') d.events.push(x.item);
+    if (x.kind === 'task') d.tasks.push(x.item);
+    if (x.kind === 'class') d.classes.push(x.item);
+    if (x.kind === 'routine') d.routines.push(x.item);
+    if (x.kind === 'activity') d.activities.push(x.item);
+  });
+}
+
+/** Permanently remove one item from the Deleted tab. */
+export function purgeTrash(index: number) {
+  commit('Delete forever', (d) => { d.trash.splice(index, 1); });
 }
 
 /** Put a moved class/routine back to its normal time. */
@@ -114,7 +171,7 @@ export function setTravel(key: string, minutes: number | null) {
  */
 export function runningLate(occs: Occ[], min: number, now = new Date()) {
   const todayEnd = new Date(now); todayEnd.setHours(23, 59, 59, 999);
-  const affected = occs.filter((o) => o.end > now && o.start < todayEnd && (o.source.type === 'routine' || o.source.type === 'task'));
+  const affected = occs.filter((o) => !o.skipped && o.end > now && o.start < todayEnd && (o.source.type === 'routine' || o.source.type === 'task'));
   if (!affected.length) return;
   commit(`Running late +${min}m`, (d) => {
     for (const o of affected) {

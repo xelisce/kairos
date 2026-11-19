@@ -42,6 +42,15 @@ function migrate(d: AppData): AppData {
   d.activities ??= [];
   for (const a of d.activities) a.recurring ??= true;
   d.travelMoves ??= {};
+  if (!Array.isArray(d.trash)) d.trash = [];
+  if (!(d.version >= 2)) {
+    // Before version 2, "skip" removed the session, which is now "delete": keep how the calendar looked.
+    for (const x of [...d.classes, ...d.routines, ...d.activities]) {
+      x.deletedDates = [...new Set([...(x.deletedDates ?? []), ...x.skipDates])];
+      x.skipDates = [];
+    }
+    d.version = 2;
+  }
   for (const r of d.routes) r.bidirectional ??= true;
   for (const s of d.semesters) {
     if (!s.style) s.style = s.layout.some((w) => w.type === 'break' && /recess/i.test(w.name)) ? 'nus' : 'us';

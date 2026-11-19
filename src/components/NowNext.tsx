@@ -25,9 +25,10 @@ export function NowNext() {
     () => expand(data, startOfDay(now), addDays(startOfDay(now), 2)).sort((a, b) => a.start.getTime() - b.start.getTime()),
     [data, now],
   );
-  const current = occs.filter((o) => o.start <= now && o.end > now);
+  const live = occs.filter((o) => !o.skipped);
+  const current = live.filter((o) => o.start <= now && o.end > now);
   const cur = current.find((o) => o.source.type === 'travel') ?? current.find((o) => o.source.type !== 'routine') ?? current[0];
-  const upcoming = occs.filter((o) => o.start > now);
+  const upcoming = live.filter((o) => o.start > now);
   const next = upcoming[0];
   const leave = upcoming.find((o) => o.source.type === 'travel' && differenceInMinutes(o.start, now) <= 180);
 

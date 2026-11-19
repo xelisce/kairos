@@ -5,7 +5,7 @@ import type { EventCategory, Occ } from '../types';
 export type ModalState =
   | null
   | { kind: 'occ'; occ: Occ }
-  | { kind: 'task'; id?: string; start?: Date; end?: Date }
+  | { kind: 'task'; id?: string; start?: Date; end?: Date; moduleId?: string; activityId?: string }
   | { kind: 'event'; id?: string; start?: Date; end?: Date; category?: EventCategory; moduleId?: string; activityId?: string }
   | { kind: 'class'; id?: string; moduleId?: string }
   | { kind: 'module'; id?: string; semesterId?: string }

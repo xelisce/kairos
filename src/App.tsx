@@ -3,18 +3,19 @@ import { useStore } from './store';
 import { CalendarView } from './components/CalendarView';
 import { NowNext } from './components/NowNext';
 import { ModalHost } from './components/Modals';
-import { ClassesPanel, PlacesPanel, RoutinesPanel, TasksPanel } from './components/Panels';
+import { ClassesPanel, DeletedPanel, PlacesPanel, RoutinesPanel, TasksPanel } from './components/Panels';
 import { academicWeekFor, weekLabelText } from './lib/weeks';
 import { ReplanButton, ResetButton } from './components/ReplanButton';
 import { SyncBadge } from './components/SyncBadge';
 
-type Tab = 'calendar' | 'tasks' | 'classes' | 'routines' | 'places';
+type Tab = 'calendar' | 'tasks' | 'classes' | 'routines' | 'places' | 'deleted';
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'calendar', label: 'Day', icon: '🗓' },
   { id: 'tasks', label: 'Tasks', icon: '📝' },
   { id: 'classes', label: 'Classes', icon: '🎓' },
   { id: 'routines', label: 'Routines', icon: '🕐' },
   { id: 'places', label: 'Places', icon: '📍' },
+  { id: 'deleted', label: 'Deleted', icon: '🗑' },
 ];
 
 const SIDEBAR_MIN = 260;
@@ -82,7 +83,7 @@ export default function App() {
   }, [refresh]);
 
   const wk = range ? academicWeekFor(data.semesters, new Date((range.start.getTime() + range.end.getTime()) / 2)) : null;
-  const panel = (t: Tab) => ({ tasks: <TasksPanel />, classes: <ClassesPanel />, routines: <RoutinesPanel />, places: <PlacesPanel />, calendar: null }[t]);
+  const panel = (t: Tab) => ({ tasks: <TasksPanel />, classes: <ClassesPanel />, routines: <RoutinesPanel />, places: <PlacesPanel />, deleted: <DeletedPanel />, calendar: null }[t]);
 
   return (
     <div className={`app ${narrow ? 'narrow' : ''}`}>

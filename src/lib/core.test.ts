@@ -328,3 +328,59 @@ describe('routine with a location still auto-schedules', () => {
     expect(occs.filter((o) => o.source.type === 'travel')).toHaveLength(2);
   });
 });
+
+describe('skip vs delete', () => {
+  it('skipped: still shown but not busy (no travel, routines can use the time); deleted: gone', () => {
+    const d = sample(); // CS1 Lecture Mon 11:30-13:30 at COM1, Lunch 11:00-15:00
+    d.classes[0].skipDates = ['2026-08-31'];
+    let occs = expand(d, fromLocal('2026-08-31'), fromLocal('2026-09-01'));
+    const cls = occs.find((o) => o.source.type === 'class')!;
+    expect(cls.skipped).toBe(true);
+    expect(occs.some((o) => o.source.type === 'travel')).toBe(false);
+    const lunch = occs.find((o) => o.title === 'Lunch')!;
+    expect(lunch.start.getHours() * 60 + lunch.start.getMinutes()).toBe(12 * 60 + 30); // usual time, over the skipped class
+    d.classes[0].skipDates = [];
+    d.classes[0].deletedDates = ['2026-08-31'];
+    occs = expand(d, fromLocal('2026-08-31'), fromLocal('2026-09-01'));
+    expect(occs.some((o) => o.source.type === 'class')).toBe(false);
+  });
+  it('delete/restore through actions, and whole items go to the Deleted list', async () => {
+    const { useStore } = await import('../store');
+    const { deleteOcc, restoreDate, trashItem, restoreTrash, skipOcc } = await import('./actions');
+    const d = sample();
+    d.events = [{ id: 'e', title: 'Hangout', category: 'hangout', start: '2026-08-31T19:00', end: '2026-08-31T21:00' }];
+    useStore.setState({ data: d, past: [], future: [] });
+    const get = () => useStore.getState().data;
+    const cls = () => expand(get(), fromLocal('2026-08-31'), fromLocal('2026-09-01')).find((o) => o.source.type === 'class');
+    skipOcc(cls()!);
+    expect(cls()!.skipped).toBe(true);
+    skipOcc(cls()!); // un-skip
+    expect(cls()!.skipped).toBeFalsy();
+    deleteOcc(cls()!);
+    expect(cls()).toBeUndefined();
+    restoreDate('class', 'c', '2026-08-31', 'x');
+    expect(cls()).toBeDefined();
+    trashItem('event', 'e');
+    expect(get().events).toHaveLength(0);
+    expect(get().trash[0].kind).toBe('event');
+    restoreTrash(0);
+    expect(get().events).toHaveLength(1);
+    expect(get().trash).toHaveLength(0);
+  });
+});
+
+describe('migration of older data', () => {
+  it('old skips (which removed sessions) become deletes', async () => {
+    const { applyRemote, useStore } = await import('../store');
+    const d = sample() as unknown as Record<string, unknown> & ReturnType<typeof sample>;
+    d.version = 1;
+    delete (d as Partial<typeof d>).trash;
+    d.classes[0].skipDates = ['2026-09-02'];
+    applyRemote(d);
+    const c = useStore.getState().data.classes[0];
+    expect(c.skipDates).toEqual([]);
+    expect(c.deletedDates).toEqual(['2026-09-02']);
+    expect(useStore.getState().data.version).toBe(2);
+    expect(useStore.getState().data.trash).toEqual([]);
+  });
+});

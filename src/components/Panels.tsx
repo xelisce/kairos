@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { useStore } from '../store';
+import { purgeTrash, restoreDate, restoreTrash } from '../lib/actions';
 import type { AppData, Task } from '../types';
 import { taskWarning } from '../lib/scheduler';
 import { fmtDur, fromLocal, toLocal, uid } from '../lib/time';
@@ -36,6 +37,7 @@ export function TasksPanel() {
   const row = (t: Task) => {
     const w = taskWarning(t, now, data.settings.warnHours);
     const mod = data.modules.find((m) => m.id === t.moduleId);
+    const act = !mod && t.activityId ? data.activities.find((a) => a.id === t.activityId) : undefined;
     return (
       <li key={t.id} className={`task ${w?.level ?? ''}`}>
         <input type="checkbox" aria-label="Done" checked={t.done} onChange={() => commit(t.done ? `Undone ${t.title}` : `Done ${t.title}`, (d) => {
@@ -45,6 +47,7 @@ export function TasksPanel() {
           <span className="task-title">
             {w && <span title={w.text}>{w.level === 'bad' ? '❗' : '⚠️'} </span>}
             {mod && <span className="tag" style={{ background: mod.color }}>{mod.code}</span>}
+            {act && <span className="tag" style={{ background: act.color }}>{act.title}</span>}
             {t.title}
           </span>
           <span className="task-meta">
@@ -158,6 +161,7 @@ export function ClassesPanel() {
                 <button className="linkish strong mod-code" title={a.title} onClick={() => open({ kind: 'activity', id: a.id })}>{a.title}</button>
                 <span className="mod-name" />
                 <button className="chip" title="Add a session you booked" onClick={() => open({ kind: 'event', category: 'cca', activityId: a.id })}>+ session</button>
+                <button className="chip" title="Something to do for this, any time (e.g. glaze pottery)" onClick={() => open({ kind: 'task', activityId: a.id })}>+ task</button>
               </div>
               <ul className="lessons">
                 <li>
@@ -170,6 +174,7 @@ export function ClassesPanel() {
                   </button>
                 </li>
               </ul>
+              <TaskCount activityId={a.id} />
               {sessions.length > 0 && (
                 <ul className="mod-tasks">
                   {sessions.map((e) => (
@@ -185,8 +190,8 @@ export function ClassesPanel() {
   );
 }
 
-function TaskCount({ moduleId }: { moduleId: string }) {
-  const tasks = useStore((s) => s.data.tasks.filter((t) => t.moduleId === moduleId && !t.done));
+function TaskCount({ moduleId, activityId }: { moduleId?: string; activityId?: string }) {
+  const tasks = useStore((s) => s.data.tasks.filter((t) => !t.done && ((moduleId && t.moduleId === moduleId) || (activityId && t.activityId === activityId))));
   const open = useUI((s) => s.open);
   if (!tasks.length) return null;
   return (
@@ -420,4 +425,50 @@ export function renamePlace(d: AppData, id: string, name: string) {
 function Parts({ items }: { items: (string | undefined | false | null)[] }) {
   const parts = items.filter(Boolean) as string[];
   return <>{parts.map((p, i) => <span key={i} className="part">{i > 0 ? `· ${p}` : p}</span>)}</>;
+}
+
+// ---------- Deleted ----------
+
+/** Everything you deleted: single sessions and whole items. Restore brings it back (also undoable). */
+export function DeletedPanel() {
+  const data = useStore((s) => s.data);
+  const mods = new Map(data.modules.map((m) => [m.id, m]));
+  const sessions = [
+    ...data.classes.flatMap((c) => (c.deletedDates ?? []).map((dk) => ({ kind: 'class' as const, id: c.id, dk, label: `${mods.get(c.moduleId)?.code ?? ''} ${c.kind}`.trim() }))),
+    ...data.routines.flatMap((r) => (r.deletedDates ?? []).map((dk) => ({ kind: 'routine' as const, id: r.id, dk, label: r.title }))),
+    ...data.activities.flatMap((a) => (a.deletedDates ?? []).map((dk) => ({ kind: 'activity' as const, id: a.id, dk, label: a.title }))),
+  ].sort((a, b) => b.dk.localeCompare(a.dk));
+  const kindName = { event: 'Event', task: 'Task', class: 'Class', routine: 'Routine', activity: 'CCA / activity' };
+  const itemLabel = (t: (typeof data.trash)[number]) => {
+    if (t.kind === 'class') return `${mods.get(t.item.moduleId)?.code ?? ''} ${t.item.kind} (all sessions)`;
+    if (t.kind === 'event') return `${t.item.title} · ${format(fromLocal(t.item.start), 'EEE d MMM HH:mm')}`;
+    return t.item.title;
+  };
+  return (
+    <div className="panel">
+      <p className="muted small">Things you deleted. <b>Restore</b> puts them back. Skipped sessions aren't here; they stay on the calendar, faded.</p>
+      <h3>Single sessions <span className="count">{sessions.length}</span></h3>
+      {!sessions.length && <p className="muted small">None.</p>}
+      <ul className="routes">
+        {sessions.map((x) => (
+          <li key={`${x.kind}:${x.id}:${x.dk}`}>
+            <span className="route-name"><Parts items={[x.label, format(fromLocal(x.dk), 'EEE dd/MM/yyyy')]} /></span>
+            <button className="chip" onClick={() => restoreDate(x.kind, x.id, x.dk, `${x.label} on ${x.dk}`)}>Restore</button>
+          </li>
+        ))}
+      </ul>
+      <h3>Whole items <span className="count">{data.trash.length}</span></h3>
+      {!data.trash.length && <p className="muted small">None.</p>}
+      <ul className="routes">
+        {data.trash.map((t, i) => (
+          <li key={i}>
+            <span className="route-name"><Parts items={[itemLabel(t), kindName[t.kind], `deleted ${format(fromLocal(t.deletedAt), 'dd/MM HH:mm')}`]} /></span>
+            <button className="chip" onClick={() => restoreTrash(i)}>Restore</button>
+            <button className="icon-btn" aria-label="Delete forever" title="Delete forever"
+              onClick={() => { if (confirm(`Delete "${itemLabel(t)}" forever? This can only be undone with Ctrl+Z right away.`)) purgeTrash(i); }}>✕</button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
