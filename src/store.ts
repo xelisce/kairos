@@ -16,7 +16,7 @@ interface State {
   past: Snapshot[];
   future: Snapshot[];
   /** Mutate a draft copy of the data. Recorded as one undo step. */
-  commit: (label: string, fn: (d: AppData) => void, opts?: { replanFromScratch?: boolean }) => void;
+  commit: (label: string, fn: (d: AppData) => void) => void;
   undo: () => void;
   redo: () => void;
   /** Re-run the scheduler without recording an undo step (on load, every few minutes). */
@@ -39,6 +39,7 @@ function migrate(d: AppData): AppData {
     c.kindOverrides ??= {};
   }
   d.activities ??= [];
+  for (const a of d.activities) a.recurring ??= true;
   d.travelMoves ??= {};
   for (const r of d.routes) r.bidirectional ??= true;
   for (const s of d.semesters) {
@@ -51,17 +52,17 @@ function save(data: AppData) {
   try { localStorage.setItem(KEY, JSON.stringify(data)); } catch { /* storage full or blocked */ }
 }
 
-const withPlan = (d: AppData, fromScratch = false): AppData => ({ ...d, tasks: planTasks(d, new Date(), { fromScratch }) });
+const withPlan = (d: AppData): AppData => ({ ...d, tasks: planTasks(d, new Date()) });
 
 export const useStore = create<State>((set, get) => ({
   data: withPlan(load()),
   past: [],
   future: [],
-  commit: (label, fn, opts) => {
+  commit: (label, fn) => {
     const prev = get().data;
     const draft = structuredClone(prev);
     fn(draft);
-    const next = withPlan(draft, opts?.replanFromScratch);
+    const next = withPlan(draft);
     set({ data: next, past: [...get().past, { data: prev, label }].slice(-HISTORY), future: [] });
   },
   undo: () => {

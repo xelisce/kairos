@@ -4,7 +4,7 @@ import { useStore } from '../store';
 import type { SemesterStyle } from '../types';
 import type { Activity, AppData, CalEvent, ClassKind, ClassSeries, EventCategory, Module, Routine, RoutineCategory, Semester, Task, TaskCategory } from '../types';
 import { ColorPicker, Field, LocationInput, Modal, NumberInput, Row, DayPicker, useUI } from './ui';
-import { dateKey, fmtDur, fmtTime, fromLocal, toLocal, uid, WEEKDAYS } from '../lib/time';
+import { at, dateKey, fmtDur, fmtTime, fromLocal, toLocal, uid, WEEKDAYS } from '../lib/time';
 import { formatLayout, formatWeeks, LAYOUT_PRESETS, maxTeachingWeek, parseLayout, parseWeeks, SEMESTER_PRESETS, semesterFromPreset, weekLabelText, DAY_PRESETS, US_DAY_LETTERS } from '../lib/weeks';
 import { resetOcc, setSessionKind, setTravel, skipOcc } from '../lib/actions';
 import { EVENT_LABELS } from '../lib/expand';
@@ -128,6 +128,7 @@ function NewChoice() {
         <button className="btn big" onClick={() => open({ kind: 'task', start: m.start, end: m.end })}>📝 Task here<small>homework, admin, applications</small></button>
         <button className="btn big" onClick={() => open({ kind: 'event', start: m.start, end: m.end })}>📅 Event here<small>hangout, appointment</small></button>
         <button className="btn big" onClick={() => open({ kind: 'event', start: m.start, end: m.end, category: 'exam' })}>📝 Exam / quiz here<small>or presentation, help session</small></button>
+        <button className="btn big" onClick={() => open({ kind: 'event', start: m.start, end: m.end, category: 'cca' })}>🧗 CCA session here<small>a session you booked</small></button>
       </div>
     </Modal>
   );
@@ -198,6 +199,25 @@ function TaskForm() {
 
 // ---------- Event ----------
 
+/** Defaults for a new event, using the booked CCA's name, place and usual times when there is one. */
+function newEvent(data: AppData, m: { start?: Date; end?: Date; category?: EventCategory; moduleId?: string; activityId?: string }, now: Date): CalEvent {
+  const act = m.activityId ? data.activities.find((a) => a.id === m.activityId) : undefined;
+  let start = m.start ?? now;
+  let end = m.end ?? addMinutes(now, 120);
+  if (act && !m.start) {
+    // Next day at the club's usual time.
+    const day = addDays(new Date(now.getFullYear(), now.getMonth(), now.getDate()), 1);
+    start = at(day, act.start);
+    end = at(day, act.end);
+  }
+  return {
+    id: uid(), title: act?.title ?? '', category: m.category ?? (act ? 'cca' : 'hangout'),
+    moduleId: m.moduleId, activityId: act?.id, location: act?.location,
+    start: toLocal(start), end: toLocal(end),
+  };
+}
+
+
 function EventForm() {
   const m = useUI((s) => s.modal) as Extract<ReturnType<typeof useUI.getState>['modal'], { kind: 'event' }>;
   const close = useUI((s) => s.close);
@@ -206,8 +226,7 @@ function EventForm() {
   const existing = m.id ? data.events.find((e) => e.id === m.id) : undefined;
   const now = new Date();
   const [ev, setEv] = useState<CalEvent>(() => existing ?? {
-    id: uid(), title: '', category: m.category ?? 'hangout', moduleId: m.moduleId,
-    start: toLocal(m.start ?? now), end: toLocal(m.end ?? addMinutes(now, 120)),
+    ...newEvent(data, m, now),
   });
   const up = (p: Partial<CalEvent>) => setEv((x) => ({ ...x, ...p }));
   const valid = ev.title.trim() && ev.end > ev.start;
@@ -232,12 +251,23 @@ function EventForm() {
           {Object.entries(EVENT_LABELS).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
         </select>
       </Field>
-      <Field label="Course (optional)">
+      {ev.category === 'cca' && (
+        <Field label="CCA / club">
+          <select value={ev.activityId ?? ''} onChange={(e) => {
+            const act = data.activities.find((x) => x.id === e.target.value);
+            up({ activityId: act?.id, ...(act ? { title: act.title, location: ev.location ?? act.location } : {}) });
+          }}>
+            <option value="">None</option>
+            {data.activities.map((x) => <option key={x.id} value={x.id}>{x.title}</option>)}
+          </select>
+        </Field>
+      )}
+      {ev.category !== 'cca' && <Field label="Course (optional)">
         <select value={ev.moduleId ?? ''} onChange={(e) => up({ moduleId: e.target.value || undefined })}>
           <option value="">None</option>
           {data.modules.map((mo) => <option key={mo.id} value={mo.id}>{mo.code}</option>)}
         </select>
-      </Field>
+      </Field>}
       <Row>
         <Field label="Start"><input type="datetime-local" value={ev.start} onChange={(e) => {
           const dur = fromLocal(ev.end).getTime() - fromLocal(ev.start).getTime();
@@ -561,10 +591,10 @@ function ActivityForm() {
   const commit = useStore((s) => s.commit);
   const existing = m.id ? data.activities.find((x) => x.id === m.id) : undefined;
   const [a, setA] = useState<Activity>(() => existing ?? {
-    id: uid(), title: '', days: [0, 2, 3], start: '18:00', end: '20:00', color: '#5fa83f', skipDates: [], overrides: {},
+    id: uid(), title: '', recurring: true, days: [0, 2, 3], start: '18:00', end: '20:00', color: '#5fa83f', skipDates: [], overrides: {},
   });
   const up = (p: Partial<Activity>) => setA((x) => ({ ...x, ...p }));
-  const valid = a.title.trim() && a.days.length > 0 && a.end > a.start;
+  const valid = a.title.trim() && (!a.recurring || a.days.length > 0) && a.end > a.start;
   const save = () => {
     if (!valid) return;
     commit(existing ? `Edit ${a.title}` : `Add ${a.title}`, (d) => {
@@ -576,24 +606,40 @@ function ActivityForm() {
   };
   return (
     <Modal title={existing ? `Edit ${existing.title}` : 'New CCA / club'} onClose={close} footer={<>
-      {existing && <button className="btn danger" onClick={() => { commit(`Delete ${a.title}`, (d) => { d.activities = d.activities.filter((x) => x.id !== a.id); }); close(); }}>Delete</button>}
+      {existing && <button className="btn danger" onClick={() => {
+        const sessions = data.events.filter((e) => e.activityId === a.id).length;
+        if (sessions && !confirm(`Delete ${a.title} and its ${sessions} booked session(s)?`)) return;
+        commit(`Delete ${a.title}`, (d) => {
+          d.activities = d.activities.filter((x) => x.id !== a.id);
+          d.events = d.events.filter((e) => e.activityId !== a.id);
+        });
+        close();
+      }}>Delete</button>}
       <span className="spacer" />
       <button className="btn" onClick={close}>Cancel</button>
       <button className="btn primary" onClick={save} disabled={!valid}>Save</button>
     </>}>
-      <Field label="Name"><input autoFocus value={a.title} onChange={(e) => up({ title: e.target.value })} placeholder="e.g. Robotics" /></Field>
-      <Field label="Days"><DayPicker value={a.days} onChange={(days) => up({ days })} letters={US_DAY_LETTERS} presets={DAY_PRESETS} /></Field>
+      <Field label="Name"><input autoFocus value={a.title} onChange={(e) => up({ title: e.target.value })} placeholder={a.recurring ? 'e.g. Wisconsin Robotics' : 'e.g. Hoofers'} /></Field>
+      <div className="segmented" role="radiogroup" aria-label="How it's scheduled">
+        <button type="button" role="radio" aria-checked={a.recurring} className={a.recurring ? 'on' : ''} onClick={() => up({ recurring: true })}>🔁 Repeats weekly</button>
+        <button type="button" role="radio" aria-checked={!a.recurring} className={!a.recurring ? 'on' : ''} onClick={() => up({ recurring: false })}>📅 I book each session</button>
+      </div>
+      {a.recurring && <Field label="Days"><DayPicker value={a.days} onChange={(days) => up({ days })} letters={US_DAY_LETTERS} presets={DAY_PRESETS} /></Field>}
       <Row>
-        <Field label="Start"><input type="time" value={a.start} onChange={(e) => up({ start: e.target.value })} /></Field>
-        <Field label="End"><input type="time" value={a.end} onChange={(e) => up({ end: e.target.value })} /></Field>
+        <Field label={a.recurring ? 'Start' : 'Usual start'}><input type="time" value={a.start} onChange={(e) => up({ start: e.target.value })} /></Field>
+        <Field label={a.recurring ? 'End' : 'Usual end'}><input type="time" value={a.end} onChange={(e) => up({ end: e.target.value })} /></Field>
       </Row>
-      <Row>
-        <Field label="From (optional)"><input type="date" value={a.from ?? ''} onChange={(e) => up({ from: e.target.value || undefined })} /></Field>
-        <Field label="Until (optional)"><input type="date" value={a.until ?? ''} onChange={(e) => up({ until: e.target.value || undefined })} /></Field>
-      </Row>
+      {a.recurring ? (
+        <Row>
+          <Field label="From (optional)"><input type="date" value={a.from ?? ''} onChange={(e) => up({ from: e.target.value || undefined })} /></Field>
+          <Field label="Until (optional)"><input type="date" value={a.until ?? ''} onChange={(e) => up({ until: e.target.value || undefined })} /></Field>
+        </Row>
+      ) : (
+        <p className="muted small">After saving, add each session you book with “+ session” in the Classes tab, or drag on the calendar and pick “CCA session here”. The usual times above are pre-filled.</p>
+      )}
       <Field label="Location (optional)" hint="Travel time is added automatically"><LocationInput value={a.location ?? ''} onChange={(v) => up({ location: v || undefined })} places={placeNames(data)} /></Field>
       <Field label="Color"><ColorPicker value={a.color} onChange={(color) => up({ color })} /></Field>
-      {a.skipDates.length > 0 && (
+      {a.recurring && a.skipDates.length > 0 && (
         <div>
           <span className="field-label">Skipped dates</span>
           <div className="chips">{[...a.skipDates].sort().map((dk) => (

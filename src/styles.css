@@ -236,3 +236,17 @@ code { background: var(--surface-2); padding: 0 4px; border-radius: 4px; }
 .resizer::after { content: ''; position: absolute; left: 1px; right: 1px; top: 50%; height: 36px; margin-top: -18px; border-radius: 2px; background: var(--border); }
 .resizer:hover, .resizer:focus-visible, body.resizing .resizer { background: color-mix(in srgb, var(--accent) 25%, var(--surface)); outline: none; }
 body.resizing { cursor: col-resize; user-select: none; }
+
+/* Split button + menu */
+.split { position: relative; display: inline-flex; }
+.split-main { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.split-arrow { border-top-left-radius: 0; border-bottom-left-radius: 0; border-left: none; padding: 7px 8px; }
+.menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 50; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; box-shadow: var(--shadow); padding: 6px; width: 260px; display: flex; flex-direction: column; }
+.menu button { text-align: left; background: none; border: none; padding: 8px 10px; border-radius: 6px; cursor: pointer; }
+.menu button:hover, .menu button:focus-visible { background: var(--surface-2); outline: none; }
+.menu-help { margin: 6px 10px 4px; font-size: 11px; color: var(--text-2); }
+.segmented { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 10px; }
+.segmented button { flex: 1; border: none; background: var(--surface); padding: 8px; cursor: pointer; }
+.segmented button.on { background: var(--accent); color: #fff; }
+.choice-grid { grid-template-columns: 1fr 1fr; }

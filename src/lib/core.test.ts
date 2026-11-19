@@ -123,7 +123,7 @@ describe('CCAs, session kinds, routes, travel moves', () => {
   it('CCA runs on its days within its range, with travel', () => {
     const d = sample();
     d.places.push({ id: 'eh', name: 'Engineering Hall', aliases: [] });
-    d.activities.push({ id: 'a', title: 'Robotics', days: [0, 2, 3], start: '18:00', end: '20:00', location: 'Engineering Hall', color: '#000', until: '2026-09-09', skipDates: [], overrides: {} });
+    d.activities.push({ id: 'a', title: 'Robotics', recurring: true, days: [0, 2, 3], start: '18:00', end: '20:00', location: 'Engineering Hall', color: '#000', until: '2026-09-09', skipDates: [], overrides: {} });
     const occs = expand(d, fromLocal('2026-08-31'), fromLocal('2026-09-14'));
     const robo = occs.filter((o) => o.source.type === 'activity');
     expect(robo.map((o) => o.start.getDate())).toEqual([31, 2, 3, 7, 9]);
@@ -151,5 +151,30 @@ describe('CCAs, session kinds, routes, travel moves', () => {
     const moved = expand(d, fromLocal('2026-08-31'), fromLocal('2026-09-01')).find((o) => o.id === t.id)!;
     expect(moved.start.getHours() * 60 + moved.start.getMinutes()).toBe(11 * 60 + 10);
     expect(moved.warning).toMatch(/late/);
+  });
+});
+
+describe('re-plan scopes', () => {
+  it('ranges', async () => {
+    const { replanRange } = await import('./actions');
+    const now = fromLocal('2026-11-19T15:00'); // Thursday
+    const t = replanRange('today', now);
+    expect([t.from!.getDate(), t.to!.getDate()]).toEqual([19, 20]);
+    const w = replanRange('week', now);
+    expect([w.from!.getDate(), w.to!.getDate()]).toEqual([16, 23]);
+    expect(replanRange('future', now).to).toBeNull();
+    expect(replanRange('all', now).from).toBeNull();
+  });
+});
+
+describe('booked CCA sessions', () => {
+  it('non-recurring CCA has no weekly blocks; its sessions take its color', () => {
+    const d = sample();
+    d.activities.push({ id: 'h', title: 'Hoofers', recurring: false, days: [0, 1, 2, 3, 4], start: '14:00', end: '16:00', color: '#123456', skipDates: [], overrides: {} });
+    d.events.push({ id: 'e', title: 'Hoofers', category: 'cca', activityId: 'h', start: '2026-09-02T14:00', end: '2026-09-02T16:00' });
+    const occs = expand(d, fromLocal('2026-08-31'), fromLocal('2026-09-07'));
+    expect(occs.filter((o) => o.source.type === 'activity')).toHaveLength(0);
+    const s = occs.find((o) => o.id === 'event:e')!;
+    expect(s.color).toBe('#123456');
   });
 });

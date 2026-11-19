@@ -9,6 +9,7 @@ import { weekIndex } from './weeks';
 
 export const CATEGORY_COLORS: Record<string, string> = {
   hangout: '#e0699f',
+  cca: '#5fa83f',
   admin: '#d08a2c',
   appointment: '#3fa7a0',
   other: '#7a8194',
@@ -22,7 +23,7 @@ export const CATEGORY_COLORS: Record<string, string> = {
 };
 
 export const EVENT_LABELS: Record<string, string> = {
-  hangout: 'Hangout / outing', appointment: 'Appointment', admin: 'Admin',
+  hangout: 'Hangout / outing', cca: 'CCA / club session', appointment: 'Appointment', admin: 'Admin',
   exam: 'Exam', quiz: 'Quiz', presentation: 'Presentation', help: 'Help session', other: 'Other',
 };
 const ASSESSMENT_EVENTS = ['exam', 'quiz', 'presentation'];
@@ -98,7 +99,7 @@ export function expand(data: AppData, from: Date, to: Date, opts: ExpandOpts = {
 
     // CCAs / clubs
     for (const a of data.activities) {
-      if (!a.days.includes(wd) || a.skipDates.includes(dk)) continue;
+      if (a.recurring === false || !a.days.includes(wd) || a.skipDates.includes(dk)) continue;
       if ((a.from && dk < a.from) || (a.until && dk > a.until)) continue;
       const ov = a.overrides[dk];
       fixed.push({
@@ -120,16 +121,17 @@ export function expand(data: AppData, from: Date, to: Date, opts: ExpandOpts = {
     const en = fromLocal(e.end);
     if (!overlaps(s, en, pFrom, pTo)) continue;
     const mod = e.moduleId ? modules.get(e.moduleId) : undefined;
+    const act = e.activityId ? data.activities.find((a) => a.id === e.activityId) : undefined;
     const icon = e.category === 'exam' || e.category === 'quiz' ? '📝 ' : e.category === 'presentation' ? '🎤 ' : e.category === 'help' ? '🙋 ' : '';
     fixed.push({
       id: `event:${e.id}`,
       source: { type: 'event', eventId: e.id },
       title: `${icon}${mod && !e.title.toUpperCase().includes(mod.code.toUpperCase()) ? `${mod.code} ` : ''}${e.title}`,
-      subtitle: mod ? `${EVENT_LABELS[e.category]} · ${mod.name}` : undefined,
+      subtitle: mod ? `${EVENT_LABELS[e.category]} · ${mod.name}` : act && act.title !== e.title ? act.title : undefined,
       start: s,
       end: en,
       location: e.location,
-      color: mod?.color ?? CATEGORY_COLORS[e.category] ?? CATEGORY_COLORS.other,
+      color: mod?.color ?? act?.color ?? CATEGORY_COLORS[e.category] ?? CATEGORY_COLORS.other,
       movable: true,
       assessment: ASSESSMENT_EVENTS.includes(e.category),
     });

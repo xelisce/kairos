@@ -66,10 +66,15 @@ export interface ClassSeries {
   kindOverrides: Record<LocalDate, ClassKind>;
 }
 
-/** CCA / club / recurring commitment with fixed times, e.g. Robotics MWR 18:00-20:00. */
+/**
+ * CCA / club. Either repeats weekly with fixed times (Robotics MWR 18:00-20:00)
+ * or is booked session by session (Hoofers): those sessions are CalEvents with activityId.
+ */
 export interface Activity {
   id: ID;
   title: string;
+  /** false = no weekly pattern; add sessions one by one. For those, start/end are the usual session times. */
+  recurring: boolean;
   days: number[];
   start: HHMM;
   end: HHMM;
@@ -104,7 +109,7 @@ export interface Routine {
   overrides: Record<LocalDate, TimeOverride>;
 }
 
-export type EventCategory = 'hangout' | 'admin' | 'appointment' | 'exam' | 'quiz' | 'presentation' | 'help' | 'other';
+export type EventCategory = 'hangout' | 'cca' | 'admin' | 'appointment' | 'exam' | 'quiz' | 'presentation' | 'help' | 'other';
 
 /** One-off fixed-time thing: hangout, appointment, admin slot. */
 export interface CalEvent {
@@ -117,6 +122,8 @@ export interface CalEvent {
   notes?: string;
   /** Link to a course (exams, quizzes, presentations, help sessions). */
   moduleId?: ID;
+  /** Link to a CCA / club (a booked session). */
+  activityId?: ID;
 }
 
 export type TaskCategory = 'homework' | 'admin' | 'personal' | 'other';

@@ -33,13 +33,8 @@ function findSlot(data: AppData, busy: Interval[], durationMin: number, from: Da
   return null;
 }
 
-export interface PlanOptions {
-  /** Reflow every unpinned task instead of keeping existing slots. */
-  fromScratch?: boolean;
-}
-
 /** Returns a new tasks array. Pure: does not mutate `data`. */
-export function planTasks(data: AppData, now: Date, opts: PlanOptions = {}): Task[] {
+export function planTasks(data: AppData, now: Date): Task[] {
   const horizon = addDays(startOfDay(now), data.settings.horizonDays);
   const tasks = data.tasks.map((t) => ({ ...t }));
 
@@ -63,7 +58,7 @@ export function planTasks(data: AppData, now: Date, opts: PlanOptions = {}): Tas
 
   // Pass 1: keep slots that are still fine.
   for (const t of movable) {
-    if (!opts.fromScratch && t.scheduled) {
+    if (t.scheduled) {
       const s = fromLocal(t.scheduled.start);
       const e = fromLocal(t.scheduled.end);
       const clash = busy.some((b) => overlaps(s, e, b.start, b.end));

@@ -150,15 +150,29 @@ export function ClassesPanel() {
           <span className="spacer" />
           <button className="chip" onClick={() => open({ kind: 'activity' })}>+ CCA</button>
         </header>
-        {!data.activities.length && <p className="muted small">Recurring things with fixed times, e.g. Robotics MWR 18:00–20:00.</p>}
-        {data.activities.map((a) => (
-          <div key={a.id} className="mod" style={{ borderLeftColor: a.color }}>
-            <button className="linkish" onClick={() => open({ kind: 'activity', id: a.id })}>
-              <b>{a.title}</b> · {formatDays(a.days, 'us')} {a.start}–{a.end}{a.location ? ` · 📍${a.location}` : ''}
-              {(a.from || a.until) && <span className="muted"> · {a.from ? format(fromLocal(a.from), 'd MMM') : '…'}–{a.until ? format(fromLocal(a.until), 'd MMM') : '…'}</span>}
-            </button>
-          </div>
-        ))}
+        {!data.activities.length && <p className="muted small">Weekly ones (Robotics MWR 18:00–20:00) or ones you book session by session (Hoofers).</p>}
+        {data.activities.map((a) => {
+          const sessions = data.events.filter((e) => e.activityId === a.id && fromLocal(e.end) >= today).sort((x, y) => x.start.localeCompare(y.start));
+          return (
+            <div key={a.id} className="mod" style={{ borderLeftColor: a.color }}>
+              <div className="mod-head">
+                <button className="linkish" onClick={() => open({ kind: 'activity', id: a.id })}>
+                  <b>{a.title}</b> · {a.recurring === false ? 'booked sessions' : `${formatDays(a.days, 'us')} ${a.start}–${a.end}`}{a.location ? ` · 📍${a.location}` : ''}
+                  {a.recurring !== false && (a.from || a.until) && <span className="muted"> · {a.from ? format(fromLocal(a.from), 'd MMM') : '…'}–{a.until ? format(fromLocal(a.until), 'd MMM') : '…'}</span>}
+                </button>
+                <span className="spacer" />
+                <button className="chip" title="Add a session you booked" onClick={() => open({ kind: 'event', category: 'cca', activityId: a.id })}>+ session</button>
+              </div>
+              {sessions.length > 0 && (
+                <ul className="mod-tasks">
+                  {sessions.map((e) => (
+                    <li key={e.id}><button className="linkish" onClick={() => open({ kind: 'event', id: e.id })}>🧗 {format(fromLocal(e.start), 'EEE d MMM HH:mm')}–{format(fromLocal(e.end), 'HH:mm')}{e.location && e.location !== a.location ? ` · 📍${e.location}` : ''}</button></li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          );
+        })}
       </section>
     </div>
   );

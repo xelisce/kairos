@@ -5,6 +5,7 @@ import { NowNext } from './components/NowNext';
 import { ModalHost } from './components/Modals';
 import { ClassesPanel, PlacesPanel, RoutinesPanel, TasksPanel } from './components/Panels';
 import { academicWeekFor, weekLabelText } from './lib/weeks';
+import { ReplanButton } from './components/ReplanButton';
 
 type Tab = 'calendar' | 'tasks' | 'classes' | 'routines' | 'places';
 const TABS: { id: Tab; label: string; icon: string }[] = [
@@ -52,7 +53,7 @@ function useNarrow() {
 }
 
 export default function App() {
-  const { past, future, undo, redo, commit, refresh, data } = useStore();
+  const { past, future, undo, redo, refresh, data } = useStore();
   const [tab, setTab] = useState<Tab>('tasks');
   const [mobileTab, setMobileTab] = useState<Tab>('calendar');
   const [range, setRange] = useState<{ start: Date; end: Date } | null>(null);
@@ -91,7 +92,7 @@ export default function App() {
         <div className="brand"><img src="/icon.svg" alt="" width={24} height={24} /> Kairos</div>
         {wk && <span className="tag neutral" title={wk.sem.name}>{weekLabelText(wk.label)}</span>}
         <span className="spacer" />
-        <button className="btn" onClick={() => commit('Re-plan tasks', () => {}, { replanFromScratch: true })} title="Re-fit all auto-scheduled tasks from scratch">↻ Re-plan</button>
+        <ReplanButton />
         <button className="icon-btn" onClick={undo} disabled={!past.length} title={past.length ? `Undo: ${past[past.length - 1].label} (Ctrl+Z)` : 'Nothing to undo'} aria-label="Undo">↶<sup>{past.length || ''}</sup></button>
         <button className="icon-btn" onClick={redo} disabled={!future.length} title={future.length ? `Redo: ${future[0].label} (Ctrl+Y)` : 'Nothing to redo'} aria-label="Redo">↷<sup>{future.length || ''}</sup></button>
       </header>

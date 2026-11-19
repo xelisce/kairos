@@ -1,5 +1,5 @@
 // High-level edits used by the calendar and panels.
-import { addMinutes } from 'date-fns';
+import { addDays, addMinutes, startOfWeek } from 'date-fns';
 import { useStore } from '../store';
 import type { ClassKind, Occ } from '../types';
 import { fromLocal, toLocal } from './time';
@@ -116,7 +116,8 @@ export function runningLate(occs: Occ[], min: number, now = new Date()) {
         if (r) r.overrides[src.date] = { start: ns, end: ne };
       } else if (src.type === 'task') {
         const t = d.tasks.find((x) => x.id === src.taskId);
-        if (t && !t.done) { t.scheduled = { start: ns, end: ne }; t.pinned = true; }
+        // Not pinned: Re-plan can still move it, and it keeps this slot otherwise.
+        if (t && !t.done) t.scheduled = { start: ns, end: ne };
       }
     }
   });
@@ -133,5 +134,44 @@ export function setSessionKind(o: Occ, kind: ClassKind | null) {
     if (!c) return;
     if (!kind || kind === c.kind) delete c.kindOverrides[src.date];
     else c.kindOverrides[src.date] = kind;
+  });
+}
+
+export type ReplanScope = 'today' | 'week' | 'future' | 'all';
+
+export const REPLAN_LABELS: Record<ReplanScope, string> = {
+  today: 'Re-plan today',
+  week: 'Re-plan this week',
+  future: 'Re-plan all future',
+  all: 'Re-plan all time (incl. past)',
+};
+
+/** Date range a re-plan covers. `null` end = open-ended. */
+export function replanRange(scope: ReplanScope, now = new Date()): { from: Date | null; to: Date | null } {
+  const day = new Date(now); day.setHours(0, 0, 0, 0);
+  if (scope === 'today') return { from: day, to: addDays(day, 1) };
+  if (scope === 'week') { const mon = startOfWeek(now, { weekStartsOn: 1 }); return { from: mon, to: addDays(mon, 7) }; }
+  if (scope === 'future') return { from: day, to: null };
+  return { from: null, to: null };
+}
+
+/**
+ * Re-plan: undo hand-made moves of flexible things in the range and let
+ * auto-scheduling place them again.
+ * - Routines (meals, shower...) go back to auto-fit around classes.
+ * - Auto-scheduled tasks lose their slot and get re-placed (earliest deadline first).
+ * Untouched: classes, events, CCAs, travel moves, and tasks you dragged (pinned).
+ */
+export function replan(scope: ReplanScope, now = new Date()) {
+  const { from, to } = replanRange(scope, now);
+  const inRange = (d: Date) => (!from || d >= from) && (!to || d < to);
+  const dateIn = (dk: string) => inRange(fromLocal(dk));
+  commit(REPLAN_LABELS[scope], (d) => {
+    for (const r of d.routines) {
+      for (const dk of Object.keys(r.overrides)) if (dateIn(dk)) delete r.overrides[dk];
+    }
+    for (const t of d.tasks) {
+      if (!t.done && t.onCalendar && !t.pinned && t.scheduled && inRange(fromLocal(t.scheduled.start))) t.scheduled = undefined;
+    }
   });
 }
