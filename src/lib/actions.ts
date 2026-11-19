@@ -256,13 +256,16 @@ export function setDetail(o: Occ, text: string) {
 }
 
 export const RESET_LABELS: Record<ReplanScope, string> = {
-  today: 'Reset routines today',
-  week: 'Reset routines this week',
-  future: 'Reset routines, all future',
-  all: 'Reset routines, all time (incl. past)',
+  today: 'Reset today',
+  week: 'Reset this week',
+  future: 'Reset all future',
+  all: 'Reset all time (incl. past)',
 };
 
-/** Reset: routines in the range go back to their usual length and auto-schedule again (moves and length changes undone). */
+/**
+ * Reset, for the range: routines go back to their usual length and auto-schedule again,
+ * and trips you dragged re-attach to the class/event they belong to.
+ */
 export function resetRoutines(scope: ReplanScope, now = new Date()) {
   const { from, to } = replanRange(scope, now);
   const dateIn = (dk: string) => { const d = fromLocal(dk); return (!from || d >= from) && (!to || d < to); };
@@ -271,5 +274,7 @@ export function resetRoutines(scope: ReplanScope, now = new Date()) {
       for (const dk of Object.keys(r.overrides)) if (dateIn(dk)) delete r.overrides[dk];
       for (const dk of Object.keys(r.durationOverrides ?? {})) if (dateIn(dk)) delete r.durationOverrides![dk];
     }
+    // Travel keys start with their date: "2026-11-18:class:...:in".
+    for (const key of Object.keys(d.travelMoves)) if (dateIn(key.slice(0, 10))) delete d.travelMoves[key];
   });
 }

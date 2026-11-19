@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { useStore } from '../store';
+import { EVENT_ICONS } from '../lib/expand';
 import { purgeTrash, restoreDate, restoreTrash } from '../lib/actions';
 import type { AppData, Task } from '../types';
 import { taskWarning } from '../lib/scheduler';
@@ -121,7 +122,7 @@ export function ClassesPanel() {
                   <button className="linkish strong mod-code" title={`${m.code} ${m.name}`} onClick={() => open({ kind: 'module', id: m.id })}>{m.code}</button>
                   <span className="muted mod-name" title={m.name}>{m.name}</span>
                   <button className="chip" onClick={() => open({ kind: 'class', moduleId: m.id })}>+ class</button>
-                  <button className="chip" title="Exam, quiz, presentation or help session" onClick={() => open({ kind: 'event', category: 'exam', moduleId: m.id })}>+ exam</button>
+                  <button className="chip" title="Exam, quiz, presentation, help session or group meeting" onClick={() => open({ kind: 'event', category: 'exam', moduleId: m.id })}>+ event</button>
                 </div>
                 <ul className="lessons">
                   {data.classes.filter((c) => c.moduleId === m.id).map((c) => (
@@ -135,7 +136,7 @@ export function ClassesPanel() {
                 <ul className="mod-tasks">
                   {data.events.filter((e) => e.moduleId === m.id && fromLocal(e.end) >= today).sort((a, b) => a.start.localeCompare(b.start)).map((e) => (
                     <li key={e.id}><button className="linkish" onClick={() => open({ kind: 'event', id: e.id })}>
-                      <Parts items={[`${['exam', 'quiz'].includes(e.category) ? '📝' : e.category === 'presentation' ? '🎤' : e.category === 'help' ? '🙋' : '📅'} ${e.title}`, format(fromLocal(e.start), 'EEE d MMM HH:mm'), e.location]} />
+                      <Parts items={[`${EVENT_ICONS[e.category] ?? '📅'} ${e.title}`, format(fromLocal(e.start), 'EEE d MMM HH:mm'), e.location]} />
                     </button></li>
                   ))}
                 </ul>

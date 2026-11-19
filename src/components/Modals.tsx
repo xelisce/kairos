@@ -153,7 +153,7 @@ function NewChoice() {
       <div className="choice-grid">
         <button className="btn big" onClick={() => open({ kind: 'task', start: m.start, end: m.end })}>📝 Task here<small>homework, admin, applications</small></button>
         <button className="btn big" onClick={() => open({ kind: 'event', start: m.start, end: m.end })}>📅 Event here<small>hangout, appointment</small></button>
-        <button className="btn big" onClick={() => open({ kind: 'event', start: m.start, end: m.end, category: 'exam' })}>📝 Exam / quiz here<small>or presentation, help session</small></button>
+        <button className="btn big" onClick={() => open({ kind: 'event', start: m.start, end: m.end, category: 'exam' })}>📝 Course event here<small>exam, quiz, presentation, group meeting</small></button>
         <button className="btn big" onClick={() => open({ kind: 'event', start: m.start, end: m.end, category: 'cca' })}>🧗 CCA / activity here<small>a session you booked</small></button>
       </div>
     </Modal>
@@ -276,7 +276,7 @@ function EventForm() {
       <button className="btn" onClick={close}>Cancel</button>
       <button className="btn primary" onClick={save} disabled={!valid}>Save</button>
     </>}>
-      <Field label="What"><input autoFocus value={ev.title} onChange={(e) => up({ title: e.target.value })} placeholder={['exam', 'quiz'].includes(ev.category) ? 'e.g. Midterm 2' : ev.category === 'presentation' ? 'e.g. Project demo' : 'e.g. Dinner with friends'} /></Field>
+      <Field label="What"><input autoFocus value={ev.title} onChange={(e) => up({ title: e.target.value })} placeholder={['exam', 'quiz'].includes(ev.category) ? 'e.g. Midterm 2' : ev.category === 'presentation' ? 'e.g. Project demo' : ev.category === 'meeting' ? 'e.g. Project group meeting' : 'e.g. Dinner with friends'} /></Field>
       <Field label="Type">
         <select value={ev.category} onChange={(e) => up({ category: e.target.value as EventCategory })}>
           {Object.entries(EVENT_LABELS).map(([k, label]) => <option key={k} value={k}>{label}</option>)}

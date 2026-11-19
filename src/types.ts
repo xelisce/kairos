@@ -124,7 +124,7 @@ export interface Routine {
   durationOverrides?: Record<LocalDate, number>;
 }
 
-export type EventCategory = 'hangout' | 'cca' | 'admin' | 'appointment' | 'exam' | 'quiz' | 'presentation' | 'help' | 'other';
+export type EventCategory = 'hangout' | 'cca' | 'admin' | 'appointment' | 'exam' | 'quiz' | 'presentation' | 'help' | 'meeting' | 'other';
 
 /** One-off fixed-time thing: hangout, appointment, admin slot. */
 export interface CalEvent {

@@ -8,7 +8,7 @@ const REPLAN_HELP =
   'routines you moved stay pinned (use Reset to free them). Classes, events, CCAs and tasks you dragged stay put. Undo with Ctrl+Z.';
 const RESET_HELP =
   'Puts routines (meals, shower…) back to their usual length and lets them auto-schedule again, ' +
-  'undoing lengths you changed and moves you made. Undo with Ctrl+Z.';
+  'and re-attaches trips you dragged to their class or event. Trip lengths you typed are kept. Undo with Ctrl+Z.';
 
 /** A button for "today" plus a ▾ menu for this week / all future / all time. */
 function ScopeButton({ icon, labels, help, run, menuLabel }: {

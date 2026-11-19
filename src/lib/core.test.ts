@@ -408,3 +408,21 @@ describe('routine that does not fit: best overlap with its window, trip waits', 
     expect(home.warning).toBeUndefined();
   });
 });
+
+describe('Reset re-attaches dragged trips', () => {
+  it('clears travel moves in range only', async () => {
+    const { useStore } = await import('../store');
+    const { resetRoutines } = await import('./actions');
+    const d = defaultData();
+    const today = new Date();
+    const key = (dt: Date) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+    const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+    d.travelMoves = { [`${key(today)}:class:x:${key(today)}:home`]: `${key(today)}T21:00`, [`${key(tomorrow)}:class:x:${key(tomorrow)}:home`]: `${key(tomorrow)}T21:00` };
+    d.travelOverrides = { [`${key(today)}:class:x:${key(today)}:home`]: 40 };
+    useStore.setState({ data: d, past: [], future: [] });
+    resetRoutines('today', today);
+    const s = useStore.getState().data;
+    expect(Object.keys(s.travelMoves)).toEqual([`${key(tomorrow)}:class:x:${key(tomorrow)}:home`]);
+    expect(Object.values(s.travelOverrides)).toEqual([40]); // typed trip lengths are kept
+  });
+});

@@ -20,13 +20,16 @@ export const CATEGORY_COLORS: Record<string, string> = {
   quiz: '#d65f5f',
   presentation: '#b35fd6',
   help: '#3fa7a0',
+  meeting: '#4b9be0',
 };
 
 export const EVENT_LABELS: Record<string, string> = {
   hangout: 'Hangout / outing', cca: 'CCA / club / activity session', appointment: 'Appointment', admin: 'Admin',
-  exam: 'Exam', quiz: 'Quiz', presentation: 'Presentation', help: 'Help session', other: 'Other',
+  exam: 'Exam', quiz: 'Quiz', presentation: 'Presentation', help: 'Help session', meeting: 'Group meeting', other: 'Other',
 };
 const ASSESSMENT_EVENTS = ['exam', 'quiz', 'presentation'];
+/** Icons for course events, shown on the calendar and in lists. */
+export const EVENT_ICONS: Partial<Record<string, string>> = { exam: '📝', quiz: '📝', presentation: '🎤', help: '🙋', meeting: '👥', cca: '🧗' };
 const KIND_ICON: Partial<Record<string, string>> = { Quiz: '📝 ', Exam: '📝 ', Presentation: '🎤 ', 'Help session': '🙋 ' };
 
 // ---------- Places & travel ----------
@@ -146,7 +149,7 @@ export function expand(data: AppData, from: Date, to: Date, opts: ExpandOpts = {
     if (!overlaps(s, en, pFrom, pTo)) continue;
     const mod = e.moduleId ? modules.get(e.moduleId) : undefined;
     const act = e.activityId ? data.activities.find((a) => a.id === e.activityId) : undefined;
-    const icon = e.category === 'exam' || e.category === 'quiz' ? '📝 ' : e.category === 'presentation' ? '🎤 ' : e.category === 'help' ? '🙋 ' : '';
+    const icon = EVENT_ICONS[e.category] ? `${EVENT_ICONS[e.category]} ` : '';
     fixed.push({
       id: `event:${e.id}`,
       source: { type: 'event', eventId: e.id },
