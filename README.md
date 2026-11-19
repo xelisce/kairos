@@ -27,5 +27,5 @@ npm run build    # production build in dist/
 
 - **v1 (done):** semesters with real term dates (UW–Madison Fall 2026 default, NUS AY26/27 Sem 2 preset); courses with lectures/discussions/labs on week patterns, holidays and per-week skips; tasks under courses with deadlines, auto-scheduling (🗓 checkbox) and red ⚠️ when late; flexible routines (meals, shower, sleep, meal prep); hangouts and admin events; optional locations with travel blocks and per-trip edits; Now/Next card, running-late button; undo/redo (10); responsive web for computer and phone; JSON backup
 - **v2:** cloud data (Supabase) so phone and laptop share data; one-way Google Calendar sync that updates automatically; native Android app (Capacitor); notifications ("leave in 10 min", "lunch now")
-- **v3:** Android home-screen widgets; light/dark mode toggle in settings; optimizations (task splitting, smarter planning, performance)
+- **v3:** Android home-screen widgets; light/dark mode toggle in settings; settings to silence warnings, with separate toggles for daily routines, tasks, and travel; optimizations (task splitting, smarter planning, performance)
 - **v4:** gamification (streaks, points, rewards for finishing tasks and leaving on time)
