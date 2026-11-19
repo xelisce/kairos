@@ -82,6 +82,14 @@ export async function startSync() {
       // First run (database empty) or offline edits on top of the latest version: upload ours.
       await push();
     } else {
+      // A browser that has never synced may hold data the database doesn't have:
+      // keep it recoverable before switching to the database's copy.
+      if (meta.version === 0) {
+        try {
+          const local = localStorage.getItem('kairos:data:v1');
+          if (local) localStorage.setItem('kairos:data:before-database', local);
+        } catch { /* ignore */ }
+      }
       meta = { version: cur.version, dirty: false };
       writeMeta(meta);
       remoteApplying = true;
