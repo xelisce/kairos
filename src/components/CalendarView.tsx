@@ -30,7 +30,8 @@ export function CalendarView({ range, onRange }: { range: { start: Date; end: Da
     title: o.title,
     start: o.start,
     end: o.end,
-    backgroundColor: o.source.type === 'travel' ? 'transparent' : o.color,
+    // Skipped sessions turn grey, whatever their usual color.
+    backgroundColor: o.skipped ? 'var(--skipped)' : o.source.type === 'travel' ? 'transparent' : o.color,
     borderColor: o.warning ? 'var(--bad)' : o.color,
     textColor: o.source.type === 'travel' ? 'var(--text-2)' : '#fff',
     editable: o.movable,

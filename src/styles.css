@@ -12,6 +12,7 @@
   --warn: #c98400;
   --warn-bg: #fff4d6;
   --radius: 10px;
+  --skipped: #9aa0ad;
   --shadow: 0 8px 30px rgba(20, 20, 50, 0.18);
   color-scheme: light;
 }

@@ -209,7 +209,7 @@ describe('routine with no room in its window', () => {
     d.events = [{ id: 'e', title: 'Robotics', category: 'cca', start: '2026-11-18T17:05', end: '2026-11-18T20:30' }];
     const dinner = expand(d, fromLocal('2026-11-18'), fromLocal('2026-11-19')).find((o) => o.title === 'Dinner')!;
     expect(dinner.start >= fromLocal('2026-11-18T20:30') || dinner.end <= fromLocal('2026-11-18T17:05')).toBe(true);
-    expect(dinner.warning).toMatch(/outside/);
+    expect(dinner.warning).toMatch(/close to that window/);
   });
 });
 
@@ -382,5 +382,29 @@ describe('migration of older data', () => {
     expect(c.deletedDates).toEqual(['2026-09-02']);
     expect(useStore.getState().data.version).toBe(2);
     expect(useStore.getState().data.trash).toEqual([]);
+  });
+});
+
+describe('routine that does not fit: best overlap with its window, trip waits', () => {
+  it('lunch right after the last class, then the trip home', () => {
+    const d = defaultData();
+    d.routines = d.routines.filter((r) => r.title === 'Lunch'); // 45m, 11:00-15:00
+    d.places.push({ id: 'bpb', name: 'BPB', aliases: [] }, { id: 'mh', name: 'MH', aliases: [] });
+    d.routes.push(
+      { id: 'r1', a: d.places[0].id, b: 'bpb', minutes: 30, bidirectional: true },
+      { id: 'r2', a: d.places[0].id, b: 'mh', minutes: 30, bidirectional: true },
+      { id: 'r3', a: 'bpb', b: 'mh', minutes: 5, bidirectional: true },
+    );
+    d.events = [
+      { id: 'a', title: 'CS 536', category: 'other', start: '2026-11-17T11:00', end: '2026-11-17T12:15', location: '107 BPB' },
+      { id: 'b', title: 'CS 642', category: 'other', start: '2026-11-17T13:00', end: '2026-11-17T14:15', location: '2532 MH' },
+    ];
+    const occs = expand(d, fromLocal('2026-11-17'), fromLocal('2026-11-18'));
+    const lunch = occs.find((o) => o.title === 'Lunch')!;
+    expect([lunch.start.getHours(), lunch.start.getMinutes()]).toEqual([14, 15]);
+    expect(lunch.warning).toBeUndefined();
+    const home = occs.find((o) => o.id.endsWith(':home'))!;
+    expect([home.start.getHours(), home.start.getMinutes()]).toEqual([15, 0]);
+    expect(home.warning).toBeUndefined();
   });
 });

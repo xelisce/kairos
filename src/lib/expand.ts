@@ -221,8 +221,10 @@ export function expand(data: AppData, from: Date, to: Date, opts: ExpandOpts = {
     busy.push(occ);
   }
 
-  // Final travel now that located routines have their times.
-  const travel = placed.some((o) => o.location) ? computeTravel(data, [...fixed, ...placed]) : firstTravel;
+  // Final travel now that routines have their times. Routines without a place happen wherever
+  // you are, so a trip that would overlap one waits until it's over (lunch at MH, then go home).
+  const stays = placed.filter((o) => !o.location);
+  const travel = computeTravel(data, [...fixed, ...placed], stays);
   return [...fixed, ...travel, ...placed, ...skipped].filter((o) => overlaps(o.start, o.end, from, to));
 }
 
@@ -264,14 +266,34 @@ function fitRoutine(r: Routine, day: Date, dk: string, busy: Occ[]): Occ {
       return routineOcc(r, dk, s, addMinutes(s, r.durationMin));
     }
   }
-  // No room inside the window: use the nearest free time just outside it (up to 3h away),
-  // flagged so you notice, instead of overlapping a class or CCA.
+  // No fully free time in the window. A routine without a place can happen before a trip
+  // (the trip then waits for it), so only classes, CCAs, events, tasks and other routines block it.
+  // Take the spot with the most overlap with its window, nearest its usual time.
+  const blockers = r.location ? busy : busy.filter((b) => b.source.type !== 'travel');
+  const clear = (m: number) => {
+    const s = atMin(day, m);
+    const e = addMinutes(s, r.durationMin);
+    if (blockers.some((b) => overlaps(s, e, b.start, b.end))) return false;
+    // A trip to the next class can wait for it only if you'd still arrive on time; trips home can always wait.
+    return !busy.some((b) => b.source.type === 'travel' && b.id.endsWith(':in') && overlaps(s, e, b.start, b.end)
+      && addMinutes(e, b.source.minutes) > b.end);
+  };
+  if (!r.location) {
+    for (const m of candidates) {
+      if (m < ws || m + r.durationMin > we) continue;
+      if (clear(m)) {
+        const s = atMin(day, m);
+        return routineOcc(r, dk, s, addMinutes(s, r.durationMin), undefined, 'Your trip waits until this is done');
+      }
+    }
+  }
+  // Still nothing: step outside the window, keeping as much overlap with it as possible.
   for (let d = 5; d <= 180; d += 5) {
     for (const m of [we - r.durationMin + d, ws - d]) {
-      if (free(m)) {
+      if (clear(m)) {
         const s = atMin(day, m);
         return routineOcc(r, dk, s, addMinutes(s, r.durationMin),
-          `No free ${r.durationMin}m between ${r.windowStart} and ${r.windowEnd}, so it's moved just outside that window`);
+          `No free ${r.durationMin}m between ${r.windowStart} and ${r.windowEnd}, so it's as close to that window as it can be`);
       }
     }
   }
@@ -284,7 +306,17 @@ function fitRoutine(r: Routine, day: Date, dk: string, busy: Occ[]): Occ {
  * Whenever the place changes, add a travel block that ends when the next item starts.
  * After the last located item, add a trip back home.
  */
-function computeTravel(data: AppData, items: Occ[]): Occ[] {
+function computeTravel(data: AppData, items: Occ[], stays: Occ[] = []): Occ[] {
+  // Start a trip only after any routine you're doing where you are (lunch, shower...).
+  const afterStays = (start: Date, minutes: number) => {
+    let s = start;
+    for (let guard = 0; guard < 10; guard++) {
+      const hit = stays.find((st) => overlaps(s, addMinutes(s, minutes), st.start, st.end));
+      if (!hit) break;
+      s = hit.end;
+    }
+    return s;
+  };
   const home = homePlace(data);
   const homeR: ResolvedPlace | null = home ? placeRef(home) : null;
   const byDay = new Map<string, { occ: Occ; place: ResolvedPlace }[]>();
@@ -309,7 +341,7 @@ function computeTravel(data: AppData, items: Occ[]): Occ[] {
         // The extra minutes are for finding the room; none when you're going home.
         const minutes = ovr ?? tm.minutes + (home && place.id === home.id ? 0 : extra);
         const movedTo = data.travelMoves?.[key];
-        const start = movedTo ? fromLocal(movedTo) : addMinutes(occ.start, -minutes);
+        const start = movedTo ? fromLocal(movedTo) : afterStays(addMinutes(occ.start, -minutes), minutes);
         const end = addMinutes(start, minutes);
         let warning: string | undefined;
         if (end > occ.start) {
@@ -329,7 +361,7 @@ function computeTravel(data: AppData, items: Occ[]): Occ[] {
       const ovr = data.travelOverrides[key];
       const minutes = ovr ?? tm.minutes;
       const movedTo = data.travelMoves?.[key];
-      const start = movedTo ? fromLocal(movedTo) : prevEnd;
+      const start = movedTo ? fromLocal(movedTo) : afterStays(prevEnd, minutes);
       const warning = start < prevEnd ? `Leaving ${cur.name} before ${last.title} ends` : undefined;
       out.push(travelOcc(key, cur, homeR, start, addMinutes(start, minutes), minutes, ovr !== undefined, !!movedTo, tm.saved, warning));
     }
