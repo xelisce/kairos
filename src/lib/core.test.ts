@@ -71,7 +71,7 @@ describe('scheduler', () => {
   });
   it('rolls missed tasks forward', () => {
     const d = sample();
-    d.tasks.push({ id: 't', title: 'HW', category: 'homework', durationMin: 60, onCalendar: true, pinned: true, done: false, createdAt: '2026-08-30T00:00', scheduled: { start: '2026-08-31T08:00', end: '2026-08-31T09:00' } });
+    d.tasks.push({ id: 't', title: 'HW', category: 'homework', durationMin: 60, onCalendar: true, pinned: false, done: false, createdAt: '2026-08-30T00:00', scheduled: { start: '2026-08-31T08:00', end: '2026-08-31T09:00' } });
     const [t] = planTasks(d, fromLocal('2026-08-31T10:00'));
     expect(t.rolledForward).toBe(true);
     expect(fromLocal(t.scheduled!.start) >= fromLocal('2026-08-31T10:00')).toBe(true);
@@ -424,5 +424,15 @@ describe('Reset re-attaches dragged trips', () => {
     const s = useStore.getState().data;
     expect(Object.keys(s.travelMoves)).toEqual([`${key(tomorrow)}:class:x:${key(tomorrow)}:home`]);
     expect(Object.values(s.travelOverrides)).toEqual([40]); // typed trip lengths are kept
+  });
+});
+
+describe('tasks you place by hand stay put', () => {
+  it('a pinned task in the past is not rolled forward', () => {
+    const d = sample();
+    d.tasks.push({ id: 'k', title: 'Code Kairos', category: 'personal', durationMin: 120, onCalendar: true, pinned: true, done: false, createdAt: '2026-11-19T17:20', scheduled: { start: '2026-11-19T15:00', end: '2026-11-19T17:00' } });
+    const [t] = planTasks(d, fromLocal('2026-11-19T17:23')).filter((x) => x.id === 'k');
+    expect(t.scheduled).toEqual({ start: '2026-11-19T15:00', end: '2026-11-19T17:00' });
+    expect(t.rolledForward).toBeFalsy();
   });
 });

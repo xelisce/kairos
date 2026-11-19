@@ -38,9 +38,10 @@ export function planTasks(data: AppData, now: Date): Task[] {
   const horizon = addDays(startOfDay(now), data.settings.horizonDays);
   const tasks = data.tasks.map((t) => ({ ...t }));
 
-  // Missed tasks roll forward (gently, no guilt): unpin them and give them a new slot.
+  // Missed auto-scheduled tasks roll forward (gently, no guilt) to a new slot.
+  // Tasks you placed yourself (pinned) stay where you put them, even in the past.
   for (const t of tasks) {
-    if (t.onCalendar && !t.done && t.scheduled && fromLocal(t.scheduled.end) < now) {
+    if (t.onCalendar && !t.done && !t.pinned && t.scheduled && fromLocal(t.scheduled.end) < now) {
       t.scheduled = undefined;
       t.pinned = false;
       t.rolledForward = true;
@@ -98,6 +99,7 @@ export function taskWarning(t: Task, now: Date, warnHours: number): { level: 'ba
   if (dl && dl < now) return { level: 'bad', text: 'Deadline passed' };
   if (t.onCalendar && t.scheduled && dl && fromLocal(t.scheduled.end) > dl) return { level: 'bad', text: 'Scheduled after deadline' };
   if (t.onCalendar && !t.scheduled) return { level: 'bad', text: 'No free slot found' };
+  if (t.onCalendar && t.pinned && t.scheduled && fromLocal(t.scheduled.end) < now) return { level: 'warn', text: 'Time passed: mark done, or let auto-schedule move it' };
   if (dl && !t.onCalendar && dl.getTime() - now.getTime() < warnHours * 3600_000) return { level: 'warn', text: 'Due soon, not scheduled' };
   return null;
 }

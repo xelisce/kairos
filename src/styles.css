@@ -329,3 +329,10 @@ body.resizing { cursor: col-resize; user-select: none; }
 .fc .fc-bg-event.k-skipped:hover { opacity: 0.5; }
 .ev-skipped { color: var(--text); font-style: italic; text-decoration: line-through; padding: 2px 4px; }
 .side-tabs { flex-wrap: wrap; }
+
+/* Hover: darken the block you're about to move */
+.fc .fc-timegrid-event, .fc .fc-daygrid-event { transition: filter 0.1s, box-shadow 0.1s; }
+.fc .fc-timegrid-event:hover, .fc .fc-daygrid-event:hover { filter: brightness(0.78) saturate(1.1); box-shadow: 0 0 0 2px var(--text-2); z-index: 5 !important; }
+.fc .fc-event.fc-event-draggable:hover { cursor: grab; }
+.fc .fc-event.fc-event-dragging { cursor: grabbing; filter: brightness(0.72); }
+@media (prefers-reduced-motion: reduce) { .fc .fc-timegrid-event, .fc .fc-daygrid-event { transition: none; } }
