@@ -13,9 +13,13 @@ export type HHMM = string;
 /** One calendar week of a semester: either a numbered teaching week or a named break. */
 export type WeekLabel = { type: 'teaching'; n: number } | { type: 'break'; name: string };
 
+/** 'nus': odd/even week classes, one day per lesson. 'us': MWF/TR style, every week. */
+export type SemesterStyle = 'nus' | 'us';
+
 export interface Semester {
   id: ID;
   name: string;
+  style: SemesterStyle;
   /** Monday of the first week in `layout`. */
   startDate: LocalDate;
   /** Calendar weeks in order, starting at startDate. */
@@ -44,8 +48,8 @@ export interface ClassSeries {
   id: ID;
   moduleId: ID;
   kind: ClassKind;
-  /** 0 = Monday ... 6 = Sunday */
-  weekday: number;
+  /** Days it meets, 0 = Monday ... 6 = Sunday (e.g. MWF = [0, 2, 4]). */
+  days: number[];
   start: HHMM;
   end: HHMM;
   /** Teaching week numbers this class runs in. */

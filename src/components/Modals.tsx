@@ -1,13 +1,16 @@
 import { useMemo, useState } from 'react';
 import { addDays, addMinutes, format, startOfWeek } from 'date-fns';
 import { useStore } from '../store';
+import type { SemesterStyle } from '../types';
 import type { AppData, CalEvent, ClassKind, ClassSeries, EventCategory, Module, Routine, RoutineCategory, Semester, Task, TaskCategory } from '../types';
-import { Field, LocationInput, Modal, Row, DayPicker, useUI } from './ui';
+import { ColorPicker, Field, LocationInput, Modal, NumberInput, Row, DayPicker, useUI } from './ui';
 import { dateKey, fmtDur, fmtTime, fromLocal, toLocal, uid, WEEKDAYS } from '../lib/time';
-import { formatLayout, formatWeeks, LAYOUT_PRESETS, maxTeachingWeek, parseLayout, parseWeeks, SEMESTER_PRESETS, semesterFromPreset, weekLabelText } from '../lib/weeks';
+import { formatLayout, formatWeeks, LAYOUT_PRESETS, maxTeachingWeek, parseLayout, parseWeeks, SEMESTER_PRESETS, semesterFromPreset, weekLabelText, DAY_PRESETS, US_DAY_LETTERS } from '../lib/weeks';
 import { resetOcc, setTravel, skipOcc } from '../lib/actions';
 import { MODULE_COLORS } from '../lib/defaults';
 import { importNusmods } from '../lib/nusmods';
+
+const crossesMidnight = (r: Routine) => r.windowEnd <= r.windowStart && r.windowEnd !== r.windowStart;
 
 const placeNames = (d: AppData) => d.places.flatMap((p) => [p.name, ...p.aliases]);
 
@@ -62,7 +65,7 @@ function OccDetail() {
           <p>From <b>{src.from}</b> to <b>{src.to}</b>. Every trip is different, so you can change this one only.</p>
           <Row>
             <Field label="Minutes for this trip">
-              <input type="number" min={0} value={travelMin} onChange={(e) => setTravelMin(e.target.value)} />
+              <input type="text" inputMode="numeric" value={travelMin} onChange={(e) => setTravelMin(e.target.value.replace(/[^\d]/g, ''))} />
             </Field>
           </Row>
           <div className="actions">
@@ -162,7 +165,7 @@ function TaskForm() {
         </Field>
       </Row>
       <Row>
-        <Field label="How long (min)"><input type="number" min={5} step={5} value={t.durationMin} onChange={(e) => up({ durationMin: Math.max(5, Number(e.target.value) || 5) })} /></Field>
+        <Field label="How long (min)"><NumberInput min={5} value={t.durationMin} onCommit={(durationMin) => up({ durationMin })} /></Field>
         <Field label="Deadline" hint="It won't be scheduled after this; if it has to be, it shows red ⚠️">
           <input type="datetime-local" value={t.deadline ?? ''} onChange={(e) => up({ deadline: e.target.value || undefined })} />
         </Field>
@@ -238,16 +241,17 @@ function ClassForm() {
   const commit = useStore((s) => s.commit);
   const existing = m.id ? data.classes.find((c) => c.id === m.id) : undefined;
   const [c, setC] = useState<ClassSeries>(() => existing ?? {
-    id: uid(), moduleId: m.moduleId ?? data.modules[0]?.id ?? '', kind: 'Lecture', weekday: 0, start: '10:00', end: '12:00',
+    id: uid(), moduleId: m.moduleId ?? data.modules[0]?.id ?? '', kind: 'Lecture', days: [0], start: '10:00', end: '12:00',
     weeks: [], skipDates: [], overrides: {},
   });
   const mod = data.modules.find((x) => x.id === c.moduleId);
   const sem = data.semesters.find((s) => s.id === mod?.semesterId);
   const maxW = maxTeachingWeek(sem);
-  const [weeksText, setWeeksText] = useState(() => (existing ? formatWeeks(existing.weeks) : `1-${maxW}`));
-  const parsed = useMemo(() => { try { return { weeks: parseWeeks(weeksText, maxW) }; } catch (e) { return { error: (e as Error).message }; } }, [weeksText, maxW]);
+  const us = sem?.style === 'us';
+  const [weeksText, setWeeksText] = useState(() => (existing ? formatWeeks(existing.weeks, !us) : `1-${maxW}`));
+  const parsed = useMemo(() => { try { return { weeks: parseWeeks(weeksText, maxW, !us) }; } catch (e) { return { error: (e as Error).message }; } }, [weeksText, maxW, us]);
   const up = (p: Partial<ClassSeries>) => setC((x) => ({ ...x, ...p }));
-  const valid = c.moduleId && c.end > c.start && 'weeks' in parsed && parsed.weeks!.length > 0;
+  const valid = c.moduleId && c.end > c.start && c.days.length > 0 && 'weeks' in parsed && parsed.weeks!.length > 0;
   const save = () => {
     if (!valid || !('weeks' in parsed)) return;
     commit(existing ? `Edit ${mod?.code} ${c.kind}` : `Add ${mod?.code} ${c.kind}`, (d) => {
@@ -278,15 +282,25 @@ function ClassForm() {
         </Field>
       </Row>
       <Row>
-        <Field label="Day">
-          <select value={c.weekday} onChange={(e) => up({ weekday: Number(e.target.value) })}>
-            {WEEKDAYS.map((w, i) => <option key={w} value={i}>{w}</option>)}
-          </select>
-        </Field>
+        {us ? (
+          <Field label="Days">
+            <DayPicker value={c.days} onChange={(days) => up({ days })} letters={US_DAY_LETTERS} presets={DAY_PRESETS} />
+          </Field>
+        ) : (
+          <Field label="Day">
+            <select value={c.days[0] ?? 0} onChange={(e) => up({ days: [Number(e.target.value)] })}>
+              {WEEKDAYS.map((w, i) => <option key={w} value={i}>{w}</option>)}
+            </select>
+          </Field>
+        )}
+      </Row>
+      <Row>
         <Field label="Start"><input type="time" value={c.start} onChange={(e) => up({ start: e.target.value })} /></Field>
         <Field label="End"><input type="time" value={c.end} onChange={(e) => up({ end: e.target.value })} /></Field>
       </Row>
-      <Field label="Teaching weeks" hint={'error' in parsed ? <span className="bad">{parsed.error}</span> : <>Runs in: {formatWeeks(parsed.weeks!)} · examples: <code>3-13</code>, <code>odd</code>, <code>even 2-12</code>, <code>1,3,5-7</code></>}>
+      <Field label="Teaching weeks" hint={'error' in parsed ? <span className="bad">{parsed.error}</span> : <>Runs in: {formatWeeks(parsed.weeks!, !us)} · examples: {us
+          ? <><code>1-15</code>, <code>2-15</code>, <code>1-7,9-15</code></>
+          : <><code>3-13</code>, <code>odd</code>, <code>even 2-12</code>, <code>1,3,5-7</code></>}</>}>
         <input value={weeksText} onChange={(e) => setWeeksText(e.target.value)} />
       </Field>
       <Field label="Location (optional)"><LocationInput value={c.location ?? ''} onChange={(v) => up({ location: v || undefined })} places={placeNames(data)} /></Field>
@@ -345,7 +359,7 @@ function ModuleForm() {
     </>}>
       <Row>
         <Field label="Code"><input autoFocus value={mo.code} onChange={(e) => up({ code: e.target.value })} placeholder="CS 642" /></Field>
-        <Field label="Color"><input type="color" value={mo.color} onChange={(e) => up({ color: e.target.value })} /></Field>
+        <Field label="Color"><ColorPicker value={mo.color} onChange={(color) => up({ color })} /></Field>
       </Row>
       <Field label="Name"><input value={mo.name} onChange={(e) => up({ name: e.target.value })} placeholder="Introduction to Information Security" /></Field>
       <Field label="Semester">
@@ -366,8 +380,8 @@ function SemesterForm() {
   const commit = useStore((s) => s.commit);
   const existing = m.id ? data.semesters.find((x) => x.id === m.id) : undefined;
   const [sem, setSem] = useState<Semester>(() => existing ?? {
-    id: uid(), name: '', startDate: dateKey(startOfWeek(new Date(), { weekStartsOn: 1 })),
-    layout: parseLayout(LAYOUT_PRESETS[0].layout), holidays: [],
+    id: uid(), name: '', style: 'us', startDate: dateKey(startOfWeek(new Date(), { weekStartsOn: 1 })),
+    layout: parseLayout(LAYOUT_PRESETS[1].layout), holidays: [],
   });
   const [layoutText, setLayoutText] = useState(() => formatLayout(sem.layout));
   const [hol, setHol] = useState({ date: '', name: '' });
@@ -420,6 +434,12 @@ function SemesterForm() {
           <input type="date" value={sem.startDate} onChange={(e) => e.target.value && up({ startDate: dateKey(startOfWeek(fromLocal(e.target.value), { weekStartsOn: 1 })) })} />
         </Field>
       </Row>
+      <Field label="Class style" hint={sem.style === 'us' ? 'Classes can meet several days a week (MWF, TR), every week' : 'One day per lesson; odd/even week patterns allowed'}>
+        <select value={sem.style} onChange={(e) => up({ style: e.target.value as SemesterStyle })}>
+          <option value="us">UW–Madison / US (MWF, TR)</option>
+          <option value="nus">NUS (odd/even weeks)</option>
+        </select>
+      </Field>
       <Field label="Weeks in order" hint={<>Numbers are teaching weeks, words are break weeks. Presets: {LAYOUT_PRESETS.map((p) => (
         <button key={p.name} type="button" className="linkish" onClick={() => setLayoutText(p.layout)}>{p.name}</button>
       ))}</>}>
@@ -481,7 +501,7 @@ function RoutineForm() {
     </>}>
       <Row>
         <Field label="Name"><input autoFocus value={r.title} onChange={(e) => up({ title: e.target.value })} placeholder="Lunch, Gym, Meal prep" /></Field>
-        <Field label="Color"><input type="color" value={r.color} onChange={(e) => up({ color: e.target.value })} /></Field>
+        <Field label="Color"><ColorPicker value={r.color} onChange={(color) => up({ color })} /></Field>
       </Row>
       <Row>
         <Field label="Type">
@@ -493,13 +513,16 @@ function RoutineForm() {
       </Row>
       <Row>
         <Field label="Usual start"><input type="time" value={r.preferredStart} onChange={(e) => up({ preferredStart: e.target.value })} /></Field>
-        <Field label="Length (min)"><input type="number" min={5} step={5} value={r.durationMin} onChange={(e) => up({ durationMin: Math.max(5, Number(e.target.value) || 5) })} /></Field>
+        <Field label="Length (min)"><NumberInput min={5} value={r.durationMin} onCommit={(durationMin) => up({ durationMin })} /></Field>
       </Row>
       <label className="check"><input type="checkbox" checked={r.flexible} onChange={(e) => up({ flexible: e.target.checked })} /> Flexible: slide it to avoid clashes</label>
       {r.flexible && (
         <Row>
           <Field label="Not earlier than"><input type="time" value={r.windowStart} onChange={(e) => up({ windowStart: e.target.value })} /></Field>
-          <Field label="Finish by"><input type="time" value={r.windowEnd} onChange={(e) => up({ windowEnd: e.target.value })} /></Field>
+          <Field label={crossesMidnight(r) ? 'Finish by (next day)' : 'Finish by'}
+            hint={crossesMidnight(r) ? <>Window runs {r.windowStart} → {r.windowEnd} the next day</> : <>Pick a time earlier than the start to go past midnight, e.g. 18:00 → 01:00</>}>
+            <input type="time" value={r.windowEnd} onChange={(e) => up({ windowEnd: e.target.value })} />
+          </Field>
         </Row>
       )}
       <Field label="Location (optional)" hint="Routines with a location stay at their usual time so travel can be planned"><LocationInput value={r.location ?? ''} onChange={(v) => up({ location: v || undefined })} places={placeNames(data)} /></Field>

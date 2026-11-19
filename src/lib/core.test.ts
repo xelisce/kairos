@@ -29,10 +29,10 @@ describe('week patterns', () => {
 function sample(): AppData {
   const d = defaultData();
   d.routines = d.routines.filter((r) => r.title === 'Lunch');
-  d.semesters = [{ id: 's', name: 'S', startDate: '2026-08-31', layout: parseLayout('1-6, Recess, 7-13'), holidays: [] }];
+  d.semesters = [{ id: 's', name: 'S', style: 'nus', startDate: '2026-08-31', layout: parseLayout('1-6, Recess, 7-13'), holidays: [] }];
   d.modules = [{ id: 'm', semesterId: 's', code: 'CS1', name: 'x', color: '#000' }];
   // Monday 11:30-13:30 in odd weeks, at COM1
-  d.classes = [{ id: 'c', moduleId: 'm', kind: 'Lecture', weekday: 0, start: '11:30', end: '13:30', weeks: parseWeeks('odd'), location: 'COM1-0204', skipDates: [], overrides: {} }];
+  d.classes = [{ id: 'c', moduleId: 'm', kind: 'Lecture', days: [0], start: '11:30', end: '13:30', weeks: parseWeeks('odd'), location: 'COM1-0204', skipDates: [], overrides: {} }];
   d.places.push({ id: 'p', name: 'COM1', aliases: [] });
   d.routes.push({ id: 'r', a: d.places[0].id, b: 'p', minutes: 30 });
   return d;
@@ -85,7 +85,7 @@ describe('UW–Madison Fall 2026 preset', () => {
     d.routines = [];
     d.semesters = [semesterFromPreset(SEMESTER_PRESETS[0], 's')];
     d.modules = [{ id: 'm', semesterId: 's', code: 'CS 642', name: 'x', color: '#000' }];
-    d.classes = [0, 2, 4].map((wd) => ({ id: `c${wd}`, moduleId: 'm', kind: 'Lecture' as const, weekday: wd, start: '09:30', end: '10:45', weeks: parseWeeks('1-15'), skipDates: [], overrides: {} }));
+    d.classes = [{ id: 'c', moduleId: 'm', kind: 'Lecture', days: [0, 2, 4], start: '09:30', end: '10:45', weeks: parseWeeks('1-15'), skipDates: [], overrides: {} }];
     const occs = expand(d, fromLocal('2026-08-24'), fromLocal('2026-12-31'));
     const days = occs.map((o) => o.start.toISOString().slice(0, 10));
     expect(occs[0].start.getDate()).toBe(2); // Wed Sep 2
@@ -94,5 +94,27 @@ describe('UW–Madison Fall 2026 preset', () => {
     expect(days).not.toContain('2026-09-07');
     expect(occs.some((o) => o.start.getMonth() === 10 && o.start.getDate() === 27)).toBe(false);
     expect(occs).toHaveLength(15 * 3 - 1 /* Mon Aug 31 */ - 1 /* Labor Day */ - 1 /* Fri Nov 27 */ - 1 /* Fri Dec 11 */);
+  });
+});
+
+describe('routine window across midnight', () => {
+  it('shower 18:00 -> 01:00 can land after midnight when the evening is busy', () => {
+    const d = defaultData();
+    d.routines = d.routines.filter((r) => r.title === 'Shower');
+    Object.assign(d.routines[0], { preferredStart: '22:30', windowStart: '18:00', windowEnd: '01:00', durationMin: 20 });
+    d.events = [{ id: 'e', title: 'Party', category: 'hangout', start: '2026-11-20T17:30', end: '2026-11-21T00:30' }];
+    const occs = expand(d, fromLocal('2026-11-20'), fromLocal('2026-11-21T12:00'));
+    const shower = occs.find((o) => o.id.endsWith('2026-11-20') && o.title === 'Shower')!;
+    expect(shower.warning).toBeUndefined();
+    expect(shower.start.getDate()).toBe(21);
+    expect(shower.start.getHours()).toBe(0);
+    expect(shower.end <= fromLocal('2026-11-21T01:00')).toBe(true);
+  });
+});
+
+describe('UW multi-day classes', () => {
+  it('rejects odd/even when parity is off', () => {
+    expect(() => parseWeeks('odd', 15, false)).toThrow();
+    expect(formatWeeks([1, 3, 5, 7], false)).toBe('1, 3, 5, 7');
   });
 });

@@ -3,9 +3,9 @@ import { format } from 'date-fns';
 import { useStore } from '../store';
 import type { Task } from '../types';
 import { taskWarning } from '../lib/scheduler';
-import { fmtDur, fromLocal, toLocal, uid, WEEKDAYS } from '../lib/time';
-import { formatWeeks, SEMESTER_PRESETS, semesterFromPreset, weekLabelText, weekIndex } from '../lib/weeks';
-import { Field, Row, useUI } from './ui';
+import { fmtDur, fromLocal, toLocal, uid } from '../lib/time';
+import { formatDays, formatWeeks, SEMESTER_PRESETS, semesterFromPreset, weekLabelText, weekIndex } from '../lib/weeks';
+import { Field, NumberInput, Row, useUI } from './ui';
 import { useNow } from './NowNext';
 
 // ---------- Tasks ----------
@@ -124,7 +124,7 @@ export function ClassesPanel() {
                   {data.classes.filter((c) => c.moduleId === m.id).map((c) => (
                     <li key={c.id}>
                       <button className="linkish" onClick={() => open({ kind: 'class', id: c.id })}>
-                        {c.kind} · {WEEKDAYS[c.weekday]} {c.start}–{c.end} · wk {formatWeeks(c.weeks)}{c.location ? ` · 📍${c.location}` : ''}
+                        {c.kind} · {formatDays(c.days, sem.style)} {c.start}–{c.end} · wk {formatWeeks(c.weeks, sem.style !== 'us')}{c.location ? ` · 📍${c.location}` : ''}
                       </button>
                     </li>
                   ))}
@@ -173,7 +173,7 @@ export function RoutinesPanel() {
               <span className="task-title">{r.title}</span>
               <span className="task-meta">
                 {r.preferredStart} · {fmtDur(r.durationMin)} · {r.days.length === 7 ? 'daily' : r.days.map((d) => short[d]).join('')}
-                {r.flexible ? ` · flexible ${r.windowStart}–${r.windowEnd}` : ' · fixed'}
+                {r.flexible ? ` · flexible ${r.windowStart}–${r.windowEnd}${r.windowEnd < r.windowStart ? ' (next day)' : ''}` : ' · fixed'}
               </span>
             </button>
           </li>
@@ -225,9 +225,8 @@ export function PlacesPanel() {
         {data.routes.map((r) => (
           <li key={r.id}>
             {pname(r.a)} ↔ {pname(r.b)}
-            <input type="number" min={0} defaultValue={r.minutes} aria-label="Minutes" onBlur={(e) => {
-              const v = Math.max(0, Number(e.target.value) || 0);
-              if (v !== r.minutes) commit(`Route ${pname(r.a)}–${pname(r.b)} ${v}m`, (d) => { const x = d.routes.find((y) => y.id === r.id); if (x) x.minutes = v; });
+            <NumberInput className="mins" value={r.minutes} aria-label="Minutes" onCommit={(v) => {
+              commit(`Route ${pname(r.a)}–${pname(r.b)} ${v}m`, (d) => { const x = d.routes.find((y) => y.id === r.id); if (x) x.minutes = v; });
             }} /> min
             <button className="icon-btn" aria-label="Delete route" onClick={() => commit('Delete route', (d) => { d.routes = d.routes.filter((x) => x.id !== r.id); })}>✕</button>
           </li>
@@ -236,7 +235,7 @@ export function PlacesPanel() {
       <Row>
         <Field label="From"><select value={route.a} onChange={(e) => setRoute({ ...route, a: e.target.value })}><option value="">…</option>{data.places.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
         <Field label="To"><select value={route.b} onChange={(e) => setRoute({ ...route, b: e.target.value })}><option value="">…</option>{data.places.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
-        <Field label="Min"><input type="number" min={0} value={route.minutes} onChange={(e) => setRoute({ ...route, minutes: e.target.value })} /></Field>
+        <Field label="Min"><input type="text" inputMode="numeric" value={route.minutes} onChange={(e) => setRoute({ ...route, minutes: e.target.value.replace(/[^\d]/g, '') })} /></Field>
         <button className="btn align-end" disabled={!route.a || !route.b || route.a === route.b} onClick={() => {
           commit(`Route ${pname(route.a)}–${pname(route.b)}`, (d) => {
             d.routes = d.routes.filter((r) => !((r.a === route.a && r.b === route.b) || (r.a === route.b && r.b === route.a)));
@@ -252,9 +251,9 @@ export function PlacesPanel() {
         <Field label="Tasks no later than"><input type="time" value={st.dayEnd} onChange={(e) => setS('dayEnd', e.target.value)} /></Field>
       </Row>
       <Row>
-        <Field label="Gap between things (min)"><input type="number" min={0} value={st.bufferMin} onChange={(e) => setS('bufferMin', Number(e.target.value) || 0)} /></Field>
-        <Field label="Extra per trip (min)"><input type="number" min={0} value={st.travelBufferMin} onChange={(e) => setS('travelBufferMin', Number(e.target.value) || 0)} /></Field>
-        <Field label="Unknown trip (min)"><input type="number" min={0} value={st.defaultTravelMin} onChange={(e) => setS('defaultTravelMin', Number(e.target.value) || 0)} /></Field>
+        <Field label="Gap between things (min)"><NumberInput value={st.bufferMin} onCommit={(v) => setS('bufferMin', v)} /></Field>
+        <Field label="Extra per trip (min)"><NumberInput value={st.travelBufferMin} onCommit={(v) => setS('travelBufferMin', v)} /></Field>
+        <Field label="Unknown trip (min)"><NumberInput value={st.defaultTravelMin} onCommit={(v) => setS('defaultTravelMin', v)} /></Field>
       </Row>
       <DataTools />
     </div>

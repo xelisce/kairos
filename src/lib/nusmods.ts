@@ -66,7 +66,7 @@ export async function importNusmods(link: string, sem: Semester, colorOffset: nu
       for (const l of lessons) {
         if (!Array.isArray(l.weeks)) { warnings.push(`${code} ${l.lessonType}: unusual week format, add it by hand.`); continue; }
         classes.push({
-          id: uid(), moduleId: mod.id, kind: kindOf(l.lessonType), weekday: DAYS[l.day] ?? 0,
+          id: uid(), moduleId: mod.id, kind: kindOf(l.lessonType), days: [DAYS[l.day] ?? 0],
           start: hhmm(l.startTime), end: hhmm(l.endTime), weeks: l.weeks as number[],
           location: l.venue || undefined, skipDates: [], overrides: {},
         });

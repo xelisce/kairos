@@ -1,12 +1,12 @@
 import { addDays, differenceInCalendarDays } from 'date-fns';
-import type { Semester, WeekLabel } from '../types';
+import type { Semester, SemesterStyle, WeekLabel } from '../types';
 import { fromLocal } from './time';
 
 /**
  * Parse a week pattern like "3-13", "odd", "even 2-12", "1,3,5-7", "all".
  * `maxWeek` bounds "all"/"odd"/"even" when no range is given.
  */
-export function parseWeeks(input: string, maxWeek = 13): number[] {
+export function parseWeeks(input: string, maxWeek = 13, allowParity = true): number[] {
   const s = input.toLowerCase().trim();
   if (!s) return [];
   let parity: 'odd' | 'even' | null = null;
@@ -15,7 +15,10 @@ export function parseWeeks(input: string, maxWeek = 13): number[] {
   for (const raw of s.split(/[,\s]+/)) {
     const tok = raw.trim();
     if (!tok) continue;
-    if (tok === 'odd' || tok === 'even') { parity = tok; continue; }
+    if (tok === 'odd' || tok === 'even') {
+      if (!allowParity) throw new Error('Odd/even weeks are only for NUS-style semesters. Use ranges like "1-15" or lists like "1,3,5".');
+      parity = tok; continue;
+    }
     if (tok === 'all') { for (let i = 1; i <= maxWeek; i++) nums.add(i); hadNumbers = true; continue; }
     const m = tok.match(/^(\d+)(?:-(\d+))?$/);
     if (!m) throw new Error(`Can't read "${tok}". Try "3-13", "odd", "1,3,5-7".`);
@@ -31,10 +34,10 @@ export function parseWeeks(input: string, maxWeek = 13): number[] {
 }
 
 /** Compact display: [1,2,3,5] -> "1-3, 5"; [1,3,5,...,13] -> "odd 1-13". */
-export function formatWeeks(weeks: number[]): string {
+export function formatWeeks(weeks: number[], allowParity = true): string {
   if (!weeks.length) return 'no weeks';
   const w = [...weeks].sort((a, b) => a - b);
-  if (w.length >= 3 && w.every((n, i) => i === 0 || n - w[i - 1] === 2)) {
+  if (allowParity && w.length >= 3 && w.every((n, i) => i === 0 || n - w[i - 1] === 2)) {
     return `${w[0] % 2 ? 'odd' : 'even'} ${w[0]}-${w[w.length - 1]}`;
   }
   const parts: string[] = [];
@@ -85,16 +88,30 @@ export function formatLayout(layout: WeekLabel[]): string {
   return parts.join(', ');
 }
 
+/** Day-combination shortcuts for US-style schedules. */
+export const DAY_PRESETS: { label: string; days: number[] }[] = [
+  { label: 'MWF', days: [0, 2, 4] },
+  { label: 'MW', days: [0, 2] },
+  { label: 'TR', days: [1, 3] },
+  { label: 'MTWR', days: [0, 1, 2, 3] },
+];
+
+/** UW-style short day names: M T W R F S U */
+export const US_DAY_LETTERS = ['M', 'T', 'W', 'R', 'F', 'S', 'U'];
+export const formatDays = (days: number[], style: SemesterStyle) =>
+  style === 'us' ? [...days].sort().map((d) => US_DAY_LETTERS[d]).join('') : [...days].sort().map((d) => ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][d]).join('/');
+
 export const LAYOUT_PRESETS: { name: string; layout: string }[] = [
   { name: 'NUS (13 weeks + recess)', layout: '1-6, Recess, 7-13, Reading, Exam, Exam' },
   { name: 'UW–Madison (15 weeks + finals)', layout: '1-15, Finals' },
 ];
 
 /** Ready-made semesters with real dates. Double-check holidays against the official calendar. */
-export const SEMESTER_PRESETS: { name: string; startDate: string; layout: string; holidays: { date: string; name: string }[]; source: string }[] = [
+export const SEMESTER_PRESETS: { name: string; style: SemesterStyle; startDate: string; layout: string; holidays: { date: string; name: string }[]; source: string }[] = [
   {
     // registrar.wisc.edu: instruction Sep 2, Thanksgiving Nov 26-29, last class Dec 9, study day Dec 10, finals Dec 11-17
     name: 'UW–Madison Fall 2026',
+    style: 'us',
     startDate: '2026-08-31',
     layout: '1-15, Finals',
     holidays: [
@@ -111,6 +128,7 @@ export const SEMESTER_PRESETS: { name: string; startDate: string; layout: string
   {
     // nus.edu.sg/registrar: Sem 2 starts Jan 11 2027, recess Feb 22-28, reading Apr 19-23, exams Apr 24 - May 8
     name: 'NUS AY26/27 Sem 2',
+    style: 'nus',
     startDate: '2027-01-11',
     layout: '1-6, Recess, 7-13, Reading, Exam, Exam',
     holidays: [{ date: '2027-03-26', name: 'Good Friday' }],
@@ -148,5 +166,5 @@ export const maxTeachingWeek = (sem?: Semester) =>
   sem ? Math.max(1, ...sem.layout.map((w) => (w.type === 'teaching' ? w.n : 0))) : 13;
 
 export function semesterFromPreset(p: (typeof SEMESTER_PRESETS)[number], id: string): Semester {
-  return { id, name: p.name, startDate: p.startDate, layout: parseLayout(p.layout), holidays: [...p.holidays] };
+  return { id, name: p.name, style: p.style, startDate: p.startDate, layout: parseLayout(p.layout), holidays: [...p.holidays] };
 }

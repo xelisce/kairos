@@ -27,9 +27,20 @@ interface State {
 function load(): AppData {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return { ...defaultData(), ...JSON.parse(raw) } as AppData;
+    if (raw) return migrate({ ...defaultData(), ...JSON.parse(raw) });
   } catch { /* fall through to defaults */ }
   return defaultData();
+}
+
+/** Bring older saved data up to the current shape. */
+function migrate(d: AppData): AppData {
+  for (const c of d.classes as (AppData['classes'][number] & { weekday?: number })[]) {
+    if (!Array.isArray(c.days)) { c.days = [c.weekday ?? 0]; delete c.weekday; }
+  }
+  for (const s of d.semesters) {
+    if (!s.style) s.style = s.layout.some((w) => w.type === 'break' && /recess/i.test(w.name)) ? 'nus' : 'us';
+  }
+  return d;
 }
 
 function save(data: AppData) {
@@ -64,7 +75,7 @@ export const useStore = create<State>((set, get) => ({
   refresh: () => set({ data: withPlan(get().data) }),
   replaceAll: (data, label) => {
     const prev = get().data;
-    set({ data: withPlan(data), past: [...get().past, { data: prev, label }].slice(-HISTORY), future: [] });
+    set({ data: withPlan(migrate(data)), past: [...get().past, { data: prev, label }].slice(-HISTORY), future: [] });
   },
 }));
 

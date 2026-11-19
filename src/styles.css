@@ -216,3 +216,13 @@ code { background: var(--surface-2); padding: 0 4px; border-radius: 4px; }
 .ev-title { font-weight: 600; font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
 .ev-meta { font-size: 11px; opacity: 0.9; }
 .k-travel .ev-title, .k-travel .ev-meta { color: var(--text-2); }
+
+/* Color + day pickers */
+.colorpicker { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.swatch { width: 26px; height: 26px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
+.swatch.on { border-color: var(--text); box-shadow: 0 0 0 2px var(--surface) inset; }
+.colorpicker input[type='color'] { width: 44px; height: 30px; }
+.chip.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.daypicker-wrap { display: flex; flex-direction: column; gap: 4px; }
+.daypicker-wrap .chips { margin: 0; }
+.routes .mins { width: 60px; }

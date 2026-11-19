@@ -57,7 +57,7 @@ export function expand(data: AppData, from: Date, to: Date, opts: ExpandOpts = {
     const dk = dateKey(day);
     const wd = weekdayMon0(day);
     for (const c of data.classes) {
-      if (c.weekday !== wd) continue;
+      if (!c.days.includes(wd)) continue;
       const mod = modules.get(c.moduleId);
       const sem = mod && sems.get(mod.semesterId);
       if (!mod || !sem) continue;
@@ -170,8 +170,10 @@ function fitRoutine(r: Routine, day: Date, dk: string, busy: Occ[]): Occ {
   const pref = hmToMin(r.preferredStart);
   const ws = hmToMin(r.windowStart);
   let we = hmToMin(r.windowEnd);
-  if (we <= ws) we += 1440; // window crosses midnight
-  const prefN = pref < ws ? pref + 1440 : pref;
+  if (we <= ws) we += 1440; // window crosses midnight, e.g. 18:00 -> 01:00 next day
+  // Usual start inside the window (possibly after midnight); if it's outside, snap to the nearest edge.
+  let prefN = pref < ws ? pref + 1440 : pref;
+  if (prefN + r.durationMin > we) prefN = pref >= ws ? Math.max(ws, we - r.durationMin) : ws;
   const free = (m: number) => {
     const s = atMin(day, m);
     const e = addMinutes(s, r.durationMin);
