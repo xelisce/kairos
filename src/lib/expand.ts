@@ -182,7 +182,7 @@ export function expand(data: AppData, from: Date, to: Date, opts: ExpandOpts = {
     });
   }
 
-  // Routines: fixed ones (non-flexible, moved by hand, or with a location) go in now;
+  // Routines: fixed ones (not auto-scheduled, or moved by hand) go in now;
   // flexible ones are fitted around everything after travel is known.
   const flexQueue: { r: Routine; day: Date; dk: string }[] = [];
   for (const day of eachDay(pFrom, pTo)) {
@@ -193,18 +193,18 @@ export function expand(data: AppData, from: Date, to: Date, opts: ExpandOpts = {
       const len = base.durationOverrides?.[dk];
       const r = len ? { ...base, durationMin: len } : base;
       const ov = r.overrides[dk];
-      if (ov || !r.flexible || r.location) {
+      if (ov || !r.flexible) {
         const s = ov ? fromLocal(ov.start) : at(day, r.preferredStart);
         fixed.push(routineOcc(r, dk, s, ov ? fromLocal(ov.end) : addMinutes(s, r.durationMin), undefined, ov ? 'Moved by hand: stays here until you Reset it' : undefined));
       } else flexQueue.push({ r, day, dk });
     }
   }
 
-  // Travel between located items, day by day.
-  const travel = computeTravel(data, fixed);
-  const busy = [...fixed, ...travel];
+  // Travel between the fixed things first, so flexible routines fit around those trips too.
+  const firstTravel = computeTravel(data, fixed);
+  const busy = [...fixed, ...firstTravel];
 
-  // Fit flexible routines.
+  // Fit flexible routines (including ones with a location, e.g. dinner at Home).
   const placed: Occ[] = [];
   for (const { r, day, dk } of flexQueue) {
     const occ = fitRoutine(r, day, dk, busy);
@@ -212,6 +212,8 @@ export function expand(data: AppData, from: Date, to: Date, opts: ExpandOpts = {
     busy.push(occ);
   }
 
+  // Final travel now that located routines have their times.
+  const travel = placed.some((o) => o.location) ? computeTravel(data, [...fixed, ...placed]) : firstTravel;
   return [...fixed, ...travel, ...placed].filter((o) => overlaps(o.start, o.end, from, to));
 }
 
@@ -295,7 +297,8 @@ function computeTravel(data: AppData, items: Occ[]): Occ[] {
         const key = `${dk}:${occ.id}:in`;
         const tm = travelMinutes(data, cur, place);
         const ovr = data.travelOverrides[key];
-        const minutes = ovr ?? tm.minutes + extra;
+        // The extra minutes are for finding the room; none when you're going home.
+        const minutes = ovr ?? tm.minutes + (home && place.id === home.id ? 0 : extra);
         const movedTo = data.travelMoves?.[key];
         const start = movedTo ? fromLocal(movedTo) : addMinutes(occ.start, -minutes);
         const end = addMinutes(start, minutes);

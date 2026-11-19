@@ -311,3 +311,20 @@ describe('dd/mm/yyyy', () => {
     expect(toDMY('2026-09-07')).toBe('07/09/2026');
   });
 });
+
+describe('routine with a location still auto-schedules', () => {
+  it('dinner at Home goes after Robotics and the trip home', () => {
+    const d = defaultData();
+    d.routines = d.routines.filter((r) => r.title === 'Dinner');
+    Object.assign(d.routines[0], { location: 'Home', windowStart: '18:30', windowEnd: '23:30' });
+    d.activities = [{ id: 'a', title: 'Wisconsin Robotics', recurring: true, days: [0, 2, 3], start: '18:00', end: '20:00', location: 'ME', color: '#000', skipDates: [], overrides: {} }];
+    const occs = expand(d, fromLocal('2026-11-18'), fromLocal('2026-11-19'));
+    const dinner = occs.find((o) => o.title === 'Dinner')!;
+    const home = occs.find((o) => o.source.type === 'travel' && o.title.includes('Home'))!;
+    expect(dinner.start >= home.end).toBe(true);
+    expect(dinner.start.getHours() * 60 + dinner.start.getMinutes()).toBe(20 * 60 + 20);
+    expect(home.warning).toBeUndefined();
+    // Only one trip home, no extra trip "to dinner".
+    expect(occs.filter((o) => o.source.type === 'travel')).toHaveLength(2);
+  });
+});

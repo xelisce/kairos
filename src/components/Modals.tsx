@@ -106,7 +106,7 @@ function OccDetail() {
       {series && src.type === 'class' && (
         <Field label="This session is" hint="e.g. this week's lab is a quiz, or the lecture is a help session">
           <select value={series.kindOverrides?.[src.date] ?? series.kind} onChange={(e) => { setSessionKind(o, e.target.value as ClassKind); close(); }}>
-            {KINDS.map((k) => <option key={k} value={k}>{k}{k === series.kind ? ' (usual)' : ''}</option>)}
+            {kindOptions(series.kindOverrides?.[src.date] ?? series.kind).map((k) => <option key={k} value={k}>{k}{k === series.kind ? ' (usual)' : ''}</option>)}
           </select>
         </Field>
       )}
@@ -307,7 +307,9 @@ function EventForm() {
 
 // ---------- Class series ----------
 
-const KINDS: ClassKind[] = ['Lecture', 'Discussion', 'Tutorial', 'Lab', 'Recitation', 'Seminar', 'Quiz', 'Exam', 'Presentation', 'Help session', 'Other'];
+const KINDS: ClassKind[] = ['Lecture', 'Discussion', 'Tutorial', 'Lab', 'Seminar', 'Quiz', 'Exam', 'Presentation', 'Help session', 'Other'];
+/** The choices, plus an older type (e.g. Recitation) if this class already uses it. */
+const kindOptions = (current: ClassKind): ClassKind[] => (KINDS.includes(current) ? KINDS : [current, ...KINDS]);
 
 function ClassForm() {
   const m = useUI((s) => s.modal) as Extract<ReturnType<typeof useUI.getState>['modal'], { kind: 'class' }>;
@@ -352,7 +354,7 @@ function ClassForm() {
         </Field>
         <Field label="Type">
           <select value={c.kind} onChange={(e) => up({ kind: e.target.value as ClassKind })}>
-            {KINDS.map((k) => <option key={k}>{k}</option>)}
+            {kindOptions(c.kind).map((k) => <option key={k}>{k}</option>)}
           </select>
         </Field>
       </Row>
@@ -605,7 +607,7 @@ function RoutineForm() {
           </Field>
         </Row>
       )}
-      <Field label="Location (optional)" hint="Routines with a location stay at their usual time so travel can be planned"><LocationInput value={r.location ?? ''} onChange={(v) => up({ location: v || undefined })} places={placeNames(data)} /></Field>
+      <Field label="Location (optional)" hint="Travel is added automatically when it's somewhere other than where you were"><LocationInput value={r.location ?? ''} onChange={(v) => up({ location: v || undefined })} places={placeNames(data)} /></Field>
       {pinned.length > 0 && (
         <p className="muted small">
           Moved by hand on {pinned.length} upcoming day{pinned.length > 1 ? 's' : ''} ({pinned.slice(0, 3).map((dk) => format(fromLocal(dk), 'EEE d MMM')).join(', ')}{pinned.length > 3 ? '…' : ''}), so it stays put there.{' '}
