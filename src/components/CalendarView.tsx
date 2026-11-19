@@ -1,0 +1,112 @@
+import { useMemo, useRef } from 'react';
+import FullCalendar from '@fullcalendar/react';
+import timeGridPlugin from '@fullcalendar/timegrid';
+import dayGridPlugin from '@fullcalendar/daygrid';
+import interactionPlugin from '@fullcalendar/interaction';
+import type { EventContentArg, EventDropArg, DatesSetArg, EventClickArg, DateSelectArg } from '@fullcalendar/core';
+import type { EventResizeDoneArg } from '@fullcalendar/interaction';
+import { useStore } from '../store';
+import { expand } from '../lib/expand';
+import { moveOcc } from '../lib/actions';
+import { fmtTime } from '../lib/time';
+import { useUI } from './ui';
+import type { Occ } from '../types';
+
+export function CalendarView({ range, onRange }: { range: { start: Date; end: Date } | null; onRange: (r: { start: Date; end: Date }) => void }) {
+  const data = useStore((s) => s.data);
+  const open = useUI((s) => s.open);
+  const calRef = useRef<FullCalendar>(null);
+  const narrow = typeof window !== 'undefined' && window.innerWidth < 720;
+
+  const occs = useMemo(() => (range ? expand(data, range.start, range.end) : []), [data, range]);
+  const byId = useMemo(() => new Map(occs.map((o) => [o.id, o])), [occs]);
+
+  const events = useMemo(() => occs.map((o) => ({
+    id: o.id,
+    title: o.title,
+    start: o.start,
+    end: o.end,
+    backgroundColor: o.source.type === 'travel' ? 'transparent' : o.color,
+    borderColor: o.warning ? 'var(--bad)' : o.color,
+    textColor: o.source.type === 'travel' ? 'var(--text-2)' : '#fff',
+    editable: o.movable,
+    classNames: [`k-${o.source.type}`, o.warning ? 'k-warn' : '', isDone(o) ? 'k-done' : ''].filter(Boolean),
+    extendedProps: { occ: o },
+  })), [occs]);
+
+  const onDrop = (info: EventDropArg | EventResizeDoneArg) => {
+    const o = byId.get(info.event.id);
+    if (!o || !o.movable || !info.event.start) return info.revert();
+    moveOcc(o, info.event.start, info.event.end ?? info.event.start);
+  };
+
+  return (
+    <div className="calendar-wrap">
+      <FullCalendar
+        ref={calRef}
+        plugins={[timeGridPlugin, dayGridPlugin, interactionPlugin]}
+        initialView={narrow ? 'timeGridDay' : 'timeGridWeek'}
+        views={{ timeGrid3: { type: 'timeGrid', duration: { days: 3 }, buttonText: '3 days' } }}
+        headerToolbar={narrow
+          ? { left: 'prev,next today', center: '', right: 'timeGridDay,timeGrid3' }
+          : { left: 'prev,next today', center: 'title', right: 'timeGridDay,timeGrid3,timeGridWeek,dayGridMonth' }}
+        firstDay={1}
+        nowIndicator
+        allDaySlot={false}
+        slotDuration="00:15:00"
+        slotLabelInterval="01:00"
+        snapDuration="00:05:00"
+        scrollTime={new Date(Date.now() - 3600_000).toTimeString().slice(0, 8)}
+        height="100%"
+        expandRows
+        editable
+        selectable
+        selectMirror
+        longPressDelay={350}
+        eventLongPressDelay={350}
+        slotEventOverlap={false}
+        eventTimeFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
+        slotLabelFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
+        events={events}
+        eventDrop={onDrop}
+        eventResize={onDrop}
+        eventClick={(info: EventClickArg) => {
+          const o = byId.get(info.event.id);
+          if (o) open({ kind: 'occ', occ: o });
+        }}
+        select={(info: DateSelectArg) => {
+          open({ kind: 'newChoice', start: info.start, end: info.end });
+          calRef.current?.getApi().unselect();
+        }}
+        datesSet={(arg: DatesSetArg) => {
+          if (!range || arg.start.getTime() !== range.start.getTime() || arg.end.getTime() !== range.end.getTime()) {
+            onRange({ start: arg.start, end: arg.end });
+          }
+        }}
+        eventContent={renderEvent}
+      />
+    </div>
+  );
+}
+
+const isDone = (o: Occ) => o.source.type === 'task' && o.title.startsWith('✓');
+
+function renderEvent(arg: EventContentArg) {
+  const o = arg.event.extendedProps.occ as Occ;
+  const mins = (o.end.getTime() - o.start.getTime()) / 60000;
+  return (
+    <div className="ev" title={o.warning ?? ''}>
+      <div className="ev-title">
+        {o.warning && <span className="ev-warn" aria-label="Warning">⚠️ </span>}
+        {o.title}
+      </div>
+      {mins >= 30 && (
+        <div className="ev-meta">
+          {fmtTime(o.start)}–{fmtTime(o.end)}
+          {o.subtitle ? ` · ${o.subtitle}` : ''}
+          {o.location ? ` · 📍${o.location}` : ''}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,9 @@
+{
+  "name": "Kairos",
+  "short_name": "Kairos",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f1020",
+  "theme_color": "#6d5dfc",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
