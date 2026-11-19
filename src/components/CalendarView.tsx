@@ -66,6 +66,9 @@ export function CalendarView({ range, onRange }: { range: { start: Date; end: Da
         longPressDelay={350}
         eventLongPressDelay={350}
         slotEventOverlap={false}
+        // Draw blocks at their real length. The default 15px minimum made short trips
+        // overlap the next class on screen and squeeze it into half the column.
+        eventMinHeight={1}
         eventTimeFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
         slotLabelFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
         events={events}
@@ -108,18 +111,24 @@ function renderEvent(arg: EventContentArg) {
   // The placeholder block FullCalendar draws while you drag-select empty time has no occurrence.
   if (!o) return <div className="ev"><div className="ev-meta">{arg.timeText}</div></div>;
   const mins = (o.end.getTime() - o.start.getTime()) / 60000;
+  const tip = [o.title, `${fmtTime(o.start)}–${fmtTime(o.end)}`, o.subtitle, o.warning && `⚠️ ${o.warning}`].filter(Boolean).join('\n');
+  // Travel: always one horizontal line, cut off with "…" if it doesn't fit.
+  if (o.source.type === 'travel') {
+    return (
+      <div className="ev ev-line" title={tip}>
+        {o.warning && '⚠️ '}{o.title} · {fmtTime(o.start)}
+      </div>
+    );
+  }
+  // Others: title always; time when there's room; the extra line (course name etc.) only on long blocks.
   return (
-    <div className="ev" title={o.warning ?? ''}>
+    <div className="ev" title={tip}>
       <div className="ev-title">
         {o.warning && <span className="ev-warn" aria-label="Warning">⚠️ </span>}
         {o.title}
       </div>
-      {mins >= 30 && (
-        <div className="ev-meta">
-          {fmtTime(o.start)}–{fmtTime(o.end)}
-          {o.subtitle ? ` · ${o.subtitle}` : ''}
-        </div>
-      )}
+      {mins >= 30 && <div className="ev-meta">{fmtTime(o.start)}–{fmtTime(o.end)}</div>}
+      {mins >= 90 && o.subtitle && <div className="ev-meta ev-sub">{o.subtitle}</div>}
     </div>
   );
 }

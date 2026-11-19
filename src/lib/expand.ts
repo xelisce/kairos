@@ -87,7 +87,7 @@ export function expand(data: AppData, from: Date, to: Date, opts: ExpandOpts = {
         id: `class:${c.id}:${dk}`,
         source: { type: 'class', seriesId: c.id, date: dk },
         title: `${KIND_ICON[kind] ?? ''}${mod.code} ${kind}`,
-        subtitle: kind !== c.kind ? `instead of ${c.kind} · ${mod.name}` : mod.name,
+        subtitle: kind !== c.kind ? `instead of ${c.kind}` : mod.name,
         start: ov ? fromLocal(ov.start) : at(day, c.start),
         end: ov ? fromLocal(ov.end) : at(day, c.end),
         location: c.location,
