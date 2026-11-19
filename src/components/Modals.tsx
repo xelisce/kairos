@@ -549,11 +549,16 @@ function RoutineForm() {
   });
   const up = (p: Partial<Routine>) => setR((x) => ({ ...x, ...p }));
   const valid = r.title.trim() && r.days.length > 0;
+  const todayKey = dateKey(new Date());
+  const pinned = Object.keys(r.overrides).filter((dk) => dk >= todayKey).sort();
   const save = () => {
     if (!valid) return;
+    // New timing = hand-made moves from today on no longer make sense; let them auto-schedule again.
+    const timingChanged = existing && (['preferredStart', 'durationMin', 'flexible', 'windowStart', 'windowEnd'] as const).some((k) => existing[k] !== r[k]);
+    const next = timingChanged ? { ...r, overrides: Object.fromEntries(Object.entries(r.overrides).filter(([dk]) => dk < todayKey)) } : r;
     commit(existing ? `Edit ${r.title}` : `Add ${r.title}`, (d) => {
       const i = d.routines.findIndex((x) => x.id === r.id);
-      if (i >= 0) d.routines[i] = r; else d.routines.push(r);
+      if (i >= 0) d.routines[i] = next; else d.routines.push(next);
     });
     close();
   };
@@ -591,7 +596,12 @@ function RoutineForm() {
         </Row>
       )}
       <Field label="Location (optional)" hint="Routines with a location stay at their usual time so travel can be planned"><LocationInput value={r.location ?? ''} onChange={(v) => up({ location: v || undefined })} places={placeNames(data)} /></Field>
-      <label className="check"><input type="checkbox" checked={r.enabled} onChange={(e) => up({ enabled: e.target.checked })} /> On: show it on the calendar (turn off to pause it without deleting)</label>
+      {pinned.length > 0 && (
+        <p className="muted small">
+          Moved by hand on {pinned.length} upcoming day{pinned.length > 1 ? 's' : ''} ({pinned.slice(0, 3).map((dk) => format(fromLocal(dk), 'EEE d MMM')).join(', ')}{pinned.length > 3 ? '…' : ''}), so it stays put there.{' '}
+          <button type="button" className="linkish" onClick={() => setR((x) => ({ ...x, overrides: Object.fromEntries(Object.entries(x.overrides).filter(([dk]) => dk < todayKey)) }))}>Let it auto-schedule again</button>
+        </p>
+      )}
     </Modal>
   );
 }

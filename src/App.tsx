@@ -6,6 +6,7 @@ import { ModalHost } from './components/Modals';
 import { ClassesPanel, PlacesPanel, RoutinesPanel, TasksPanel } from './components/Panels';
 import { academicWeekFor, weekLabelText } from './lib/weeks';
 import { ReplanButton } from './components/ReplanButton';
+import { SyncBadge } from './components/SyncBadge';
 
 type Tab = 'calendar' | 'tasks' | 'classes' | 'routines' | 'places';
 const TABS: { id: Tab; label: string; icon: string }[] = [
@@ -92,6 +93,7 @@ export default function App() {
         <div className="brand"><img src="/icon.svg" alt="" width={24} height={24} /> Kairos</div>
         {wk && <span className="tag neutral" title={wk.sem.name}>{weekLabelText(wk.label)}</span>}
         <span className="spacer" />
+        <SyncBadge />
         <ReplanButton />
         <button className="icon-btn" onClick={undo} disabled={!past.length} title={past.length ? `Undo: ${past[past.length - 1].label} (Ctrl+Z)` : 'Nothing to undo'} aria-label="Undo">↶<sup>{past.length || ''}</sup></button>
         <button className="icon-btn" onClick={redo} disabled={!future.length} title={future.length ? `Redo: ${future[0].label} (Ctrl+Y)` : 'Nothing to redo'} aria-label="Redo">↷<sup>{future.length || ''}</sup></button>

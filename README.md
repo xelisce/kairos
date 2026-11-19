@@ -6,10 +6,15 @@ A day planner built for ADHD brains: it fits classes, meals, travel and tasks ar
 
 ```
 npm install
-npm run dev      # http://localhost:5173
+npm run dev      # app at http://localhost:5173 + local database server on :5175
+npm start        # build, then serve app + database at http://127.0.0.1:5175
 npm test         # unit tests for weeks, travel, scheduler
-npm run build    # production build in dist/
 ```
+
+Data lives in a SQLite database on this computer: `data/kairos.db` (git-ignored), using
+Node's built-in SQLite (Node 22+). The server keeps an automatic backup at most once an hour
+(restore from Places → Backup → Database backups). If the server isn't running, the app keeps
+changes in the browser and saves them to the database when it's back.
 
 ## Where things live
 
@@ -19,7 +24,9 @@ npm run build    # production build in dist/
 | `src/lib/weeks.ts` | Week patterns (`3-13`, `odd`, `even 2-12`) and semester layouts (`1-6, Recess, 7-13, ...`) |
 | `src/lib/expand.ts` | Turns data into calendar blocks; flexible routines slide around clashes; travel blocks |
 | `src/lib/scheduler.ts` | Auto-scheduler for tasks (stable, earliest deadline first, rolls missed tasks forward) |
-| `src/store.ts` | State with undo/redo (last 10 edits), saved to localStorage |
+| `src/store.ts` | State with undo/redo (last 10 edits) |
+| `src/lib/sync.ts` | Loads/saves the data via the local database; browser copy as offline fallback |
+| `server/index.mjs` | Local database server (SQLite file + hourly backups), also serves the built app |
 | `src/lib/nusmods.ts` | Import from a NUSMods share link |
 | `src/components/` | Calendar, Now/Next card, panels, dialogs |
 

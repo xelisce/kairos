@@ -1,4 +1,5 @@
-// App state with undo/redo (last 10 edits) and local persistence.
+// App state with undo/redo (last 10 edits).
+// Saved to the local database by lib/sync.ts; localStorage is only an offline fallback copy.
 // Every edit goes through `commit`, which snapshots the previous data
 // and re-runs the auto-scheduler so tasks stay out of clashes.
 import { create } from 'zustand';
@@ -85,3 +86,8 @@ export const useStore = create<State>((set, get) => ({
 }));
 
 useStore.subscribe((s, p) => { if (s.data !== p.data) save(s.data); });
+
+/** Replace everything with the database's copy (not an undo step; clears undo history). */
+export function applyRemote(data: AppData) {
+  useStore.setState({ data: withPlan(migrate({ ...defaultData(), ...data })), past: [], future: [] });
+}

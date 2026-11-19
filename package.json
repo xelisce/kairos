@@ -4,7 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently -k -n db,web -c green,magenta \"npm:server\" \"vite\"",
+    "server": "node --no-warnings server/index.mjs",
+    "start": "npm run build && npm run server",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run"
@@ -24,6 +26,7 @@
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^4.7.0",
+    "concurrently": "^9.2.5",
     "typescript": "^5.9.3",
     "vite": "^5.4.21",
     "vitest": "^2.1.9"
