@@ -204,10 +204,12 @@ export function setSessionKind(o: Occ, kind: ClassKind | null) {
   });
 }
 
-export type ReplanScope = 'today' | 'week' | 'future' | 'all';
+export type ReplanScope = 'today' | 'tomorrow' | 'next3' | 'week' | 'future' | 'all';
 
 export const REPLAN_LABELS: Record<ReplanScope, string> = {
   today: 'Re-plan today',
+  tomorrow: 'Re-plan tomorrow',
+  next3: 'Re-plan next 3 days (today + 2)',
   week: 'Re-plan this week',
   future: 'Re-plan all future',
   all: 'Re-plan all time (incl. past)',
@@ -217,6 +219,8 @@ export const REPLAN_LABELS: Record<ReplanScope, string> = {
 export function replanRange(scope: ReplanScope, now = new Date()): { from: Date | null; to: Date | null } {
   const day = new Date(now); day.setHours(0, 0, 0, 0);
   if (scope === 'today') return { from: day, to: addDays(day, 1) };
+  if (scope === 'tomorrow') return { from: addDays(day, 1), to: addDays(day, 2) };
+  if (scope === 'next3') return { from: day, to: addDays(day, 3) };
   if (scope === 'week') { const mon = startOfWeek(now, { weekStartsOn: 1 }); return { from: mon, to: addDays(mon, 7) }; }
   if (scope === 'future') return { from: day, to: null };
   return { from: null, to: null };
@@ -257,6 +261,8 @@ export function setDetail(o: Occ, text: string) {
 
 export const RESET_LABELS: Record<ReplanScope, string> = {
   today: 'Reset today',
+  tomorrow: 'Reset tomorrow',
+  next3: 'Reset next 3 days (today + 2)',
   week: 'Reset this week',
   future: 'Reset all future',
   all: 'Reset all time (incl. past)',

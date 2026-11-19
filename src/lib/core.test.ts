@@ -163,6 +163,10 @@ describe('re-plan scopes', () => {
     const w = replanRange('week', now);
     expect([w.from!.getDate(), w.to!.getDate()]).toEqual([16, 23]);
     expect(replanRange('future', now).to).toBeNull();
+    const tm = replanRange('tomorrow', now);
+    expect([tm.from!.getDate(), tm.to!.getDate()]).toEqual([20, 21]);
+    const n3 = replanRange('next3', now);
+    expect([n3.from!.getDate(), n3.to!.getDate()]).toEqual([19, 22]);
     expect(replanRange('all', now).from).toBeNull();
   });
 });

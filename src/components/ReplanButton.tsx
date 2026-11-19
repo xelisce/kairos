@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { replan, REPLAN_LABELS, resetRoutines, RESET_LABELS, type ReplanScope } from '../lib/actions';
 
-const SCOPES: ReplanScope[] = ['today', 'week', 'future', 'all'];
+const SCOPES: ReplanScope[] = ['today', 'tomorrow', 'next3', 'week', 'future', 'all'];
 
 const REPLAN_HELP =
   'Re-finds slots for auto-scheduled tasks. Routines keep any length you changed; ' +
