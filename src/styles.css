@@ -250,3 +250,15 @@ body.resizing { cursor: col-resize; user-select: none; }
 .segmented button { flex: 1; border: none; background: var(--surface); padding: 8px; cursor: pointer; }
 .segmented button.on { background: var(--accent); color: #fff; }
 .choice-grid { grid-template-columns: 1fr 1fr; }
+
+/* Special days (holidays, break weeks, finals): tinted, striped column + header label */
+.fc .k-day-break { --mark: var(--warn); }
+.fc .k-day-exam { --mark: var(--bad); }
+.fc td.k-day-marked, .fc .fc-timegrid-col.k-day-marked, .fc .fc-daygrid-day.k-day-marked {
+  background: repeating-linear-gradient(135deg,
+    color-mix(in srgb, var(--mark) 10%, transparent) 0 8px,
+    color-mix(in srgb, var(--mark) 4%, transparent) 8px 16px);
+}
+.fc th.k-day-marked { background: color-mix(in srgb, var(--mark) 12%, transparent); }
+.day-head { display: flex; flex-direction: column; align-items: center; line-height: 1.2; min-width: 0; }
+.day-mark { font-size: 10px; font-weight: 600; color: var(--mark); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

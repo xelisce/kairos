@@ -178,3 +178,14 @@ describe('booked CCA sessions', () => {
     expect(s.color).toBe('#123456');
   });
 });
+
+describe('day markers', () => {
+  it('holidays beat week labels; finals are exam-kind', async () => {
+    const { dayMarker, SEMESTER_PRESETS, semesterFromPreset } = await import('./weeks');
+    const sems = [semesterFromPreset(SEMESTER_PRESETS[0], 's')];
+    expect(dayMarker(sems, fromLocal('2026-11-26'))).toEqual({ label: 'Thanksgiving', kind: 'break' });
+    expect(dayMarker(sems, fromLocal('2026-09-07'))!.label).toBe('Labor Day');
+    expect(dayMarker(sems, fromLocal('2026-12-15'))).toEqual({ label: 'Finals Week', kind: 'exam' });
+    expect(dayMarker(sems, fromLocal('2026-11-18'))).toBeNull();
+  });
+});

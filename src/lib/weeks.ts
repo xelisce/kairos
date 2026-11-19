@@ -168,3 +168,28 @@ export const maxTeachingWeek = (sem?: Semester) =>
 export function semesterFromPreset(p: (typeof SEMESTER_PRESETS)[number], id: string): Semester {
   return { id, name: p.name, style: p.style, startDate: p.startDate, layout: parseLayout(p.layout), holidays: [...p.holidays] };
 }
+
+export interface DayMarker { label: string; kind: 'break' | 'exam' }
+
+/**
+ * Is this day special? Single-day holidays (Thanksgiving, Labor Day, Study day)
+ * win over week labels (Recess Week, Finals Week). Exam/finals days are 'exam'.
+ */
+export function dayMarker(sems: Semester[], day: Date): DayMarker | null {
+  const y = day.getFullYear();
+  const m = String(day.getMonth() + 1).padStart(2, '0');
+  const d = String(day.getDate()).padStart(2, '0');
+  const dk = `${y}-${m}-${d}`;
+  const kindOf = (s: string): DayMarker['kind'] => (/exam|final/i.test(s) ? 'exam' : 'break');
+  for (const sem of sems) {
+    const h = sem.holidays.find((x) => x.date === dk);
+    if (h) return { label: h.name, kind: kindOf(h.name) };
+  }
+  for (const sem of sems) {
+    const i = weekIndex(sem, day);
+    if (i === null) continue;
+    const w = sem.layout[i];
+    if (w.type === 'break') return { label: weekLabelText(w), kind: kindOf(w.name) };
+  }
+  return null;
+}

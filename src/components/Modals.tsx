@@ -60,7 +60,7 @@ function OccDetail() {
       <p className="muted">
         {format(o.start, 'EEE d MMM')} · {fmtTime(o.start)}–{fmtTime(o.end)} ({fmtDur(Math.round((o.end.getTime() - o.start.getTime()) / 60000))})
         {o.subtitle && <><br />{o.subtitle}</>}
-        {o.location && <><br />📍 {o.location}</>}
+        {o.location && <><br />at {o.location}</>}
       </p>
       {o.warning && <p className="warn-box">⚠️ {o.warning}</p>}
 

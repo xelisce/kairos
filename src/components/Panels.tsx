@@ -125,7 +125,7 @@ export function ClassesPanel() {
                   {data.classes.filter((c) => c.moduleId === m.id).map((c) => (
                     <li key={c.id}>
                       <button className="linkish" onClick={() => open({ kind: 'class', id: c.id })}>
-                        {c.kind} · {formatDays(c.days, sem.style)} {c.start}–{c.end} · wk {formatWeeks(c.weeks, sem.style !== 'us')}{c.location ? ` · 📍${c.location}` : ''}
+                        {c.kind} · {formatDays(c.days, sem.style)} {c.start}–{c.end} · wk {formatWeeks(c.weeks, sem.style !== 'us')}{c.location ? ` · ${c.location}` : ''}
                       </button>
                     </li>
                   ))}
@@ -157,7 +157,7 @@ export function ClassesPanel() {
             <div key={a.id} className="mod" style={{ borderLeftColor: a.color }}>
               <div className="mod-head">
                 <button className="linkish" onClick={() => open({ kind: 'activity', id: a.id })}>
-                  <b>{a.title}</b> · {a.recurring === false ? 'booked sessions' : `${formatDays(a.days, 'us')} ${a.start}–${a.end}`}{a.location ? ` · 📍${a.location}` : ''}
+                  <b>{a.title}</b> · {a.recurring === false ? 'booked sessions' : `${formatDays(a.days, 'us')} ${a.start}–${a.end}`}{a.location ? ` · ${a.location}` : ''}
                   {a.recurring !== false && (a.from || a.until) && <span className="muted"> · {a.from ? format(fromLocal(a.from), 'd MMM') : '…'}–{a.until ? format(fromLocal(a.until), 'd MMM') : '…'}</span>}
                 </button>
                 <span className="spacer" />
@@ -166,7 +166,7 @@ export function ClassesPanel() {
               {sessions.length > 0 && (
                 <ul className="mod-tasks">
                   {sessions.map((e) => (
-                    <li key={e.id}><button className="linkish" onClick={() => open({ kind: 'event', id: e.id })}>🧗 {format(fromLocal(e.start), 'EEE d MMM HH:mm')}–{format(fromLocal(e.end), 'HH:mm')}{e.location && e.location !== a.location ? ` · 📍${e.location}` : ''}</button></li>
+                    <li key={e.id}><button className="linkish" onClick={() => open({ kind: 'event', id: e.id })}>🧗 {format(fromLocal(e.start), 'EEE d MMM HH:mm')}–{format(fromLocal(e.end), 'HH:mm')}{e.location && e.location !== a.location ? ` · ${e.location}` : ''}</button></li>
                   ))}
                 </ul>
               )}
@@ -240,7 +240,7 @@ export function PlacesPanel() {
       <ul className="places">
         {data.places.map((p) => (
           <li key={p.id}>
-            <b>{p.isHome ? '🏠 ' : '📍 '}{p.name}</b>
+            <b>{p.isHome ? '🏠 ' : ''}{p.name}</b>
             <input className="alias" defaultValue={p.aliases.join(', ')} placeholder="aliases, comma separated"
               onBlur={(e) => {
                 const aliases = e.target.value.split(',').map((x) => x.trim()).filter(Boolean);

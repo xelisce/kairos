@@ -9,6 +9,7 @@ import { useStore } from '../store';
 import { expand } from '../lib/expand';
 import { moveOcc } from '../lib/actions';
 import { fmtTime } from '../lib/time';
+import { dayMarker } from '../lib/weeks';
 import { useUI } from './ui';
 import type { Occ } from '../types';
 
@@ -84,6 +85,17 @@ export function CalendarView({ range, onRange }: { range: { start: Date; end: Da
           }
         }}
         eventContent={renderEvent}
+        dayCellClassNames={(arg) => { const mk = dayMarker(data.semesters, arg.date); return mk ? ['k-day-marked', `k-day-${mk.kind}`] : []; }}
+        dayHeaderClassNames={(arg) => { const mk = dayMarker(data.semesters, arg.date); return mk ? ['k-day-marked', `k-day-${mk.kind}`] : []; }}
+        dayHeaderContent={(arg) => {
+          const mk = dayMarker(data.semesters, arg.date);
+          return (
+            <div className="day-head">
+              <span>{arg.text}</span>
+              {mk && <span className={`day-mark ${mk.kind}`} title={mk.label}>{mk.label}</span>}
+            </div>
+          );
+        }}
       />
     </div>
   );
@@ -106,7 +118,6 @@ function renderEvent(arg: EventContentArg) {
         <div className="ev-meta">
           {fmtTime(o.start)}–{fmtTime(o.end)}
           {o.subtitle ? ` · ${o.subtitle}` : ''}
-          {o.location ? ` · 📍${o.location}` : ''}
         </div>
       )}
     </div>

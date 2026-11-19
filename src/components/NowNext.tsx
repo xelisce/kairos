@@ -61,7 +61,6 @@ function Card({ label, occ, now, onClick, empty }: { label: string; occ?: Occ; n
       <span className="nn-title">{occ.warning && '⚠️ '}{occ.title}</span>
       <span className="nn-meta">
         {fmtTime(occ.start)}–{fmtTime(occ.end)} · {startsIn > 0 ? `in ${fmtDur(startsIn)}` : `${fmtDur(endsIn)} left`}
-        {occ.location ? ` · 📍${occ.location}` : ''}
       </span>
     </button>
   );
