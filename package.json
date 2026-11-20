@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k -n db,web -c green,magenta \"npm:server\" \"vite\"",
+    "dev": "concurrently --kill-others-on-fail -n db,web -c green,magenta \"npm:server\" \"vite\"",
     "server": "node --no-warnings server/index.mjs",
     "start": "npm run build && npm run server",
     "build": "tsc -b && vite build",
