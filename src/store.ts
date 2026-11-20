@@ -1,12 +1,13 @@
 // App state with undo/redo (last 30 edits).
 // Every edit goes through `commit`, which snapshots the previous data and re-runs the
-// auto-scheduler so tasks stay out of clashes. lib/sync.ts saves the data to the local
-// database; localStorage keeps a copy for when the database server isn't running.
+// auto-scheduler so tasks stay out of clashes. lib/sync.ts saves the data (cloud or local
+// database); localStorage keeps a copy so the app opens with your data even offline.
 import { create } from 'zustand';
 import type { AppData } from './types';
 import { defaultData } from './lib/defaults';
 import { normalize } from './lib/migrate';
 import { planTasks } from './lib/scheduler';
+import { readJson, writeStored } from './lib/storage';
 
 const LOCAL_COPY_KEY = 'kairos:data:v1';
 const HISTORY = 30;
@@ -31,22 +32,16 @@ interface State {
 }
 
 function loadLocalCopy(): AppData {
+  const saved = readJson<AppData>(LOCAL_COPY_KEY);
   try {
-    const raw = localStorage.getItem(LOCAL_COPY_KEY);
-    if (raw) return normalize(JSON.parse(raw));
+    return saved ? normalize(saved) : defaultData();
   } catch {
-    // Unreadable or blocked storage: start from defaults.
+    return defaultData(); // not readable as Kairos data
   }
-  return defaultData();
 }
 
-function saveLocalCopy(data: AppData) {
-  try {
-    localStorage.setItem(LOCAL_COPY_KEY, JSON.stringify(data));
-  } catch {
-    // Storage full or blocked: the database still has it.
-  }
-}
+// Storage full or blocked: the cloud or database still has it.
+const saveLocalCopy = (data: AppData) => writeStored(LOCAL_COPY_KEY, data);
 
 const withPlan = (d: AppData): AppData => ({ ...d, tasks: planTasks(d, new Date()) });
 const push = (list: Snapshot[], s: Snapshot) => [...list, s].slice(-HISTORY);

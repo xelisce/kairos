@@ -1,6 +1,6 @@
 -- Kairos cloud data: one row per account holding the whole app data, with a version number so
 -- two devices saving at once don't overwrite each other (same idea as server/index.mjs).
--- Run once in the Supabase SQL editor (or via `node scripts/supabase-schema.mjs`). Safe to re-run.
+-- Run it in the Supabase dashboard (SQL Editor) when setting up a project. Safe to re-run.
 
 create table if not exists public.kairos_data (
   user_id    uuid primary key references auth.users (id) on delete cascade,

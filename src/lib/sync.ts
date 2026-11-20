@@ -6,6 +6,7 @@ import type { AppData } from '../types';
 import { applyRemote, useStore } from '../store';
 import { loadCloud, saveCloud, supabase, watchAccount, watchCloud, type Account, type SaveResult } from './cloud';
 import { merge3 } from './merge';
+import { readJson, readRaw, removeStored, writeStored } from './storage';
 
 /** 'signedout': on the hosted site with nobody signed in, so changes stay in this browser only. */
 export type SyncStatus = 'connecting' | 'saving' | 'saved' | 'offline' | 'signedout';
@@ -69,23 +70,13 @@ interface Meta {
   version: number;
   dirty: boolean;
 }
-const readMeta = (key: string): Meta => {
-  try {
-    return { version: 0, dirty: false, ...JSON.parse(localStorage.getItem(key) ?? '{}') };
-  } catch {
-    return { version: 0, dirty: false };
-  }
-};
+const readMeta = (key: string): Meta => ({ version: 0, dirty: false, ...readJson<Partial<Meta>>(key) });
 
 let backend = localBackend;
 let meta = readMeta(backend.metaKey);
 const writeMeta = (m: Meta) => {
   meta = m;
-  try {
-    localStorage.setItem(backend.metaKey, JSON.stringify(m));
-  } catch {
-    /* ignore */
-  }
+  writeStored(backend.metaKey, m);
 };
 
 let timer: ReturnType<typeof setTimeout> | undefined;
@@ -101,16 +92,13 @@ let synced: { data: AppData; json: string } | undefined;
 const baseKey = () => `${backend.metaKey}:base`;
 function setSynced(data: AppData | undefined) {
   synced = data && { data: structuredClone(data), json: JSON.stringify(data) };
-  try {
-    if (synced) localStorage.setItem(baseKey(), synced.json);
-    else localStorage.removeItem(baseKey());
-  } catch {
-    /* storage full: merging just keeps a bit more */
-  }
+  // If storage is full, merging after a restart just keeps a bit more from both sides.
+  if (synced) writeStored(baseKey(), synced.json);
+  else removeStored(baseKey());
 }
 function readSynced() {
+  const json = readRaw(baseKey());
   try {
-    const json = localStorage.getItem(baseKey());
     synced = json ? { data: JSON.parse(json) as AppData, json } : undefined;
   } catch {
     synced = undefined;
@@ -118,12 +106,17 @@ function readSynced() {
 }
 let unwatch: (() => void) | undefined;
 
-/** Switch to the saved copy (another window or device changed it, and we have nothing unsaved). */
-function takeRemote(data: AppData, version: number) {
-  writeMeta({ version, dirty: false });
+/** Show data that came from the saved copy, without that counting as an edit to save. */
+function applyQuietly(data: AppData) {
   remoteApplying = true;
   applyRemote(data);
   remoteApplying = false;
+}
+
+/** Switch to the saved copy (another window or device changed it, and we have nothing unsaved). */
+function takeRemote(data: AppData, version: number) {
+  writeMeta({ version, dirty: false });
+  applyQuietly(data);
   // The app re-plans what it loads, so remember the copy as the app holds it.
   setSynced(useStore.getState().data);
 }
@@ -148,9 +141,7 @@ async function push() {
       // No starting point known (first save after being offline): keep everything from both.
       const merged = merge3(synced?.data ?? ({} as AppData), local, res.data);
       writeMeta({ version: res.version, dirty: true });
-      remoteApplying = true;
-      applyRemote(merged);
-      remoteApplying = false;
+      applyQuietly(merged);
       setSynced(res.data);
       again = true;
       setStatus('saving', 'Merged with changes from another window');
@@ -166,8 +157,9 @@ async function push() {
     clearTimeout(retry);
     retry = setTimeout(push, 10_000);
   } finally {
-    inFlight = false;
-    if (again) {
+    // Signed in or out meanwhile: the new place has its own save going, so leave it alone.
+    if (b === backend) inFlight = false;
+    if (b === backend && again) {
       again = false;
       void push();
     }
@@ -198,14 +190,7 @@ async function connect() {
       // A place this browser has never synced with may not have what's on screen now:
       // keep it recoverable before switching to the saved copy.
       if (meta.version === 0) {
-        try {
-          localStorage.setItem(
-            `kairos:data:before-${b.cloud ? 'cloud' : 'database'}`,
-            JSON.stringify(useStore.getState().data),
-          );
-        } catch {
-          /* ignore */
-        }
+        writeStored(`kairos:data:before-${b.cloud ? 'cloud' : 'database'}`, useStore.getState().data);
       }
       takeRemote(cur.data, cur.version);
       setStatus('saved');
@@ -219,7 +204,7 @@ async function connect() {
 }
 
 /** Start saving somewhere else (after signing in or out); null: nowhere, until you sign in. */
-function useBackend(next: Backend | null) {
+function switchBackend(next: Backend | null) {
   clearTimeout(timer);
   clearTimeout(retry);
   unwatch?.();
@@ -283,5 +268,5 @@ export function startSync() {
     return;
   }
   // Supabase reports the saved sign-in (or none) first, then every sign-in and sign-out.
-  watchAccount((account) => useBackend(account ? cloudBackend(account) : hasLocalDb ? localBackend : null));
+  watchAccount((account) => switchBackend(account ? cloudBackend(account) : hasLocalDb ? localBackend : null));
 }

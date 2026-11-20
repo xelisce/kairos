@@ -15,9 +15,31 @@ npm test         # tests only
 npm run format   # Prettier
 ```
 
-Data lives in a SQLite database on this computer: `data/kairos.db` (git-ignored). The server keeps
-an automatic backup at most once an hour (restore from Places → Backup → Database backups). If the
-server isn't running, the app keeps changes in the browser and saves them to the database when it's back.
+Live at **https://kairos-xelisce.vercel.app**. Sign in (click the save badge at the top) and your data
+is saved to your account, so every device shows the same calendar, and changes on one show on the
+others within seconds. It also opens and saves offline, and catches up once you're back online.
+
+Where data is saved:
+
+- **Signed in:** in the cloud (Supabase), with an automatic backup at most once an hour.
+- **Signed out, running on this computer:** in a SQLite database, `data/kairos.db` (git-ignored), also
+  backed up hourly.
+- **Signed out on the website:** only in that browser.
+
+Restore backups from Places → Backup → Automatic backups. The browser also keeps a copy, so the app
+opens with your data even when nothing else can be reached.
+
+### Cloud setup (once)
+
+1. Create a Supabase project and run `supabase/schema.sql` in its SQL Editor.
+2. Copy `.env.example` to `.env.local` and fill in the URL and publishable key.
+3. In Supabase → Authentication → URL Configuration, set the Site URL to the hosted address.
+
+### Deploying
+
+The site is hosted on Vercel, connected to this GitHub repo: every push to `main` updates the live
+site, and other branches get preview links. The two `VITE_SUPABASE_*` settings are set in the Vercel
+project.
 
 ## How it fits together
 
@@ -39,7 +61,12 @@ into their windows, then trips between places).
 | `src/lib/actions.ts`      | Every edit the UI makes (move, skip, delete, re-plan, reset…)                     |
 | `src/lib/weeks.ts`        | Week patterns (`3-13`, `odd`), semester layouts, presets, special days            |
 | `src/lib/migrate.ts`      | Upgrading saved data from older versions                                          |
-| `src/lib/sync.ts`         | Loading/saving through the local database                                         |
+| `src/lib/sync.ts`         | Saving: to the cloud when signed in, else the local database; merges conflicts    |
+| `src/lib/cloud.ts`        | Supabase: sign-in, loading/saving your data, backups, live updates                |
+| `src/lib/merge.ts`        | Three-way merge when two windows or devices change the data at once               |
+| `src/lib/storage.ts`      | localStorage that never throws                                                    |
+| `supabase/schema.sql`     | Cloud tables, row security and the versioned save function                        |
+| `public/sw.js`            | Offline support: keeps the app's files so it opens without a connection           |
 | `src/lib/labels.ts`       | Colors, icons and names                                                           |
 | `src/lib/nusmods.ts`      | Import from a NUSMods share link                                                  |
 | `src/components/`         | `CalendarView`, `NowNext`, top-bar buttons                                        |
@@ -57,7 +84,7 @@ into their windows, then trips between places).
   - Taskline: a left-to-right timeline for one semester, grouped by course (exams as ◆) or by time (due this week / next week / later). Each task is a bar from its start date ("not before", else the day it was added) to its deadline, with a dot per session (● planned, ✓ done, ○ missed, red after the deadline). Day/week zoom, today line, show-done toggle. Switch with 🗓 Calendar | 📊 Taskline at the top. Drag ◆ to move a deadline, drag a dot to move that session to another day, click a dot to open it
   - Tasks outside the semester (personal, admin, other) are hidden by default, with toggles to show each kind
   - Built so a semester's tasks, classes and events can later be exported as one unit (see v7)
-- **v3:** web app in the cloud: sign in and your data is saved to your account (Supabase), so every device sees the same calendar; hosted online so it opens in any browser, including your phone; live updates (a change on one device shows on the others within seconds); works offline and saves once you're back online
+- **v3 (done):** web app in the cloud (plus a proper phone layout: swipe the calendar for the next/previous day, pinch to zoom the Taskline, its settings in a ⚙ dialog): sign in and your data is saved to your account (Supabase), so every device sees the same calendar; hosted online so it opens in any browser, including your phone; live updates (a change on one device shows on the others within seconds); works offline and saves once you're back online
 - **v4:** native Android app (Capacitor): the same app as an icon on your phone, signed in to the same account; installed straight from an APK (no Play Store needed)
 - **v5:** notifications on the phone, scheduled a day or two ahead and updated whenever your calendar changes, even with the app closed: "leave in 10 min" (travel), "lunch now" (routines), "session starting" (tasks); a toggle for each kind; asks to allow exact alarms (Android 14 blocks them by default)
 - **v6:** Android home-screen widgets; light/dark mode toggle in settings; settings to silence warnings, with separate toggles for daily routines, tasks, and travel; toggle whether travel blocks can be dragged; setting to hide special-day indicators (holidays, break and exam weeks); setting to hide location on event previews; custom color presets; setting for how faded skipped sessions are; optimizations (smarter planning, performance); timezones: times are saved with their timezone, and the calendar shows them in the zone you're in, so moving between Madison and Singapore (or a flight across zones) doesn't shift anything. Includes a setting for your current timezone (or follow the device), daylight-saving changes handled everywhere (planner, travel, Taskline), and events booked in another zone shown at the right local time

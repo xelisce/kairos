@@ -13,6 +13,8 @@ import { TasksPanel } from './components/panels/TasksPanel';
 import { academicWeekFor, weekLabelText } from './lib/weeks';
 import { ReplanButton, ResetButton } from './components/ReplanButton';
 import { SyncBadge } from './components/SyncBadge';
+import { readJson, writeStored } from './lib/storage';
+import { useNarrow } from './hooks/useNarrow';
 
 type Tab = 'calendar' | 'tasks' | 'classes' | 'routines' | 'places' | 'deleted';
 const TABS: { id: Tab; label: string; icon: string }[] = [
@@ -26,28 +28,13 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
 
 const SIDEBAR_MIN = 260;
 const SIDEBAR_MAX = 600;
-const readPref = <T,>(k: string, fallback: T): T => {
-  try {
-    const v = localStorage.getItem(k);
-    return v === null ? fallback : (JSON.parse(v) as T);
-  } catch {
-    return fallback;
-  }
-};
-const writePref = (k: string, v: unknown) => {
-  try {
-    localStorage.setItem(k, JSON.stringify(v));
-  } catch {
-    /* ignore */
-  }
-};
 
 /** Sidebar width (drag the edge) and open/closed state, remembered per browser. */
 function useSidebar() {
-  const [width, setWidth] = useState(() => readPref('kairos:sidebarWidth', 360));
-  const [open, setOpen] = useState(() => readPref('kairos:sidebarOpen', true));
-  useEffect(() => writePref('kairos:sidebarWidth', width), [width]);
-  useEffect(() => writePref('kairos:sidebarOpen', open), [open]);
+  const [width, setWidth] = useState(() => readJson<number>('kairos:sidebarWidth') ?? 360);
+  const [open, setOpen] = useState(() => readJson<boolean>('kairos:sidebarOpen') ?? true);
+  useEffect(() => void writeStored('kairos:sidebarWidth', width), [width]);
+  useEffect(() => void writeStored('kairos:sidebarOpen', open), [open]);
   const startDrag = (e: React.PointerEvent) => {
     e.preventDefault();
     const startX = e.clientX;
@@ -64,16 +51,6 @@ function useSidebar() {
     window.addEventListener('pointerup', up);
   };
   return { width, setWidth, open, setOpen, startDrag };
-}
-
-function useNarrow() {
-  const [narrow, setNarrow] = useState(() => window.innerWidth < 900);
-  useEffect(() => {
-    const h = () => setNarrow(window.innerWidth < 900);
-    window.addEventListener('resize', h);
-    return () => window.removeEventListener('resize', h);
-  }, []);
-  return narrow;
 }
 
 export default function App() {

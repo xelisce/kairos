@@ -16,7 +16,7 @@ const wholeWord = (word: string, flags = 'iu') =>
   new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp(word)}(?![\\p{L}\\p{N}])`, flags);
 
 /** Does `text` contain `word` as a whole word? */
-export const hasWord = (text: string, word: string) => wholeWord(word).test(text);
+const hasWord = (text: string, word: string) => wholeWord(word).test(text);
 
 const namesOf = (p: Place) => [p.name, ...p.aliases].map((x) => x.trim()).filter(Boolean);
 

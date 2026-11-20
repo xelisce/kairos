@@ -1270,6 +1270,35 @@ body.resizing {
   flex: 1;
   overflow: auto;
   min-height: 0;
+  /* Scrolling stays the browser's; a two-finger pinch zooms the timeline instead of the page. */
+  touch-action: pan-x pan-y;
+}
+.tl-sem-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tl-settings {
+  display: grid;
+  gap: 12px;
+}
+.tl-settings select {
+  max-width: none;
+  width: 100%;
+}
+.tl-settings .segmented {
+  flex-wrap: wrap;
+}
+.tl-settings-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: center;
+}
+.tl-settings .tl-legend {
+  margin-left: 0;
 }
 .tl-body {
   position: relative;
@@ -1752,8 +1781,16 @@ body.resizing {
   gap: 4px;
   padding-left: max(8px, env(safe-area-inset-left));
   padding-right: max(8px, env(safe-area-inset-right));
-  overflow-x: auto;
-  scrollbar-width: none;
+}
+/* Re-plan / Reset menus: full width under the top bar, so they're never cut off */
+.narrow .topbar .menu {
+  position: fixed;
+  top: calc(env(safe-area-inset-top) + 56px);
+  left: 8px;
+  right: 8px;
+  width: auto;
+  max-height: calc(100dvh - 140px);
+  overflow-y: auto;
 }
 .narrow .brand .label,
 .narrow .week-tag,
@@ -1771,4 +1808,30 @@ body.resizing {
 }
 .narrow .bottom-tabs {
   flex-shrink: 0;
+}
+
+/* Swiping the calendar to the next / previous day: a quick slide in from that side */
+.calendar-wrap.swipe-next .fc-view-harness {
+  animation: swipe-in-right 0.18s ease-out;
+}
+.calendar-wrap.swipe-prev .fc-view-harness {
+  animation: swipe-in-left 0.18s ease-out;
+}
+@keyframes swipe-in-right {
+  from {
+    transform: translateX(24px);
+    opacity: 0.4;
+  }
+}
+@keyframes swipe-in-left {
+  from {
+    transform: translateX(-24px);
+    opacity: 0.4;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .calendar-wrap.swipe-next .fc-view-harness,
+  .calendar-wrap.swipe-prev .fc-view-harness {
+    animation: none;
+  }
 }

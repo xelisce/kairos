@@ -77,7 +77,7 @@ export function currentSemester(data: AppData, now: Date): Semester | undefined 
   );
 }
 
-export function barFor(data: AppData, t: Task, now: Date): Bar {
+function barFor(data: AppData, t: Task, now: Date): Bar {
   const mod = t.moduleId ? data.modules.find((m) => m.id === t.moduleId) : undefined;
   const act = !mod && t.activityId ? data.activities.find((a) => a.id === t.activityId) : undefined;
   const deadline = t.deadline ? fromLocal(t.deadline) : undefined;

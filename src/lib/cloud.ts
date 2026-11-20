@@ -4,11 +4,18 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { create } from 'zustand';
 import type { AppData } from '../types';
 
-const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
+const { VITE_SUPABASE_URL: url, VITE_SUPABASE_PUBLISHABLE_KEY: key } = import.meta.env;
 
 /** null when this build has no cloud keys: the app then only uses the local database. */
 export const supabase: SupabaseClient | null = url && key ? createClient(url, key) : null;
+
+/** The client, for calls that only happen once the cloud is in use (signed in, or signing in). */
+function client(): SupabaseClient {
+  if (!supabase) throw new Error('This build has no cloud keys (VITE_SUPABASE_URL in .env.local).');
+  return supabase;
+}
+
+// --- Account ---
 
 export interface Account {
   id: string;
@@ -21,19 +28,23 @@ export const useAccount = create<{ ready: boolean; account: Account | null }>(()
   account: null,
 }));
 
+// --- Your data ---
+
 export type SaveResult = { version: number; conflict?: false } | { conflict: true; data: AppData; version: number };
 
 export async function loadCloud(): Promise<{ data: AppData | null; version: number }> {
-  const { data, error } = await supabase!.from('kairos_data').select('data, version').maybeSingle();
+  const { data, error } = await client().from('kairos_data').select('data, version').maybeSingle();
   if (error) throw error;
   return data ? { data: data.data as AppData, version: data.version as number } : { data: null, version: 0 };
 }
 
 export async function saveCloud(data: AppData, baseVersion: number): Promise<SaveResult> {
-  const { data: res, error } = await supabase!.rpc('kairos_save', { base_version: baseVersion, new_data: data });
+  const { data: res, error } = await client().rpc('kairos_save', { base_version: baseVersion, new_data: data });
   if (error) throw error;
   return res as SaveResult;
 }
+
+// --- Signing in ---
 
 /** Plain-language versions of Supabase's sign-in errors. */
 function explain(message: string) {
@@ -46,13 +57,13 @@ function explain(message: string) {
 }
 
 export async function signIn(email: string, password: string) {
-  const { error } = await supabase!.auth.signInWithPassword({ email, password });
+  const { error } = await client().auth.signInWithPassword({ email, password });
   if (error) throw new Error(explain(error.message));
 }
 
 /** Returns true if you're signed in straight away, false if you need to confirm your email first. */
 export async function signUp(email: string, password: string) {
-  const { data, error } = await supabase!.auth.signUp({
+  const { data, error } = await client().auth.signUp({
     email,
     password,
     options: { emailRedirectTo: window.location.origin },
@@ -64,7 +75,7 @@ export async function signUp(email: string, password: string) {
 }
 
 export async function signOut() {
-  await supabase!.auth.signOut();
+  await client().auth.signOut();
 }
 
 /** Keep useAccount up to date, and tell sync whenever a different account (or none) is signed in. */
@@ -81,9 +92,11 @@ export function watchAccount(onChange: (account: Account | null) => void) {
   });
 }
 
+// --- Backups ---
+
 /** Your account's automatic backups (hourly, newest first). */
 export async function listCloudBackups(): Promise<{ id: number; created_at: string }[]> {
-  const { data, error } = await supabase!
+  const { data, error } = await client()
     .from('kairos_backups')
     .select('id, created_at')
     .order('id', { ascending: false })
@@ -93,10 +106,12 @@ export async function listCloudBackups(): Promise<{ id: number; created_at: stri
 }
 
 export async function loadCloudBackup(id: number): Promise<AppData> {
-  const { data, error } = await supabase!.from('kairos_backups').select('data').eq('id', id).single();
+  const { data, error } = await client().from('kairos_backups').select('data').eq('id', id).single();
   if (error) throw error;
   return data.data as AppData;
 }
+
+// --- Live updates ---
 
 /**
  * Hear about saves to your row from other devices, within seconds. `onVersion` gets the new
@@ -104,7 +119,8 @@ export async function loadCloudBackup(id: number): Promise<AppData> {
  * saves made while it was down weren't heard. Returns a function that stops listening.
  */
 export function watchCloud(userId: string, onVersion: (version: number) => void, onConnected: () => void) {
-  const channel = supabase!
+  const db = client();
+  const channel = db
     .channel(`kairos-data-${userId}`)
     .on(
       'postgres_changes',
@@ -117,5 +133,5 @@ export function watchCloud(userId: string, onVersion: (version: number) => void,
     .subscribe((status) => {
       if (status === 'SUBSCRIBED') onConnected();
     });
-  return () => void supabase!.removeChannel(channel);
+  return () => void db.removeChannel(channel);
 }

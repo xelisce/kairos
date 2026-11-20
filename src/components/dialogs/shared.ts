@@ -31,7 +31,7 @@ export function locationSuggestions(d: AppData): string[] {
   return out;
 }
 
-export const CLASS_KINDS: ClassKind[] = [
+const CLASS_KINDS: ClassKind[] = [
   'Lecture',
   'Discussion',
   'Tutorial',

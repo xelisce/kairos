@@ -18,9 +18,10 @@ import {
 } from '../lib/taskline';
 import { US_DAY_LETTERS, weekLabelText } from '../lib/weeks';
 import { useNow } from '../hooks/useNow';
+import { useNarrow } from '../hooks/useNarrow';
 import { usePref } from '../hooks/usePref';
 import type { AwayRange, Semester } from '../types';
-import { useUI } from './ui';
+import { Field, Modal, useUI } from './ui';
 
 const DAY = 86_400_000;
 /** Header height without label strips, and each strip's height. */
@@ -51,6 +52,8 @@ export function Taskline() {
   const commit = useStore((s) => s.commit);
   const open = useUI((s) => s.open);
   const now = useNow(60_000);
+  const narrow = useNarrow();
+  const [showSettings, setShowSettings] = useState(false);
   const [prefs, setPrefs] = usePref<Prefs>('kairos:taskline', {
     groupBy: 'course',
     px: ZOOM_PRESETS.Days,
@@ -126,8 +129,40 @@ export function Taskline() {
       const rect = el.getBoundingClientRect();
       zoomRef.current(pxRef.current * Math.exp(-delta * 0.002), e.clientX - rect.left);
     };
+    // Two-finger pinch on a phone: zoom around the point between the fingers.
+    let pinch: { dist: number; px: number } | null = null;
+    const fingers = (e: TouchEvent) => {
+      const [a, b] = [e.touches[0], e.touches[1]];
+      const rect = el.getBoundingClientRect();
+      return {
+        dist: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY),
+        midX: (a.clientX + b.clientX) / 2 - rect.left,
+      };
+    };
+    const onTouchStart = (e: TouchEvent) => {
+      pinch = e.touches.length === 2 ? { dist: fingers(e).dist, px: pxRef.current } : null;
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (!pinch || e.touches.length !== 2) return;
+      e.preventDefault();
+      const { dist, midX } = fingers(e);
+      zoomRef.current((pinch.px * dist) / pinch.dist, midX);
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) pinch = null;
+    };
     el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchmove', onTouchMove, { passive: false });
+    el.addEventListener('touchend', onTouchEnd);
+    el.addEventListener('touchcancel', onTouchEnd);
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+      el.removeEventListener('touchend', onTouchEnd);
+      el.removeEventListener('touchcancel', onTouchEnd);
+    };
   }, [sem?.id]);
 
   /** Snapped number of days the current drag has moved. */
@@ -184,63 +219,106 @@ export function Taskline() {
   const toggleExtra = (e: Extra) =>
     set({ extras: prefs.extras.includes(e) ? prefs.extras.filter((v) => v !== e) : [...prefs.extras, e] });
 
+  const semesterPick = (
+    <select value={sem.id} onChange={(e) => set({ semId: e.target.value })} aria-label="Semester">
+      {data.semesters.map((s) => (
+        <option key={s.id} value={s.id}>
+          {s.name}
+        </option>
+      ))}
+    </select>
+  );
+  const groupPick = (
+    <div className="segmented" role="group" aria-label="Group by">
+      {(['course', 'time'] as const).map((g) => (
+        <button key={g} className={prefs.groupBy === g ? 'on' : ''} onClick={() => set({ groupBy: g })}>
+          {g === 'course' ? 'By course' : 'By time'}
+        </button>
+      ))}
+    </div>
+  );
+  const zoomPick = (
+    <div
+      className="segmented"
+      role="group"
+      aria-label="Zoom"
+      title="Or scroll over the dates (Ctrl + scroll anywhere) to zoom"
+    >
+      <button onClick={() => zoomTo(px / 1.5)} aria-label="Zoom out">
+        −
+      </button>
+      {(Object.entries(ZOOM_PRESETS) as [string, number][]).map(([name, v]) => (
+        <button key={name} className={Math.abs(px - v) < 0.5 ? 'on' : ''} onClick={() => zoomTo(v)}>
+          {name}
+        </button>
+      ))}
+      <button onClick={() => zoomTo(px * 1.5)} aria-label="Zoom in">
+        +
+      </button>
+    </div>
+  );
+  const checks = (
+    <>
+      <label className="tl-check" title="Show holidays (like Thanksgiving) and your time away">
+        <input type="checkbox" checked={prefs.showMarks} onChange={(e) => set({ showMarks: e.target.checked })} />
+        Holidays &amp; away
+      </label>
+      <label className="tl-check">
+        <input type="checkbox" checked={prefs.showDone} onChange={(e) => set({ showDone: e.target.checked })} />
+        Done
+      </label>
+      <span className="tl-also muted small">Also:</span>
+      {(Object.keys(EXTRA_LABELS) as Extra[]).map((e) => (
+        <label key={e} className="tl-check">
+          <input type="checkbox" checked={prefs.extras.includes(e)} onChange={() => toggleExtra(e)} />
+          {EXTRA_LABELS[e]}
+        </label>
+      ))}
+    </>
+  );
+  const legend = (
+    <span className="tl-legend muted small" title="Drag ◆ to move a deadline, drag a dot to move a session">
+      ● planned ✓ done ○ missed ◆ deadline
+    </span>
+  );
+
   return (
     <div className="taskline">
-      <div className="tl-toolbar">
-        <select value={sem.id} onChange={(e) => set({ semId: e.target.value })} aria-label="Semester">
-          {data.semesters.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
-        <div className="segmented" role="group" aria-label="Group by">
-          {(['course', 'time'] as const).map((g) => (
-            <button key={g} className={prefs.groupBy === g ? 'on' : ''} onClick={() => set({ groupBy: g })}>
-              {g === 'course' ? 'By course' : 'By time'}
-            </button>
-          ))}
-        </div>
-        <div
-          className="segmented"
-          role="group"
-          aria-label="Zoom"
-          title="Or scroll over the dates (Ctrl + scroll anywhere) to zoom"
-        >
-          <button onClick={() => zoomTo(px / 1.5)} aria-label="Zoom out">
-            −
+      {narrow ? (
+        <div className="tl-toolbar">
+          <button className="btn" onClick={scrollToToday}>
+            Today
           </button>
-          {(Object.entries(ZOOM_PRESETS) as [string, number][]).map(([name, v]) => (
-            <button key={name} className={Math.abs(px - v) < 0.5 ? 'on' : ''} onClick={() => zoomTo(v)}>
-              {name}
-            </button>
-          ))}
-          <button onClick={() => zoomTo(px * 1.5)} aria-label="Zoom in">
-            +
+          <span className="tl-sem-name muted small">{sem.name}</span>
+          <button className="btn" onClick={() => setShowSettings(true)} aria-label="Taskline settings">
+            ⚙
           </button>
         </div>
-        <button className="btn" onClick={scrollToToday}>
-          Today
-        </button>
-        <label className="tl-check" title="Show holidays (like Thanksgiving) and your time away">
-          <input type="checkbox" checked={prefs.showMarks} onChange={(e) => set({ showMarks: e.target.checked })} />
-          Holidays &amp; away
-        </label>
-        <label className="tl-check">
-          <input type="checkbox" checked={prefs.showDone} onChange={(e) => set({ showDone: e.target.checked })} />
-          Done
-        </label>
-        <span className="tl-also muted small">Also:</span>
-        {(Object.keys(EXTRA_LABELS) as Extra[]).map((e) => (
-          <label key={e} className="tl-check">
-            <input type="checkbox" checked={prefs.extras.includes(e)} onChange={() => toggleExtra(e)} />
-            {EXTRA_LABELS[e]}
-          </label>
-        ))}
-        <span className="tl-legend muted small" title="Drag ◆ to move a deadline, drag a dot to move a session">
-          ● planned ✓ done ○ missed ◆ deadline
-        </span>
-      </div>
+      ) : (
+        <div className="tl-toolbar">
+          {semesterPick}
+          {groupPick}
+          {zoomPick}
+          <button className="btn" onClick={scrollToToday}>
+            Today
+          </button>
+          {checks}
+          {legend}
+        </div>
+      )}
+      {narrow && showSettings && (
+        <Modal title="Taskline" onClose={() => setShowSettings(false)}>
+          <div className="tl-settings">
+            <Field label="Semester">{semesterPick}</Field>
+            <Field label="Group">{groupPick}</Field>
+            <Field label="Zoom" hint="Or pinch the timeline with two fingers">
+              {zoomPick}
+            </Field>
+            <div className="tl-settings-checks">{checks}</div>
+            {legend}
+          </div>
+        </Modal>
+      )}
 
       <div className="tl-scroll" ref={scroller}>
         <div className="tl-body" style={{ width: `calc(var(--tl-label) + ${width}px)` }}>
