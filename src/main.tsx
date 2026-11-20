@@ -3,7 +3,9 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import './styles.css';
 import { hasLocalDb, startSync } from './lib/sync';
+import { applyTheme, savedTheme } from './lib/theme';
 
+applyTheme(savedTheme());
 startSync();
 
 // Online, keep the app's files so it opens without a connection (see public/sw.js). Not on this

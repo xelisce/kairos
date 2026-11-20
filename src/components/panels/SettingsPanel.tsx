@@ -3,11 +3,13 @@
 import { useStore } from '../../store';
 import type { Settings } from '../../types';
 import { hmToMin } from '../../lib/time';
+import { useState } from 'react';
 import { usePref } from '../../hooks/usePref';
 import { Field, NumberInput, Row } from '../ui';
 import { BackupSection } from './BackupSection';
 import { DeletedSection } from './DeletedSection';
 import { NewItemsSection } from './NewItemsSection';
+import { savedTheme, setTheme, type Theme } from '../../lib/theme';
 
 type Section = 'settings' | 'deleted';
 
@@ -33,6 +35,7 @@ export function SettingsPanel() {
       </div>
       {section === 'settings' ? (
         <>
+          <AppearanceSection />
           <SchedulingSection />
           <NewItemsSection />
           <BackupSection />
@@ -41,6 +44,40 @@ export function SettingsPanel() {
         <DeletedSection />
       )}
     </div>
+  );
+}
+
+const THEMES: { id: Theme; label: string }[] = [
+  { id: 'system', label: '🖥 Same as device' },
+  { id: 'light', label: '☀️ Light' },
+  { id: 'dark', label: '🌙 Dark' },
+];
+
+/** Light or dark colors, for this device only. */
+function AppearanceSection() {
+  const [theme, set] = useState(savedTheme);
+  const pick = (t: Theme) => {
+    setTheme(t);
+    set(t);
+  };
+  return (
+    <>
+      <h3>Appearance</h3>
+      <div className="segmented" role="radiogroup" aria-label="Theme">
+        {THEMES.map((t) => (
+          <button
+            key={t.id}
+            role="radio"
+            aria-checked={theme === t.id}
+            className={theme === t.id ? 'on' : ''}
+            onClick={() => pick(t.id)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <p className="muted small">Just for this device, so your phone and laptop can differ.</p>
+    </>
   );
 }
 

@@ -16,8 +16,10 @@
   --shadow: 0 8px 30px rgba(20, 20, 50, 0.18);
   color-scheme: light;
 }
+/* Dark colors: when the device is in dark mode (unless you picked Light in Settings), or when
+   you picked Dark. Settings > Appearance sets data-theme on <html> (see lib/theme.ts). */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     --bg: #0f1020;
     --surface: #181a2e;
     --surface-2: #22253d;
@@ -32,6 +34,21 @@
     --shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
     color-scheme: dark;
   }
+}
+:root[data-theme='dark'] {
+  --bg: #0f1020;
+  --surface: #181a2e;
+  --surface-2: #22253d;
+  --border: #2e3150;
+  --text: #e9eaf5;
+  --text-2: #a0a3bd;
+  --accent: #8b7dff;
+  --bad: #ff6b70;
+  --bad-bg: #3a1c22;
+  --warn: #f0b429;
+  --warn-bg: #3a3016;
+  --shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+  color-scheme: dark;
 }
 
 * {
