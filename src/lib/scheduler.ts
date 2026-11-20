@@ -125,16 +125,13 @@ export function planTasks(data: AppData, now: Date): Task[] {
   }
 
   const active = tasks.filter(autoPlanned);
-  const movableIds = new Set(active.flatMap((t) => t.sessions.filter((s) => mayMove(s, now)).map((s) => s.id)));
-  // Hard blocks: everything except skipped sessions, routines that can slide out of the way,
-  // and the auto sessions being (re)planned.
-  // Time you're away blocks tasks too.
-  const busy: Interval[] = [
-    ...awayIntervals(data),
-    ...expand({ ...data, tasks }, now, horizon, { excludeSessionIds: movableIds })
-      .filter((o) => !o.skipped && !o.auto)
-      .map((o) => ({ start: o.start, end: o.end })),
-  ];
+  const movableIds = new Set(movableSessionIds(tasks, now));
+  const busy: Interval[] = hardBlocks({ ...data, tasks }, now, horizon, movableIds);
+  /** A session that was blocking its time is gone: free that time. */
+  const unblock = (s: TaskSession) => {
+    const i = busy.findIndex((b) => b.start.getTime() === fromLocal(s.start).getTime());
+    if (i >= 0) busy.splice(i, 1);
+  };
 
   // Lay out the day(s) a slot is on (two when it crosses midnight) with the current sessions.
   // Warning counts are cached per range; cleared when a session lands on one of its days.
@@ -267,8 +264,7 @@ export function planTasks(data: AppData, now: Date): Task[] {
     const latest = latestFirst[0];
     if (left > 0 && left < limits.minSessionMin && latest && t.sessions.includes(latest)) {
       t.sessions = t.sessions.filter((s) => s !== latest);
-      const i = busy.findIndex((b) => b.start.getTime() === fromLocal(latest.start).getTime());
-      if (i >= 0) busy.splice(i, 1);
+      unblock(latest);
     }
   }
   dayCache.clear();
@@ -287,8 +283,7 @@ export function planTasks(data: AppData, now: Date): Task[] {
       const early = t.sessions.filter((s) => mayMove(s, now) && fromLocal(s.start) < after);
       t.sessions = t.sessions.filter((s) => !early.includes(s));
       for (const s of early) {
-        const i = busy.findIndex((b) => b.start.getTime() === fromLocal(s.start).getTime());
-        if (i >= 0) busy.splice(i, 1);
+        unblock(s);
         forgetDays({ start: fromLocal(s.start), end: fromLocal(s.end) });
       }
     }
@@ -321,19 +316,25 @@ export function planTasks(data: AppData, now: Date): Task[] {
     if (!clashing.size) break;
     for (const t of active) t.sessions = t.sessions.filter((x) => !clashing.has(x.id));
     // Everything that stays (including kept auto sessions) blocks the sessions being re-placed.
-    busy.splice(
-      0,
-      busy.length,
-      ...awayIntervals(data),
-      ...expand({ ...data, tasks }, now, horizon)
-        .filter((o) => !o.skipped && !o.auto)
-        .map((o) => ({ start: o.start, end: o.end })),
-    );
+    busy.splice(0, busy.length, ...hardBlocks({ ...data, tasks }, now, horizon));
     dayCache.clear();
     checksUsed.clear();
     for (const t of planOrder(active, byDeadline)) placeTask(t);
   }
   return tasks;
+}
+
+/**
+ * Time tasks can't use: time away, and everything on the calendar except skipped sessions,
+ * routines that can slide out of the way, and the sessions in `exclude` (being re-planned).
+ */
+function hardBlocks(data: AppData, from: Date, to: Date, exclude?: Set<string>): Interval[] {
+  return [
+    ...awayIntervals(data),
+    ...expand(data, from, to, { excludeSessionIds: exclude })
+      .filter((o) => !o.skipped && !o.auto)
+      .map((o) => ({ start: o.start, end: o.end })),
+  ];
 }
 
 function movableSessionIds(tasks: Task[], now: Date) {
@@ -355,9 +356,7 @@ function daysWithMoreWarnings(layout: Occ[], baseline: Occ[]): string[] {
 
 /** Auto sessions that overlap something else in this layout, or whose own trips do. */
 function clashingSessions(occs: Occ[], tasks: Task[], now: Date): Set<string> {
-  const movable = new Set(
-    tasks.flatMap((t) => (autoPlanned(t) ? t.sessions : []).filter((s) => mayMove(s, now)).map((s) => s.id)),
-  );
+  const movable = new Set(movableSessionIds(tasks, now));
   const live = occs.filter((o) => !o.skipped);
   const out = new Set<string>();
   for (const o of live) {

@@ -1,5 +1,5 @@
 // Display names, colors and icons shared by the calendar, lists and dialogs.
-import type { ClassKind, EventCategory } from '../types';
+import type { ClassKind, EventCategory, TaskCategory } from '../types';
 
 /** Default block colors by category (courses and CCAs use their own color). */
 export const CATEGORY_COLORS: Record<string, string> = {
@@ -16,6 +16,13 @@ export const CATEGORY_COLORS: Record<string, string> = {
   presentation: '#b35fd6',
   help: '#3fa7a0',
   meeting: '#4b9be0',
+};
+
+export const TASK_LABELS: Record<TaskCategory, string> = {
+  homework: 'Homework',
+  admin: 'Admin',
+  personal: 'Personal',
+  other: 'Other',
 };
 
 export const EVENT_LABELS: Record<EventCategory, string> = {

@@ -13,8 +13,9 @@ import { TasksPanel } from './components/panels/TasksPanel';
 import { academicWeekFor, weekLabelText } from './lib/weeks';
 import { ReplanButton, ResetButton } from './components/ReplanButton';
 import { SyncBadge } from './components/SyncBadge';
-import { readJson, writeStored } from './lib/storage';
 import { useNarrow } from './hooks/useNarrow';
+import { SIDEBAR_DEFAULT, SIDEBAR_MAX, SIDEBAR_MIN, useSidebar } from './hooks/useSidebar';
+import { useUndoShortcuts } from './hooks/useUndoShortcuts';
 import { displayOf } from './lib/display';
 
 type Tab = 'calendar' | 'tasks' | 'classes' | 'routines' | 'places' | 'settings';
@@ -26,33 +27,6 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'places', label: 'Places', icon: '📍' },
   { id: 'settings', label: 'Settings', icon: '⚙' },
 ];
-
-const SIDEBAR_MIN = 260;
-const SIDEBAR_MAX = 600;
-
-/** Sidebar width (drag the edge) and open/closed state, remembered per browser. */
-function useSidebar() {
-  const [width, setWidth] = useState(() => readJson<number>('kairos:sidebarWidth') ?? 360);
-  const [open, setOpen] = useState(() => readJson<boolean>('kairos:sidebarOpen') ?? true);
-  useEffect(() => void writeStored('kairos:sidebarWidth', width), [width]);
-  useEffect(() => void writeStored('kairos:sidebarOpen', open), [open]);
-  const startDrag = (e: React.PointerEvent) => {
-    e.preventDefault();
-    const startX = e.clientX;
-    const startW = width;
-    const move = (ev: PointerEvent) =>
-      setWidth(Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, startW + ev.clientX - startX)));
-    const up = () => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
-      document.body.classList.remove('resizing');
-    };
-    document.body.classList.add('resizing');
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
-  };
-  return { width, setWidth, open, setOpen, startDrag };
-}
 
 export default function App() {
   const { past, future, undo, redo, refresh, data } = useStore();
@@ -74,24 +48,7 @@ export default function App() {
     document.documentElement.style.setProperty('--skipped-opacity', String(skippedOpacity));
   }, [skippedOpacity]);
 
-  // Keyboard undo/redo (not while typing).
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => {
-      const el = e.target as HTMLElement;
-      if (el.closest('input, textarea, select, [contenteditable]')) return;
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
-        e.preventDefault();
-        if (e.shiftKey) redo();
-        else undo();
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
-        e.preventDefault();
-        redo();
-      }
-    };
-    window.addEventListener('keydown', h);
-    return () => window.removeEventListener('keydown', h);
-  }, [undo, redo]);
+  useUndoShortcuts(undo, redo);
 
   // Missed tasks roll forward every few minutes.
   useEffect(() => {
@@ -212,10 +169,10 @@ export default function App() {
               aria-valuemax={SIDEBAR_MAX}
               aria-valuenow={sb.width}
               onPointerDown={sb.startDrag}
-              onDoubleClick={() => sb.setWidth(360)}
+              onDoubleClick={() => sb.setWidth(SIDEBAR_DEFAULT)}
               onKeyDown={(e) => {
-                if (e.key === 'ArrowLeft') sb.setWidth(Math.max(SIDEBAR_MIN, sb.width - 20));
-                if (e.key === 'ArrowRight') sb.setWidth(Math.min(SIDEBAR_MAX, sb.width + 20));
+                if (e.key === 'ArrowLeft') sb.setWidth(sb.width - 20);
+                if (e.key === 'ArrowRight') sb.setWidth(sb.width + 20);
               }}
               title="Drag to resize · double-click to reset"
             />

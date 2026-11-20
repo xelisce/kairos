@@ -4,6 +4,7 @@ import type { NewItemDefaults, TaskCategory } from '../../types';
 import { newDefaults } from '../../lib/newDefaults';
 import { Field, NumberInput, Row } from '../ui';
 import { MAX_AWAY_DAYS, MAX_BLOCK_MIN } from '../../lib/limits';
+import { TASK_LABELS } from '../../lib/labels';
 
 export function NewItemsSection() {
   const settings = useStore((s) => s.data.settings);
@@ -46,10 +47,11 @@ export function NewItemsSection() {
         </Field>
         <Field label="Type">
           <select value={d.taskCategory} onChange={(e) => set('taskCategory', e.target.value as TaskCategory)}>
-            <option value="homework">Homework</option>
-            <option value="admin">Admin</option>
-            <option value="personal">Personal</option>
-            <option value="other">Other</option>
+            {Object.entries(TASK_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
           </select>
         </Field>
       </Row>

@@ -26,7 +26,7 @@ Where data is saved:
   backed up hourly.
 - **Signed out on the website:** only in that browser.
 
-Restore backups from Places → Backup → Automatic backups. The browser also keeps a copy, so the app
+Restore backups from Settings → Backup → Automatic backups. The browser also keeps a copy, so the app
 opens with your data even when nothing else can be reached.
 
 ### Cloud setup (once)
@@ -57,6 +57,16 @@ into their windows, then trips between places).
 | `src/lib/travel.ts`       | Trips between places                                                              |
 | `src/lib/places.ts`       | Matching a location to a saved place (names, aliases), route times, renaming      |
 | `src/lib/tasks.ts`        | Task sessions, progress and split limits                                          |
+| `src/lib/dependencies.ts` | Tasks that wait for others: what blocks a task, and the order to plan them        |
+| `src/lib/away.ts`         | Time away: which hours are blocked                                                |
+| `src/lib/travelPlans.ts`  | A trip's travel plans: kinds, sorting, calendar blocks, stretching the trip       |
+| `src/lib/display.ts`      | Settings > Display (silenced warnings, swatches, special days...)                 |
+| `src/lib/newDefaults.ts`  | What new tasks, events, routines and trips start with (Settings > New items)      |
+| `src/lib/limits.ts`       | Upper limits on typed values (swatches, lengths, years)                           |
+| `src/lib/theme.ts`        | Light / dark / same as device                                                     |
+| `src/lib/taskline.ts`     | Data for the Taskline view (bars, dots, groups)                                   |
+| `src/lib/time.ts`         | Local date/time helpers and dd/mm/yyyy parsing                                    |
+| `src/lib/defaults.ts`     | A new user's starting data (routines, home, a semester)                           |
 | `src/lib/scheduler.ts`    | Auto-scheduling tasks (stable, earliest deadline first, checks each day's layout) |
 | `src/lib/actions.ts`      | Every edit the UI makes (move, skip, delete, re-plan, reset…)                     |
 | `src/lib/weeks.ts`        | Week patterns (`3-13`, `odd`), semester layouts, presets, special days            |
@@ -69,7 +79,8 @@ into their windows, then trips between places).
 | `public/sw.js`            | Offline support: keeps the app's files so it opens without a connection           |
 | `src/lib/labels.ts`       | Colors, icons and names                                                           |
 | `src/lib/nusmods.ts`      | Import from a NUSMods share link                                                  |
-| `src/components/`         | `CalendarView`, `NowNext`, top-bar buttons                                        |
+| `src/components/`         | `CalendarView`, `NowNext`, top-bar buttons, `ErrorBoundary`                       |
+| `src/hooks/`              | Small React hooks (narrow screen, sidebar, undo shortcuts, saved prefs, clock)    |
 | `src/components/dialogs/` | One file per dialog; `ModalHost` shows the open one                               |
 | `src/components/panels/`  | Sidebar tabs (Tasks, Classes, Routines, Places, Settings with Deleted inside)     |
 | `src/components/ui/`      | Shared building blocks (dialog frame, inputs, dd/mm/yyyy dates, dialog state)     |

@@ -30,19 +30,22 @@ export function CalendarView({
   const [initialScroll] = useState(() => new Date(Date.now() - 3600_000).toTimeString().slice(0, 8));
   const narrow = typeof window !== 'undefined' && window.innerWidth < 720;
 
-  const display = displayOf(data.settings);
+  const display = useMemo(() => displayOf(data.settings), [data.settings]);
   // Without the warnings you turned off (Settings > Display).
-  const occs = useMemo(() => {
-    const d = displayOf(data.settings);
-    return range ? expand(data, range.start, range.end).map((o) => shown(o, d)) : [];
-  }, [data, range]);
+  const occs = useMemo(
+    () => (range ? expand(data, range.start, range.end).map((o) => shown(o, display)) : []),
+    [data, range, display],
+  );
   /** Holidays, break and exam weeks, unless you hid them. */
   const markerOf = (date: Date) => (display.showSpecialDays ? dayMarker(data.semesters, date) : null);
+  const markerClasses = ({ date }: { date: Date }) => {
+    const mk = markerOf(date);
+    return mk ? ['k-day-marked', `k-day-${mk.kind}`] : [];
+  };
   const byId = useMemo(() => new Map(occs.map((o) => [o.id, o])), [occs]);
 
-  const events = useMemo(() => {
-    const d = displayOf(data.settings);
-    return [
+  const events = useMemo(
+    () => [
       // Time away: a striped band behind everything. Click it to edit.
       ...data.away.map((a) => ({
         id: `away:${a.id}`,
@@ -73,7 +76,7 @@ export function CalendarView({
         start: o.start,
         end: o.end,
         ...colorsOf(o),
-        editable: canDrag(o, d),
+        editable: canDrag(o, display),
         // Skipped: drawn behind everything, so other blocks can sit on top of it.
         display: o.skipped ? 'background' : 'auto',
         classNames: [
@@ -84,10 +87,11 @@ export function CalendarView({
           o.skipped ? 'k-skipped' : '',
           isOutlined(o) ? 'k-outline' : '',
         ].filter(Boolean),
-        extendedProps: { occ: o, hideLocation: !d.showLocations },
+        extendedProps: { occ: o, hideLocation: !display.showLocations },
       })),
-    ];
-  }, [occs, data.away, data.settings]);
+    ],
+    [occs, data.away, display],
+  );
 
   const onChange = (how: 'move' | 'resize') => (info: EventDropArg | EventResizeDoneArg) => {
     const o = byId.get(info.event.id);
@@ -223,14 +227,8 @@ export function CalendarView({
           }
         }}
         eventContent={renderEvent}
-        dayCellClassNames={(arg) => {
-          const mk = markerOf(arg.date);
-          return mk ? ['k-day-marked', `k-day-${mk.kind}`] : [];
-        }}
-        dayHeaderClassNames={(arg) => {
-          const mk = markerOf(arg.date);
-          return mk ? ['k-day-marked', `k-day-${mk.kind}`] : [];
-        }}
+        dayCellClassNames={markerClasses}
+        dayHeaderClassNames={markerClasses}
         dayHeaderContent={(arg) => {
           const mk = markerOf(arg.date);
           return (

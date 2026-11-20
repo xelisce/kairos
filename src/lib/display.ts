@@ -23,7 +23,7 @@ export function displayOf(s: Pick<Settings, 'display'>): DisplaySettings {
 }
 
 /** Is this block's warning one you turned off? */
-export function isSilenced(o: Occ, d: DisplaySettings): boolean {
+function isSilenced(o: Occ, d: DisplaySettings): boolean {
   const type = o.source.type;
   return (
     (type === 'routine' && d.silenceRoutines) ||

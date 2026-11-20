@@ -11,6 +11,7 @@ import { newDefaults } from '../../lib/newDefaults';
 import { SessionList } from './SessionList';
 import { locationSuggestions, upsert, useDraft } from './shared';
 import { MAX_BLOCK_MIN, MAX_TEXT } from '../../lib/limits';
+import { TASK_LABELS } from '../../lib/labels';
 
 export function TaskDialog() {
   const m = useModal('task');
@@ -107,10 +108,11 @@ export function TaskDialog() {
       <Row>
         <Field label="Type">
           <select value={t.category} onChange={(e) => update({ category: e.target.value as TaskCategory })}>
-            <option value="homework">Homework</option>
-            <option value="admin">Admin</option>
-            <option value="personal">Personal</option>
-            <option value="other">Other</option>
+            {Object.entries(TASK_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
           </select>
         </Field>
         <Field label="Under (optional)">

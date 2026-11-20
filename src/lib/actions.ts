@@ -1,12 +1,16 @@
 // Edits the calendar, dialogs and panels make. Each is one undo step (see store.commit).
-import { newDefaults } from './newDefaults';
 import { addDays, addMinutes, startOfDay, startOfWeek } from 'date-fns';
 import { useStore } from '../store';
 import type { Activity, AppData, CalEvent, ClassKind, ClassSeries, Occ, Routine, Task, TrashItem } from '../types';
+import { newDefaults } from './newDefaults';
 import { fitDuration, unplannedMinutes } from './tasks';
 import { fromLocal, toLocal, uid } from './time';
 
 const commit = (label: string, fn: (d: AppData) => void) => useStore.getState().commit(label, fn);
+
+const findTask = (d: AppData, taskId: string) => d.tasks.find((x) => x.id === taskId);
+const findSession = (d: AppData, taskId: string, sessionId: string) =>
+  findTask(d, taskId)?.sessions.find((x) => x.id === sessionId);
 
 const minutesBetween = (start: Date, end: Date) => Math.round((end.getTime() - start.getTime()) / 60000);
 
@@ -50,8 +54,8 @@ export function moveOcc(o: Occ, start: Date, end: Date, how: 'move' | 'resize' =
       });
     case 'task':
       return commit(`Move ${o.title}`, (d) => {
-        const t = d.tasks.find((x) => x.id === src.taskId);
-        const session = t?.sessions.find((x) => x.id === src.sessionId);
+        const t = findTask(d, src.taskId);
+        const session = findSession(d, src.taskId, src.sessionId);
         if (!t || !session) return;
         Object.assign(session, slot, { pinned: true });
         t.rolledForward = false;
@@ -89,7 +93,7 @@ export function resetOcc(o: Occ) {
         delete d.travelMoves[src.key];
         break;
       case 'task': {
-        const session = d.tasks.find((x) => x.id === src.taskId)?.sessions.find((x) => x.id === src.sessionId);
+        const session = findSession(d, src.taskId, src.sessionId);
         if (session) session.pinned = false;
         break;
       }
@@ -127,7 +131,7 @@ export function runningLate(occs: Occ[], min: number, now = new Date()) {
         const r = d.routines.find((x) => x.id === src.routineId);
         if (r) r.overrides[src.date] = slot;
       } else if (src.type === 'task') {
-        const session = d.tasks.find((x) => x.id === src.taskId)?.sessions.find((x) => x.id === src.sessionId);
+        const session = findSession(d, src.taskId, src.sessionId);
         // Stays as pinned/unpinned as it was: Re-plan can still move an auto-scheduled one.
         if (session && !session.done) Object.assign(session, slot);
       }
@@ -203,8 +207,7 @@ export function setDetail(o: Occ, text: string) {
       if (value) s.details[src.date] = value;
       else delete s.details[src.date];
     } else if (src.type === 'event' || src.type === 'task') {
-      const item =
-        src.type === 'event' ? d.events.find((x) => x.id === src.eventId) : d.tasks.find((x) => x.id === src.taskId);
+      const item = src.type === 'event' ? d.events.find((x) => x.id === src.eventId) : findTask(d, src.taskId);
       if (item) item.notes = value || undefined;
     }
   });
@@ -295,23 +298,19 @@ export function restoreDate(kind: 'class' | 'routine' | 'activity', id: string, 
 
 export type ReplanScope = 'today' | 'tomorrow' | 'next3' | 'week' | 'future' | 'all';
 
-export const REPLAN_LABELS: Record<ReplanScope, string> = {
-  today: 'Re-plan today',
-  tomorrow: 'Re-plan tomorrow',
-  next3: 'Re-plan today + next 3 days',
-  week: 'Re-plan this week',
-  future: 'Re-plan all future',
-  all: 'Re-plan all time (incl. past)',
+const SCOPE_NAMES: Record<ReplanScope, string> = {
+  today: 'today',
+  tomorrow: 'tomorrow',
+  next3: 'today + next 3 days',
+  week: 'this week',
+  future: 'all future',
+  all: 'all time (incl. past)',
 };
+const labelsFor = (verb: string) =>
+  Object.fromEntries(Object.entries(SCOPE_NAMES).map(([k, v]) => [k, `${verb} ${v}`])) as Record<ReplanScope, string>;
 
-export const RESET_LABELS: Record<ReplanScope, string> = {
-  today: 'Reset today',
-  tomorrow: 'Reset tomorrow',
-  next3: 'Reset today + next 3 days',
-  week: 'Reset this week',
-  future: 'Reset all future',
-  all: 'Reset all time (incl. past)',
-};
+export const REPLAN_LABELS = labelsFor('Re-plan');
+export const RESET_LABELS = labelsFor('Reset');
 
 /** Date range a scope covers; `null` = open-ended. */
 export function replanRange(scope: ReplanScope, now = new Date()): { from: Date | null; to: Date | null } {
@@ -375,20 +374,20 @@ export function resetDays(scope: ReplanScope, now = new Date()) {
 // ---------- Tasks ----------
 
 export function toggleTaskDone(taskId: string) {
-  const t = useStore.getState().data.tasks.find((x) => x.id === taskId);
+  const t = findTask(useStore.getState().data, taskId);
   if (!t) return;
   commit(t.done ? `Undone ${t.title}` : `Done ${t.title}`, (d) => {
-    const x = d.tasks.find((y) => y.id === taskId);
+    const x = findTask(d, taskId);
     if (x) x.done = !x.done;
   });
 }
 
 /** Put a task on the calendar (auto-scheduled) or take it off. */
 export function setTaskOnCalendar(taskId: string, onCalendar: boolean) {
-  const t = useStore.getState().data.tasks.find((x) => x.id === taskId);
+  const t = findTask(useStore.getState().data, taskId);
   if (!t) return;
   commit(onCalendar ? `Schedule ${t.title}` : `Unschedule ${t.title}`, (d) => {
-    const x = d.tasks.find((y) => y.id === taskId);
+    const x = findTask(d, taskId);
     if (x) x.onCalendar = onCalendar;
   });
 }
@@ -412,12 +411,12 @@ export function quickAddTask(title: string) {
 
 /** Tick one session done (or not). The task is done once all its time is covered by done sessions. */
 export function toggleSessionDone(taskId: string, sessionId: string) {
-  const t = useStore.getState().data.tasks.find((x) => x.id === taskId);
-  const session = t?.sessions.find((x) => x.id === sessionId);
+  const t = findTask(useStore.getState().data, taskId);
+  const session = findSession(useStore.getState().data, taskId, sessionId);
   if (!t || !session) return;
   commit(session.done ? `Undone ${t.title} session` : `Done ${t.title} session`, (d) => {
-    const task = d.tasks.find((x) => x.id === taskId);
-    const s = task?.sessions.find((x) => x.id === sessionId);
+    const task = findTask(d, taskId);
+    const s = findSession(d, taskId, sessionId);
     if (!task || !s) return;
     s.done = !s.done;
     task.done = s.done && task.sessions.every((x) => x.done) && unplannedMinutes(task) === 0;
@@ -426,7 +425,7 @@ export function toggleSessionDone(taskId: string, sessionId: string) {
 
 /** Add a session at a time you choose (it stays put). The task's total grows if needed. */
 export function addSession(taskId: string, start: Date, end: Date) {
-  const t = useStore.getState().data.tasks.find((x) => x.id === taskId);
+  const t = findTask(useStore.getState().data, taskId);
   if (!t || end <= start) return;
   commit(`Add a session to ${t.title}`, (d) => {
     const i = d.tasks.findIndex((x) => x.id === taskId);
@@ -441,10 +440,10 @@ export function addSession(taskId: string, start: Date, end: Date) {
 
 /** Remove one session. If the task is auto-planned, its time is planned again elsewhere. */
 export function deleteSession(taskId: string, sessionId: string) {
-  const t = useStore.getState().data.tasks.find((x) => x.id === taskId);
+  const t = findTask(useStore.getState().data, taskId);
   if (!t) return;
   commit(`Delete a session of ${t.title}`, (d) => {
-    const task = d.tasks.find((x) => x.id === taskId);
+    const task = findTask(d, taskId);
     if (task) task.sessions = task.sessions.filter((s) => s.id !== sessionId);
   });
 }

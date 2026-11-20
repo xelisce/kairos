@@ -14,7 +14,7 @@ export const doneMinutes = (t: Task) =>
   t.done ? t.durationMin : t.sessions.filter((s) => s.done).reduce((n, s) => n + sessionMinutes(s), 0);
 
 /** Time in sessions you placed yourself or finished: auto-schedule can't take these away. */
-export const fixedMinutes = (t: Task) =>
+const fixedMinutes = (t: Task) =>
   t.sessions.filter((s) => s.done || s.pinned).reduce((n, s) => n + sessionMinutes(s), 0);
 
 /** The task's total grows if the sessions you placed add up to more than it. */
