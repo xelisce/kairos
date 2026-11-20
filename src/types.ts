@@ -159,6 +159,8 @@ export interface CalEvent {
   moduleId?: ID;
   /** Link to a CCA / club (a booked session). */
   activityId?: ID;
+  /** Skipped: still shown (faded), but other things can use that time. */
+  skipped?: boolean;
 }
 
 export type TaskCategory = 'homework' | 'admin' | 'personal' | 'other';

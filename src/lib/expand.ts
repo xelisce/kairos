@@ -34,7 +34,8 @@ export function expand(data: AppData, from: Date, to: Date, opts: ExpandOpts = {
 
   classOccs(data, pFrom, pTo).forEach(add);
   activityOccs(data, pFrom, pTo).forEach(add);
-  fixed.push(...eventOccs(data, pFrom, pTo), ...taskOccs(data, pFrom, pTo, opts.excludeSessionIds));
+  eventOccs(data, pFrom, pTo).forEach(add);
+  fixed.push(...taskOccs(data, pFrom, pTo, opts.excludeSessionIds));
 
   // Routines: fixed ones (not auto-scheduled, or moved by hand) go in now;
   // flexible ones are fitted around everything once the first trips are known.
@@ -128,8 +129,8 @@ function activityOccs(data: AppData, from: Date, to: Date): Candidate[] {
   return out;
 }
 
-function eventOccs(data: AppData, from: Date, to: Date): Occ[] {
-  const out: Occ[] = [];
+function eventOccs(data: AppData, from: Date, to: Date): Candidate[] {
+  const out: Candidate[] = [];
   for (const e of data.events) {
     const start = fromLocal(e.start);
     const end = fromLocal(e.end);
@@ -138,23 +139,26 @@ function eventOccs(data: AppData, from: Date, to: Date): Occ[] {
     const act = e.activityId ? data.activities.find((a) => a.id === e.activityId) : undefined;
     // "CS 642 Midterm" unless the title already names the course.
     const coursePrefix = mod && !e.title.toUpperCase().includes(mod.code.toUpperCase()) ? `${mod.code} ` : '';
-    out.push({
-      id: `event:${e.id}`,
-      source: { type: 'event', eventId: e.id },
-      title: `${withIcon(EVENT_ICONS[e.category])}${coursePrefix}${e.title}`,
-      subtitle: mod
-        ? `${EVENT_LABELS[e.category]} · ${mod.name}`
-        : act && act.title !== e.title
-          ? act.title
-          : undefined,
-      start,
-      end,
-      location: e.location,
-      color: mod?.color ?? act?.color ?? CATEGORY_COLORS[e.category] ?? CATEGORY_COLORS.other,
-      movable: true,
-      assessment: ASSESSMENT_EVENTS.includes(e.category),
-      detail: e.notes?.split('\n')[0],
-    });
+    out.push([
+      {
+        id: `event:${e.id}`,
+        source: { type: 'event', eventId: e.id },
+        title: `${withIcon(EVENT_ICONS[e.category])}${coursePrefix}${e.title}`,
+        subtitle: mod
+          ? `${EVENT_LABELS[e.category]} · ${mod.name}`
+          : act && act.title !== e.title
+            ? act.title
+            : undefined,
+        start,
+        end,
+        location: e.location,
+        color: mod?.color ?? act?.color ?? CATEGORY_COLORS[e.category] ?? CATEGORY_COLORS.other,
+        movable: true,
+        assessment: ASSESSMENT_EVENTS.includes(e.category),
+        detail: e.notes?.split('\n')[0],
+      },
+      !!e.skipped,
+    ]);
   }
   return out;
 }

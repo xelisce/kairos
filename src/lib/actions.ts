@@ -151,7 +151,13 @@ const dateOf = (o: Occ) => ('date' in o.source ? o.source.date : '');
 /** Skip one session: it stays on the calendar (faded) but other things can use the time. Toggles. */
 export function skipOcc(o: Occ) {
   const dk = dateOf(o);
-  commit(o.skipped ? `Un-skip ${o.title}` : `Skip ${o.title} on ${dk}`, (d) => {
+  commit(o.skipped ? `Un-skip ${o.title}` : `Skip ${o.title}${dk ? ` on ${dk}` : ''}`, (d) => {
+    const src = o.source;
+    if (src.type === 'event') {
+      const e = d.events.find((x) => x.id === src.eventId);
+      if (e) e.skipped = !o.skipped || undefined;
+      return;
+    }
     const s = seriesOf(d, o);
     if (!s) return;
     s.skipDates = o.skipped ? s.skipDates.filter((v) => v !== dk) : [...new Set([...s.skipDates, dk])];

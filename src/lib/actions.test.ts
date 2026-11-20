@@ -105,6 +105,17 @@ describe('skip, delete and the Deleted tab', () => {
     expect(lecture()).toBeDefined();
   });
 
+  it('a one-off event can be skipped too: faded, and it no longer counts as busy', () => {
+    const hangout = () =>
+      expand(data(), fromLocal('2026-08-31'), fromLocal('2026-09-01')).find((o) => o.source.type === 'event');
+    skipOcc(hangout()!);
+    expect(hangout()!.skipped).toBe(true);
+    expect(data().events[0].skipped).toBe(true);
+    skipOcc(hangout()!);
+    expect(hangout()!.skipped).toBeFalsy();
+    expect(data().events[0].skipped).toBeUndefined();
+  });
+
   it('whole items go to the Deleted tab and come back', () => {
     trashItem('event', 'e');
     expect(data().events).toHaveLength(0);

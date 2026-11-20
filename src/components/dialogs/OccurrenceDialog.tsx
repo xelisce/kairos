@@ -206,7 +206,7 @@ export function OccurrenceDialog() {
               {task.done ? 'Mark not done' : multiSession ? 'Whole task done' : '✓ Mark done'}
             </button>
           )}
-          {isSession && (
+          {(isSession || src.type === 'event') && (
             <button
               className="btn"
               title={
