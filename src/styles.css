@@ -1271,3 +1271,12 @@ body.resizing {
   text-decoration: line-through;
   opacity: 0.6;
 }
+
+/* Classes and CCAs: outlined, so their (solid) tasks stand out */
+.fc-event.k-outline {
+  border-width: 2px;
+  border-style: solid;
+}
+.fc-event.k-outline .ev-meta {
+  opacity: 0.8;
+}

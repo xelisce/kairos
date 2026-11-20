@@ -38,10 +38,7 @@ export function CalendarView({
         title: o.title,
         start: o.start,
         end: o.end,
-        // Skipped sessions turn grey, whatever their usual color.
-        backgroundColor: o.skipped ? 'var(--skipped)' : o.source.type === 'travel' ? 'transparent' : o.color,
-        borderColor: o.warning ? 'var(--bad)' : o.color,
-        textColor: o.source.type === 'travel' ? 'var(--text-2)' : '#fff',
+        ...colorsOf(o),
         editable: o.movable,
         // Skipped: drawn behind everything, so other blocks can sit on top of it.
         display: o.skipped ? 'background' : 'auto',
@@ -51,6 +48,7 @@ export function CalendarView({
           isDone(o) ? 'k-done' : '',
           o.assessment ? 'k-assess' : '',
           o.skipped ? 'k-skipped' : '',
+          isOutlined(o) ? 'k-outline' : '',
         ].filter(Boolean),
         extendedProps: { occ: o },
       })),
@@ -213,4 +211,26 @@ function renderEvent(arg: EventContentArg) {
       {mins >= 90 && o.subtitle && <div className="ev-meta ev-sub">{o.subtitle}</div>}
     </div>
   );
+}
+
+/**
+ * Classes and CCAs are outlined (a light tint of their color, with a solid border), so the
+ * tasks under them, which are solid, stand out from their course or club.
+ */
+const isOutlined = (o: Occ) => !o.skipped && (o.source.type === 'class' || o.source.type === 'activity');
+
+function colorsOf(o: Occ) {
+  const border = o.warning ? 'var(--bad)' : o.color;
+  // Skipped sessions turn grey, whatever their usual color.
+  if (o.skipped) return { backgroundColor: 'var(--skipped)', borderColor: border, textColor: '#fff' };
+  if (o.source.type === 'travel')
+    return { backgroundColor: 'transparent', borderColor: border, textColor: 'var(--text-2)' };
+  if (isOutlined(o)) {
+    return {
+      backgroundColor: `color-mix(in srgb, ${o.color} 22%, var(--surface))`,
+      borderColor: border,
+      textColor: 'var(--text)',
+    };
+  }
+  return { backgroundColor: o.color, borderColor: border, textColor: '#fff' };
 }
