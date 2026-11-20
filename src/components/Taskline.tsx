@@ -1,7 +1,7 @@
 // The Taskline view: one semester's tasks left to right, a bar per task (start → deadline) with
 // a dot per session. Drag ◆ to move a deadline, drag a dot to move that session to another day.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { addDays, differenceInCalendarDays, format } from 'date-fns';
+import { addDays, differenceInCalendarDays, format, startOfDay } from 'date-fns';
 import { useStore } from '../store';
 import { moveOcc } from '../lib/actions';
 import { expand } from '../lib/expand';
@@ -19,9 +19,13 @@ import {
 import { US_DAY_LETTERS, weekLabelText } from '../lib/weeks';
 import { useNow } from '../hooks/useNow';
 import { usePref } from '../hooks/usePref';
+import type { AwayRange, Semester } from '../types';
 import { useUI } from './ui';
 
 const DAY = 86_400_000;
+/** Header height without label strips, and each strip's height. */
+const HEAD_H = 56;
+const LANE_H = 20;
 /** Zoom: how wide one day is. Presets for the buttons; the wheel zooms smoothly between the limits. */
 const ZOOM_PRESETS = { Weeks: 9, Days: 30, Hours: 120 } as const;
 const MIN_PX = 4;
@@ -34,6 +38,8 @@ interface Prefs {
   /** Width of one day, in pixels. */
   px: number;
   showDone: boolean;
+  /** Holidays (Thanksgiving…) and your time away, as tinted columns. */
+  showMarks: boolean;
   extras: Extra[];
 }
 
@@ -49,6 +55,7 @@ export function Taskline() {
     groupBy: 'course',
     px: ZOOM_PRESETS.Days,
     showDone: false,
+    showMarks: true,
     extras: [],
   });
   const set = (p: Partial<Prefs>) => setPrefs({ ...prefs, ...p });
@@ -63,10 +70,16 @@ export function Taskline() {
 
   const px = clampPx(prefs.px || ZOOM_PRESETS.Days);
   const range = sem ? semesterRange(sem) : { start: now, end: addDays(now, 1) };
-  const x = (d: Date) => ((d.getTime() - range.start.getTime()) / DAY) * px;
+  // Whole calendar days plus the time of day, so a daylight-saving change doesn't nudge things off the day grid.
+  const x = (d: Date) =>
+    (differenceInCalendarDays(d, range.start) + (d.getTime() - startOfDay(d).getTime()) / DAY) * px;
   const days = differenceInCalendarDays(range.end, range.start);
   const width = days * px;
   const todayX = x(now);
+  const clampX = (v: number) => Math.min(width, Math.max(0, v));
+  const marks = sem && prefs.showMarks ? markSpans(sem.holidays, data.away, range) : [];
+  // One label strip under the dates for holidays, one for time away (they can overlap).
+  const lanes = (['holiday', 'away'] as const).filter((k) => marks.some((m) => m.kind === k));
 
   const scrollToToday = () => {
     const el = scroller.current;
@@ -209,6 +222,10 @@ export function Taskline() {
         <button className="btn" onClick={scrollToToday}>
           Today
         </button>
+        <label className="tl-check" title="Show holidays (like Thanksgiving) and your time away">
+          <input type="checkbox" checked={prefs.showMarks} onChange={(e) => set({ showMarks: e.target.checked })} />
+          Holidays &amp; away
+        </label>
         <label className="tl-check">
           <input type="checkbox" checked={prefs.showDone} onChange={(e) => set({ showDone: e.target.checked })} />
           Done
@@ -230,7 +247,7 @@ export function Taskline() {
           {/* Week header */}
           <div className="tl-row tl-head">
             <div className="tl-label">{sem.name}</div>
-            <div className="tl-track" style={{ width }}>
+            <div className="tl-track" style={{ width, minHeight: HEAD_H + lanes.length * LANE_H }}>
               {sem.layout.map((w, i) => (
                 <div
                   key={i}
@@ -245,6 +262,21 @@ export function Taskline() {
                 </div>
               ))}
               {px >= 16 && <DayLabels start={range.start} days={days} px={px} usLetters={sem.style === 'us'} />}
+              {marks.map((mk, i) => (
+                <div
+                  key={i}
+                  className={`tl-mark-label ${mk.kind}`}
+                  style={{
+                    left: clampX(x(mk.start)),
+                    width: Math.max(2, clampX(x(mk.end)) - clampX(x(mk.start))),
+                    top: HEAD_H + lanes.indexOf(mk.kind) * LANE_H,
+                  }}
+                  title={mk.title}
+                  onClick={mk.awayId ? () => open({ kind: 'away', id: mk.awayId }) : undefined}
+                >
+                  <span className="tl-sticky">{mk.label}</span>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -275,6 +307,13 @@ export function Taskline() {
                   style={{ left: i * px, width: (range.start.getDay() === 0 && i === 0 ? 1 : 2) * px }}
                 />
               ))}
+            {marks.map((mk, i) => (
+              <div
+                key={`mk${i}`}
+                className={`tl-mark ${mk.kind}`}
+                style={{ left: clampX(x(mk.start)), width: Math.max(2, clampX(x(mk.end)) - clampX(x(mk.start))) }}
+              />
+            ))}
             {/* Today's column, once days are wide enough to see one. */}
             {px >= 16 && todayX >= 0 && todayX <= width && (
               <div className="tl-today-col" style={{ left: Math.floor(todayX / px) * px, width: px }} />
@@ -343,9 +382,52 @@ export function Taskline() {
   );
 }
 
+interface MarkSpan {
+  kind: 'holiday' | 'away';
+  label: string;
+  title: string;
+  start: Date;
+  end: Date;
+  awayId?: string;
+}
+
+/** Holidays (back-to-back days with the same name become one span) and time away, within the semester. */
+function markSpans(holidays: Semester['holidays'], away: AwayRange[], range: { start: Date; end: Date }): MarkSpan[] {
+  const out: MarkSpan[] = [];
+  for (const h of [...holidays].sort((a, b) => a.date.localeCompare(b.date))) {
+    const day = fromLocal(h.date);
+    const prev = out[out.length - 1];
+    if (prev?.kind === 'holiday' && prev.label === `🎉 ${h.name}` && prev.end.getTime() === day.getTime())
+      prev.end = addDays(day, 1);
+    else
+      out.push({
+        kind: 'holiday',
+        label: `🎉 ${h.name}`,
+        title: `Holiday: ${h.name}`,
+        start: day,
+        end: addDays(day, 1),
+      });
+  }
+  for (const a of away) {
+    const start = fromLocal(a.start);
+    const end = fromLocal(a.end);
+    const name = a.title || 'Away';
+    out.push({
+      kind: 'away',
+      label: `✈️ ${name}`,
+      title: `Away: ${name} (${format(start, 'EEE d MMM HH:mm')} → ${format(end, 'EEE d MMM HH:mm')}) · click to edit`,
+      start,
+      end,
+      awayId: a.id,
+    });
+  }
+  return out.filter((m) => m.start < range.end && range.start < m.end);
+}
+
 /** One label per day under the weeks: "R 19", or "Thu 19 Nov" when there's room; hours when zoomed far in. */
 function DayLabels({ start, days, px, usLetters }: { start: Date; days: number; px: number; usLetters: boolean }) {
-  const hourStep = px >= 320 ? 3 : px >= 160 ? 6 : px >= 90 ? 12 : 0;
+  // Hour marks only when a day has room for at least three readable ones (06:00 12:00 18:00).
+  const hourStep = px >= 360 ? 3 : px >= 180 ? 6 : 0;
   return (
     <>
       {Array.from({ length: days }, (_, i) => {
@@ -359,7 +441,7 @@ function DayLabels({ start, days, px, usLetters }: { start: Date; days: number; 
             {hourStep > 0 &&
               Array.from({ length: 24 / hourStep - 1 }, (_, h) => (
                 <span key={h} className="tl-hour" style={{ left: ((h + 1) * hourStep * px) / 24 }}>
-                  {String((h + 1) * hourStep).padStart(2, '0')}
+                  {String((h + 1) * hourStep).padStart(2, '0')}:00
                 </span>
               ))}
           </div>

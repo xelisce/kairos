@@ -1309,7 +1309,12 @@ body.resizing {
   font-weight: 600;
 }
 .tl-head .tl-track {
-  min-height: 46px;
+  min-height: 56px;
+}
+/* The day row keeps its height when label strips are added below it. */
+.tl-head .tl-day {
+  bottom: auto;
+  height: 34px;
 }
 .tl-week {
   position: absolute;
@@ -1348,18 +1353,57 @@ body.resizing {
   bottom: 0;
   background: color-mix(in srgb, var(--skipped) 18%, transparent);
 }
+/* Holidays and time away: tinted columns, labelled in a strip at the bottom of the header. */
+.tl-mark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+.tl-mark.holiday {
+  background: color-mix(in srgb, var(--warn) 16%, transparent);
+}
+.tl-mark.away {
+  background-image: repeating-linear-gradient(
+    45deg,
+    color-mix(in srgb, var(--accent) 22%, transparent) 0 8px,
+    transparent 8px 16px
+  );
+}
+.tl-mark-label {
+  position: absolute;
+  height: 18px;
+  margin-top: 1px;
+  padding: 2px 4px;
+  font-size: 10.5px;
+  line-height: 14px;
+  white-space: nowrap;
+  overflow: clip;
+  border-radius: 3px;
+}
+.tl-mark-label.holiday {
+  background: color-mix(in srgb, var(--warn) 30%, var(--surface));
+  color: var(--text);
+}
+.tl-mark-label.away {
+  background: color-mix(in srgb, var(--accent) 35%, var(--surface));
+  color: var(--text);
+  cursor: pointer;
+}
 .tl-today-col {
   position: absolute;
   top: 0;
   bottom: 0;
   background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
+/* An hour mark: a small tick at the bottom of the day, with the time beside it. */
 .tl-hour {
   position: absolute;
-  bottom: 1px;
-  transform: translateX(-50%);
-  font-size: 9px;
-  opacity: 0.6;
+  bottom: 0;
+  padding: 0 0 2px 3px;
+  border-left: 1px solid color-mix(in srgb, var(--text-2) 50%, transparent);
+  font-size: 10px;
+  line-height: 1;
+  opacity: 0.75;
 }
 .tl-week.break {
   font-style: italic;
