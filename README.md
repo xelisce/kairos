@@ -34,6 +34,7 @@ into their windows, then trips between places).
 | `src/lib/routines.ts`     | Fitting meals, shower… into their windows                                         |
 | `src/lib/travel.ts`       | Trips between places                                                              |
 | `src/lib/places.ts`       | Matching a location to a saved place (names, aliases), route times, renaming      |
+| `src/lib/tasks.ts`        | Task sessions, progress and split limits                                          |
 | `src/lib/scheduler.ts`    | Auto-scheduling tasks (stable, earliest deadline first, checks each day's layout) |
 | `src/lib/actions.ts`      | Every edit the UI makes (move, skip, delete, re-plan, reset…)                     |
 | `src/lib/weeks.ts`        | Week patterns (`3-13`, `odd`), semester layouts, presets, special days            |

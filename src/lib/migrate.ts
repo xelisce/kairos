@@ -1,8 +1,9 @@
 // Bring saved data from any older version of Kairos up to the current shape.
-import type { AppData, ClassSeries } from '../types';
+import type { AppData, ClassSeries, Task, TimeOverride } from '../types';
 import { defaultData } from './defaults';
+import { uid } from './time';
 
-export const DATA_VERSION = 2;
+export const DATA_VERSION = 3;
 
 /** Fill in anything missing (with defaults) and upgrade older fields. Use on every loaded or imported copy. */
 export function normalize(raw: Partial<AppData>): AppData {
@@ -30,6 +31,14 @@ export function normalize(raw: Partial<AppData>): AppData {
       x.deletedDates = [...new Set([...(x.deletedDates ?? []), ...x.skipDates])];
       x.skipDates = [];
     }
+  }
+  for (const t of d.tasks as (Task & { scheduled?: TimeOverride; pinned?: boolean })[]) {
+    // Before version 3 a task had one `scheduled` slot; now it has sessions.
+    if (!Array.isArray(t.sessions)) {
+      t.sessions = t.scheduled ? [{ id: uid(), ...t.scheduled, done: false, pinned: !!t.pinned }] : [];
+    }
+    delete t.scheduled;
+    delete t.pinned;
   }
   d.version = DATA_VERSION;
   return d;

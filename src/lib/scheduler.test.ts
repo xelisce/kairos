@@ -1,121 +1,121 @@
 import { describe, expect, it } from 'vitest';
 import { defaultData } from './defaults';
 import { expand } from './expand';
-import { planTasks } from './scheduler';
-import { fromLocal } from './time';
-import { sampleData } from '../test/fixtures';
+import { planTasks, taskWarning } from './scheduler';
+import { DEFAULT_SPLIT, sessionMinutes } from './tasks';
+import { dateKey, fromLocal } from './time';
+import { sampleData, session, task } from '../test/fixtures';
 
-describe('auto-scheduling tasks', () => {
-  it('places a task before its deadline with nothing on top of it', () => {
+describe('auto-scheduling a task', () => {
+  it('places it before its deadline with nothing on top of it', () => {
     const d = sampleData();
-    d.tasks.push({
-      id: 't',
-      title: 'HW',
-      category: 'homework',
-      durationMin: 120,
-      deadline: '2026-09-02T23:59',
-      onCalendar: true,
-      pinned: false,
-      done: false,
-      createdAt: '2026-08-30T00:00',
-    });
+    d.tasks.push(task({ id: 't', durationMin: 120, deadline: '2026-09-02T23:59' }));
     const tasks = planTasks(d, fromLocal('2026-08-31T09:00'));
-    const slot = tasks[0].scheduled!;
-    expect(fromLocal(slot.end) <= fromLocal('2026-09-02T23:59')).toBe(true);
+    const [s] = tasks[0].sessions;
+    expect(tasks[0].sessions).toHaveLength(1);
+    expect(sessionMinutes(s)).toBe(120);
+    expect(fromLocal(s.end) <= fromLocal('2026-09-02T23:59')).toBe(true);
     const final = expand({ ...d, tasks }, fromLocal('2026-08-31'), fromLocal('2026-09-03'));
     const onTop = final.filter(
-      (o) => o.id !== 'task:t' && !o.skipped && o.start < fromLocal(slot.end) && fromLocal(slot.start) < o.end,
+      (o) => !o.id.startsWith('task:t') && !o.skipped && o.start < fromLocal(s.end) && fromLocal(s.start) < o.end,
     );
     expect(onTop).toHaveLength(0);
     expect(final.filter((o) => o.warning)).toHaveLength(0);
   });
 
-  const missed = () => {
-    const d = sampleData();
-    d.tasks.push({
-      id: 't',
-      title: 'HW',
-      category: 'homework',
-      durationMin: 60,
-      onCalendar: true,
-      pinned: false,
-      done: false,
-      createdAt: '2026-08-30T00:00',
-      scheduled: { start: '2026-08-31T08:00', end: '2026-08-31T09:00' },
-    });
-    return d;
-  };
-
-  it('keeps a missed task in place for 5 hours, so you can tick it done', () => {
-    const [t] = planTasks(missed(), fromLocal('2026-08-31T13:59'));
-    expect(t.scheduled).toEqual({ start: '2026-08-31T08:00', end: '2026-08-31T09:00' });
-    expect(t.rolledForward).toBeFalsy();
-  });
-
-  it('then rolls it forward', () => {
-    const [t] = planTasks(missed(), fromLocal('2026-08-31T14:00'));
-    expect(t.rolledForward).toBe(true);
-    expect(fromLocal(t.scheduled!.start) >= fromLocal('2026-08-31T14:00')).toBe(true);
-  });
-
-  it('leaves a task you placed by hand where it is, even in the past', () => {
-    const d = sampleData();
-    const slot = { start: '2026-11-19T15:00', end: '2026-11-19T17:00' };
-    d.tasks.push({
-      id: 'k',
-      title: 'Code Kairos',
-      category: 'personal',
-      durationMin: 120,
-      onCalendar: true,
-      pinned: true,
-      done: false,
-      createdAt: '2026-11-19T17:20',
-      scheduled: slot,
-    });
-    const t = planTasks(d, fromLocal('2026-11-19T17:23')).find((x) => x.id === 'k')!;
-    expect(t.scheduled).toEqual(slot);
-    expect(t.rolledForward).toBeFalsy();
-  });
-
   it('may use a flexible routine’s time, and plans the trip for a task with a location', () => {
     const d = defaultData();
     d.routines = d.routines.filter((r) => r.title === 'Dinner');
-    Object.assign(d.routines[0], {
-      location: 'Home',
-      preferredStart: '18:30',
-      windowStart: '18:30',
-      windowEnd: '23:30',
-    });
+    Object.assign(d.routines[0], { location: 'Home', windowStart: '18:30', windowEnd: '23:30' });
     d.places.push({ id: 'w', name: 'Memorial Union', aliases: ['Wheelhouse Studios'] });
     d.tasks = [
-      {
+      task({
         id: 'k',
-        title: 'Code Kairos',
-        category: 'personal',
         durationMin: 190,
-        onCalendar: true,
-        pinned: true,
-        done: false,
-        createdAt: '2026-11-19T15:00',
-        scheduled: { start: '2026-11-19T15:30', end: '2026-11-19T18:40' },
-      },
-      {
-        id: 'g',
-        title: 'Glaze',
-        category: 'personal',
-        durationMin: 30,
-        onCalendar: true,
-        pinned: false,
-        done: false,
-        createdAt: '2026-11-19T15:00',
-        location: 'Wheelhouse Studios',
-      },
+        sessions: [session('k1', '2026-11-19T15:30', '2026-11-19T18:40', { pinned: true })],
+      }),
+      task({ id: 'g', durationMin: 30, location: 'Wheelhouse Studios' }),
     ];
     const tasks = planTasks(d, fromLocal('2026-11-19T17:27'));
-    const glaze = tasks.find((t) => t.id === 'g')!.scheduled!;
+    const [glaze] = tasks.find((t) => t.id === 'g')!.sessions;
     const occs = expand({ ...d, tasks }, fromLocal('2026-11-19'), fromLocal('2026-11-20'));
     expect(fromLocal(glaze.start) < fromLocal('2026-11-19T20:00')).toBe(true);
     expect(occs.filter((o) => o.warning)).toHaveLength(0);
     expect(occs.find((o) => o.title === 'Dinner')!.start >= fromLocal(glaze.end)).toBe(true);
+  });
+});
+
+describe('missed sessions', () => {
+  const missed = (pinned = false) => {
+    const d = sampleData();
+    d.tasks.push(task({ id: 't', sessions: [session('s', '2026-08-31T08:00', '2026-08-31T09:00', { pinned })] }));
+    return d;
+  };
+
+  it('wait 5 hours so you can tick them done', () => {
+    const [t] = planTasks(missed(), fromLocal('2026-08-31T13:59'));
+    expect(t.sessions.map((s) => s.start)).toEqual(['2026-08-31T08:00']);
+    expect(t.rolledForward).toBeFalsy();
+    expect(taskWarning(t, fromLocal('2026-08-31T13:59'), 48)?.text).toMatch(/moves forward at 14:00/);
+  });
+
+  it('then roll forward', () => {
+    const [t] = planTasks(missed(), fromLocal('2026-08-31T14:00'));
+    expect(t.rolledForward).toBe(true);
+    expect(fromLocal(t.sessions[0].start) >= fromLocal('2026-08-31T14:00')).toBe(true);
+  });
+
+  it('stay put if you placed them yourself', () => {
+    const [t] = planTasks(missed(true), fromLocal('2026-11-19T17:23'));
+    expect(t.sessions.map((s) => s.start)).toEqual(['2026-08-31T08:00']);
+    expect(t.rolledForward).toBeFalsy();
+  });
+});
+
+describe('splitting a task into sessions', () => {
+  const big = (over = {}) => {
+    const d = sampleData();
+    d.routines = [];
+    d.tasks.push(task({ id: 'p', durationMin: 360, split: DEFAULT_SPLIT, deadline: '2026-09-10T23:59', ...over }));
+    return d;
+  };
+
+  it('spreads 6h as 2h a day, as early as possible, before the deadline', () => {
+    const [t] = planTasks(big(), fromLocal('2026-08-31T09:00'));
+    expect(t.sessions.map(sessionMinutes)).toEqual([120, 120, 120]);
+    const days = t.sessions.map((s) => dateKey(fromLocal(s.start)));
+    expect(new Set(days).size).toBe(3);
+    expect(days[0]).toBe('2026-08-31');
+    expect(t.sessions.every((s) => fromLocal(s.end) <= fromLocal('2026-09-10T23:59'))).toBe(true);
+  });
+
+  it('keeps done and pinned sessions and only plans what is left', () => {
+    const d = big();
+    d.tasks[0].sessions = [
+      session('a', '2026-08-31T09:00', '2026-08-31T11:00', { done: true }),
+      session('b', '2026-09-01T09:00', '2026-09-01T10:00', { pinned: true }),
+    ];
+    const [t] = planTasks(d, fromLocal('2026-08-31T12:00'));
+    expect(t.sessions.find((s) => s.id === 'a')!.done).toBe(true);
+    expect(t.sessions.find((s) => s.id === 'b')!.start).toBe('2026-09-01T09:00');
+    expect(t.sessions.reduce((n, s) => n + sessionMinutes(s), 0)).toBe(360);
+    // 1h already on 1 Sep, so at most 1h more that day.
+    const sep1 = t.sessions.filter((s) => s.start.startsWith('2026-09-01'));
+    expect(sep1.reduce((n, s) => n + sessionMinutes(s), 0)).toBeLessThanOrEqual(120);
+  });
+
+  it('does not make sessions shorter than the minimum (except a last small bit)', () => {
+    const [t] = planTasks(big({ durationMin: 250 }), fromLocal('2026-08-31T09:00'));
+    const lengths = t.sessions.map(sessionMinutes);
+    expect(lengths.reduce((a, b) => a + b, 0)).toBe(250);
+    expect(lengths.slice(0, -1).every((m) => m >= DEFAULT_SPLIT.minSessionMin)).toBe(true);
+  });
+
+  it('drops planned time when the task gets shorter', () => {
+    const d = big();
+    const [first] = planTasks(d, fromLocal('2026-08-31T09:00'));
+    d.tasks[0] = { ...first, durationMin: 120 };
+    const [t] = planTasks(d, fromLocal('2026-08-31T09:00'));
+    expect(t.sessions.reduce((n, s) => n + sessionMinutes(s), 0)).toBe(120);
   });
 });

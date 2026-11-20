@@ -7,12 +7,13 @@ import type { AppData, Occ, Routine } from '../types';
 import { ASSESSMENT_EVENTS, CATEGORY_COLORS, EVENT_ICONS, EVENT_LABELS, KIND_ICONS, withIcon } from './labels';
 import { fitRoutine, routineOcc } from './routines';
 import { at, dateKey, eachDay, fromLocal, overlaps, weekdayMon0 } from './time';
+import { sortedSessions } from './tasks';
 import { computeTravel } from './travel';
 import { weekIndex } from './weeks';
 
 export interface ExpandOpts {
-  /** Leave out these task ids (the scheduler uses this to re-place tasks). */
-  excludeTaskIds?: Set<string>;
+  /** Leave out these task sessions (the scheduler uses this while re-placing them). */
+  excludeSessionIds?: Set<string>;
 }
 
 /** A block plus whether it's skipped on that day. */
@@ -33,7 +34,7 @@ export function expand(data: AppData, from: Date, to: Date, opts: ExpandOpts = {
 
   classOccs(data, pFrom, pTo).forEach(add);
   activityOccs(data, pFrom, pTo).forEach(add);
-  fixed.push(...eventOccs(data, pFrom, pTo), ...taskOccs(data, pFrom, pTo, opts.excludeTaskIds));
+  fixed.push(...eventOccs(data, pFrom, pTo), ...taskOccs(data, pFrom, pTo, opts.excludeSessionIds));
 
   // Routines: fixed ones (not auto-scheduled, or moved by hand) go in now;
   // flexible ones are fitted around everything once the first trips are known.
@@ -159,24 +160,32 @@ function eventOccs(data: AppData, from: Date, to: Date): Occ[] {
 function taskOccs(data: AppData, from: Date, to: Date, exclude?: Set<string>): Occ[] {
   const out: Occ[] = [];
   for (const t of data.tasks) {
-    if (!t.onCalendar || !t.scheduled || exclude?.has(t.id)) continue;
-    const start = fromLocal(t.scheduled.start);
-    const end = fromLocal(t.scheduled.end);
-    if (!overlaps(start, end, from, to)) continue;
+    if (!t.onCalendar) continue;
     const mod = t.moduleId ? data.modules.find((m) => m.id === t.moduleId) : undefined;
     const act = !mod && t.activityId ? data.activities.find((a) => a.id === t.activityId) : undefined;
-    const late = !t.done && t.deadline && end > fromLocal(t.deadline);
-    out.push({
-      id: `task:${t.id}`,
-      source: { type: 'task', taskId: t.id },
-      title: `${t.done ? '✓ ' : ''}${t.title}`,
-      subtitle: mod?.code ?? act?.title,
-      start,
-      end,
-      location: t.location,
-      color: mod?.color ?? act?.color ?? CATEGORY_COLORS[t.category] ?? CATEGORY_COLORS.other,
-      movable: true,
-      warning: late ? `Scheduled after the deadline (${format(fromLocal(t.deadline!), 'EEE d MMM HH:mm')})` : undefined,
+    const sessions = sortedSessions(t);
+    sessions.forEach((session, i) => {
+      if (exclude?.has(session.id)) return;
+      const start = fromLocal(session.start);
+      const end = fromLocal(session.end);
+      if (!overlaps(start, end, from, to)) return;
+      const done = t.done || session.done;
+      const late = !done && t.deadline && end > fromLocal(t.deadline);
+      const part = sessions.length > 1 ? ` · ${i + 1}/${sessions.length}` : '';
+      out.push({
+        id: `task:${t.id}:${session.id}`,
+        source: { type: 'task', taskId: t.id, sessionId: session.id },
+        title: `${done ? '✓ ' : ''}${t.title}${part}`,
+        subtitle: mod?.code ?? act?.title,
+        start,
+        end,
+        location: t.location,
+        color: mod?.color ?? act?.color ?? CATEGORY_COLORS[t.category] ?? CATEGORY_COLORS.other,
+        movable: true,
+        warning: late
+          ? `Scheduled after the deadline (${format(fromLocal(t.deadline!), 'EEE d MMM HH:mm')})`
+          : undefined,
+      });
     });
   }
   return out;

@@ -2,6 +2,7 @@
 import { addDays, addMinutes, startOfDay, startOfWeek } from 'date-fns';
 import { useStore } from '../store';
 import type { Activity, AppData, CalEvent, ClassKind, ClassSeries, Occ, Routine, Task, TrashItem } from '../types';
+import { unplannedMinutes } from './tasks';
 import { fromLocal, toLocal, uid } from './time';
 
 const commit = (label: string, fn: (d: AppData) => void) => useStore.getState().commit(label, fn);
@@ -49,7 +50,12 @@ export function moveOcc(o: Occ, start: Date, end: Date, how: 'move' | 'resize' =
     case 'task':
       return commit(`Move ${o.title}`, (d) => {
         const t = d.tasks.find((x) => x.id === src.taskId);
-        if (t) Object.assign(t, { scheduled: slot, durationMin: minutes, pinned: true, rolledForward: false });
+        const session = t?.sessions.find((x) => x.id === src.sessionId);
+        if (!t || !session) return;
+        Object.assign(session, slot, { pinned: true });
+        t.rolledForward = false;
+        // A task that isn't split is exactly as long as its one block.
+        if (!t.split) t.durationMin = minutes;
       });
     case 'travel':
       return commit(`Move trip to ${src.to}`, (d) => {
@@ -82,8 +88,8 @@ export function resetOcc(o: Occ) {
         delete d.travelMoves[src.key];
         break;
       case 'task': {
-        const t = d.tasks.find((x) => x.id === src.taskId);
-        if (t) t.pinned = false;
+        const session = d.tasks.find((x) => x.id === src.taskId)?.sessions.find((x) => x.id === src.sessionId);
+        if (session) session.pinned = false;
         break;
       }
     }
@@ -120,9 +126,9 @@ export function runningLate(occs: Occ[], min: number, now = new Date()) {
         const r = d.routines.find((x) => x.id === src.routineId);
         if (r) r.overrides[src.date] = slot;
       } else if (src.type === 'task') {
-        const t = d.tasks.find((x) => x.id === src.taskId);
-        // Not pinned: Re-plan can still move it; otherwise it keeps this slot.
-        if (t && !t.done) t.scheduled = slot;
+        const session = d.tasks.find((x) => x.id === src.taskId)?.sessions.find((x) => x.id === src.sessionId);
+        // Stays as pinned/unpinned as it was: Re-plan can still move an auto-scheduled one.
+        if (session && !session.done) Object.assign(session, slot);
       }
     }
   });
@@ -303,7 +309,8 @@ const inRange =
     (!from || d >= from) && (!to || d < to);
 
 /**
- * Re-plan: auto-scheduled tasks in the range lose their slot and get re-placed (earliest deadline first).
+ * Re-plan: auto-scheduled task sessions in the range are dropped and re-placed (earliest deadline first),
+ * including missed ones still waiting to be ticked.
  * Routines always auto-fit, keep a length you changed, and stay where you moved them (Reset frees those).
  * Untouched: classes, events, CCAs, trips you moved, and tasks you dragged (pinned).
  */
@@ -311,9 +318,8 @@ export function replan(scope: ReplanScope, now = new Date()) {
   const within = inRange(replanRange(scope, now));
   commit(REPLAN_LABELS[scope], (d) => {
     for (const t of d.tasks) {
-      if (!t.done && t.onCalendar && !t.pinned && t.scheduled && within(fromLocal(t.scheduled.start))) {
-        t.scheduled = undefined;
-      }
+      if (t.done || !t.onCalendar) continue;
+      t.sessions = t.sessions.filter((s) => s.done || s.pinned || !within(fromLocal(s.start)));
     }
   });
 }
@@ -352,7 +358,7 @@ export function setTaskOnCalendar(taskId: string, onCalendar: boolean) {
   if (!t) return;
   commit(onCalendar ? `Schedule ${t.title}` : `Unschedule ${t.title}`, (d) => {
     const x = d.tasks.find((y) => y.id === taskId);
-    if (x) Object.assign(x, { onCalendar, pinned: false });
+    if (x) x.onCalendar = onCalendar;
   });
 }
 
@@ -365,9 +371,23 @@ export function quickAddTask(title: string) {
       category: 'other',
       durationMin: 30,
       onCalendar: false,
-      pinned: false,
+      sessions: [],
       done: false,
       createdAt: toLocal(new Date()),
     });
+  });
+}
+
+/** Tick one session done (or not). The task is done once all its time is covered by done sessions. */
+export function toggleSessionDone(taskId: string, sessionId: string) {
+  const t = useStore.getState().data.tasks.find((x) => x.id === taskId);
+  const session = t?.sessions.find((x) => x.id === sessionId);
+  if (!t || !session) return;
+  commit(session.done ? `Undone ${t.title} session` : `Done ${t.title} session`, (d) => {
+    const task = d.tasks.find((x) => x.id === taskId);
+    const s = task?.sessions.find((x) => x.id === sessionId);
+    if (!task || !s) return;
+    s.done = !s.done;
+    task.done = s.done && task.sessions.every((x) => x.done) && unplannedMinutes(task) === 0;
   });
 }

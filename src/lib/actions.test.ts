@@ -11,12 +11,14 @@ import {
   restoreDate,
   restoreTrash,
   skipOcc,
+  toggleSessionDone,
   trashItem,
 } from './actions';
 import { defaultData } from './defaults';
+import { DEFAULT_SPLIT } from './tasks';
 import { expand } from './expand';
 import { dateKey, fromLocal } from './time';
-import { lengthMin, sampleData } from '../test/fixtures';
+import { lengthMin, sampleData, session, task } from '../test/fixtures';
 
 const load = (d: AppData) => useStore.setState({ data: d, past: [], future: [] });
 const data = () => useStore.getState().data;
@@ -113,25 +115,56 @@ describe('skip, delete and the Deleted tab', () => {
   });
 });
 
-describe('Re-plan moves a missed task right away', () => {
-  it('does not wait the 5 hours', () => {
+describe('task sessions', () => {
+  it('Re-plan moves a missed session right away (no 5-hour wait)', () => {
     const d = sampleData();
     const today = dateKey(new Date());
-    const hour = new Date().getHours();
-    if (hour < 1) return; // needs a slot earlier today to have "missed"
-    d.tasks.push({
-      id: 't',
-      title: 'HW',
-      category: 'homework',
-      durationMin: 30,
-      onCalendar: true,
-      pinned: false,
-      done: false,
-      createdAt: `${today}T00:00`,
-      scheduled: { start: `${today}T00:00`, end: `${today}T00:30` },
-    });
+    if (new Date().getHours() < 1) return; // needs an earlier slot today
+    d.tasks.push(task({ id: 't', durationMin: 30, sessions: [session('s', `${today}T00:00`, `${today}T00:30`)] }));
     load(d);
     replan('today');
-    expect(fromLocal(data().tasks[0].scheduled!.start) > new Date(Date.now() - 60_000)).toBe(true);
+    expect(fromLocal(data().tasks[0].sessions[0].start) > new Date(Date.now() - 60_000)).toBe(true);
+  });
+
+  it('ticking every session done finishes the task', () => {
+    const d = sampleData();
+    d.tasks.push(
+      task({
+        id: 't',
+        durationMin: 120,
+        split: DEFAULT_SPLIT,
+        sessions: [
+          session('a', '2027-01-04T09:00', '2027-01-04T10:00'),
+          session('b', '2027-01-05T09:00', '2027-01-05T10:00'),
+        ],
+      }),
+    );
+    load(d);
+    toggleSessionDone('t', 'a');
+    expect(data().tasks[0].done).toBe(false);
+    toggleSessionDone('t', 'b');
+    expect(data().tasks[0].done).toBe(true);
+  });
+
+  it('dragging a session pins just that session', () => {
+    const d = sampleData();
+    d.tasks.push(
+      task({
+        id: 't',
+        durationMin: 120,
+        split: DEFAULT_SPLIT,
+        sessions: [
+          session('a', '2027-01-04T09:00', '2027-01-04T10:00'),
+          session('b', '2027-01-05T09:00', '2027-01-05T10:00'),
+        ],
+      }),
+    );
+    load(d);
+    const block = expand(data(), fromLocal('2027-01-04'), fromLocal('2027-01-05')).find((o) => o.id === 'task:t:a')!;
+    moveOcc(block, fromLocal('2027-01-04T15:00'), fromLocal('2027-01-04T16:00'));
+    const t = data().tasks[0];
+    expect(t.sessions.find((s) => s.id === 'a')).toMatchObject({ start: '2027-01-04T15:00', pinned: true });
+    expect(t.sessions.find((s) => s.id === 'b')!.pinned).toBe(false);
+    expect(t.durationMin).toBe(120); // split tasks keep their total
   });
 });

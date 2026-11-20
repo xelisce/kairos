@@ -11,6 +11,7 @@ import {
   setTaskOnCalendar,
   setTravel,
   skipOcc,
+  toggleSessionDone,
   toggleTaskDone,
 } from '../../lib/actions';
 import { fmtDur, fmtTime } from '../../lib/time';
@@ -24,6 +25,8 @@ export function OccurrenceDialog() {
   const src = o.source;
 
   const task = src.type === 'task' ? data.tasks.find((t) => t.id === src.taskId) : undefined;
+  const session = src.type === 'task' ? task?.sessions.find((s) => s.id === src.sessionId) : undefined;
+  const multiSession = !!task && (!!task.split || task.sessions.length > 1);
   const series = src.type === 'class' ? data.classes.find((c) => c.id === src.seriesId) : undefined;
   const isSession = src.type === 'class' || src.type === 'routine' || src.type === 'activity';
   const savedNotes =
@@ -37,7 +40,7 @@ export function OccurrenceDialog() {
     (src.type === 'class' && !!series?.overrides[src.date]) ||
     (src.type === 'routine' && !!data.routines.find((r) => r.id === src.routineId)?.overrides[src.date]) ||
     (src.type === 'activity' && !!data.activities.find((a) => a.id === src.activityId)?.overrides[src.date]) ||
-    (src.type === 'task' && !!task?.pinned);
+    (src.type === 'task' && !!session?.pinned);
 
   /** Run an action, then close. */
   const act = (fn: () => void) => () => {
@@ -163,9 +166,14 @@ export function OccurrenceDialog() {
 
       {src.type !== 'travel' && (
         <div className="actions">
+          {task && session && multiSession && (
+            <button className="btn primary" onClick={act(() => toggleSessionDone(task.id, session.id))}>
+              {session.done ? 'Session not done' : '✓ This session done'}
+            </button>
+          )}
           {task && (
-            <button className="btn primary" onClick={act(() => toggleTaskDone(task.id))}>
-              {task.done ? 'Mark not done' : '✓ Mark done'}
+            <button className={multiSession ? 'btn' : 'btn primary'} onClick={act(() => toggleTaskDone(task.id))}>
+              {task.done ? 'Mark not done' : multiSession ? 'Whole task done' : '✓ Mark done'}
             </button>
           )}
           {isSession && (

@@ -4,6 +4,8 @@ import type { Task, TaskCategory } from '../../types';
 import { trashItem } from '../../lib/actions';
 import { fromLocal, toLocal, uid } from '../../lib/time';
 import { DateTimeInput, DialogButtons, Field, LocationInput, Modal, NumberInput, Row, useModal, useUI } from '../ui';
+import { DEFAULT_SPLIT } from '../../lib/tasks';
+import { SessionList } from './SessionList';
 import { locationSuggestions, upsert, useDraft } from './shared';
 
 export function TaskDialog() {
@@ -23,11 +25,13 @@ export function TaskDialog() {
         activityId: m.activityId,
         durationMin: m.start && m.end ? Math.round((m.end.getTime() - m.start.getTime()) / 60000) : 60,
         onCalendar: true,
-        // Made by drag-selecting a time: it stays there.
-        pinned: !!m.start,
+        // Made by drag-selecting a time: that's its (pinned) session.
+        sessions:
+          m.start && m.end
+            ? [{ id: uid(), start: toLocal(m.start), end: toLocal(m.end), done: false, pinned: true }]
+            : [],
         done: false,
         createdAt: toLocal(new Date()),
-        scheduled: m.start && m.end ? { start: toLocal(m.start), end: toLocal(m.end) } : undefined,
       },
   );
 
@@ -36,10 +40,11 @@ export function TaskDialog() {
     if (!canSave) return;
     commit(existing ? `Edit ${t.title}` : `Add ${t.title}`, (d) => {
       const next = { ...t, title: t.title.trim() };
-      // Changing the length of a pinned task keeps its start.
-      if (next.pinned && next.scheduled) {
-        const start = next.scheduled.start;
-        next.scheduled = { start, end: toLocal(addMinutes(fromLocal(start), next.durationMin)) };
+      // A task that isn't split, placed by hand: changing its length keeps its start.
+      const only = next.sessions.length === 1 ? next.sessions[0] : undefined;
+      if (!next.split && only?.pinned && !only.done) {
+        const end = toLocal(addMinutes(fromLocal(only.start), next.durationMin));
+        next.sessions = [{ ...only, end }];
       }
       upsert(d.tasks, next);
     });
@@ -117,7 +122,7 @@ export function TaskDialog() {
         </Field>
       </Row>
       <Row>
-        <Field label="How long (min)">
+        <Field label={t.split ? 'Total time (min)' : 'How long (min)'}>
           <NumberInput min={5} value={t.durationMin} onCommit={(durationMin) => update({ durationMin })} />
         </Field>
         <Field label="Deadline" hint="It won't be scheduled after this; if it has to be, it shows red ⚠️">
@@ -141,19 +146,43 @@ export function TaskDialog() {
         </Field>
       </Row>
       <label className="check">
+        <input type="checkbox" checked={t.onCalendar} onChange={(e) => update({ onCalendar: e.target.checked })} /> Put
+        on calendar (auto-finds time)
+      </label>
+      <label className="check">
         <input
           type="checkbox"
-          checked={t.onCalendar}
-          onChange={(e) => update({ onCalendar: e.target.checked, pinned: e.target.checked ? t.pinned : false })}
+          checked={!!t.split}
+          onChange={(e) => update({ split: e.target.checked ? DEFAULT_SPLIT : undefined })}
         />{' '}
-        Put on calendar (auto-finds a slot)
+        Split into sessions (spread over several days before the deadline)
       </label>
-      {t.onCalendar && t.pinned && (
-        <label className="check">
-          <input type="checkbox" checked={!t.pinned} onChange={() => update({ pinned: false })} /> Let auto-schedule
-          move it
-        </label>
+      {t.split && (
+        <Row>
+          <Field label="Longest session (min)">
+            <NumberInput
+              min={15}
+              value={t.split.maxSessionMin}
+              onCommit={(maxSessionMin) => update({ split: { ...t.split!, maxSessionMin } })}
+            />
+          </Field>
+          <Field label="Most per day (min)">
+            <NumberInput
+              min={15}
+              value={t.split.maxPerDayMin}
+              onCommit={(maxPerDayMin) => update({ split: { ...t.split!, maxPerDayMin } })}
+            />
+          </Field>
+          <Field label="Shortest session (min)">
+            <NumberInput
+              min={5}
+              value={t.split.minSessionMin}
+              onCommit={(minSessionMin) => update({ split: { ...t.split!, minSessionMin } })}
+            />
+          </Field>
+        </Row>
       )}
+      {t.onCalendar && t.sessions.length > 0 && <SessionList task={t} onChange={(sessions) => update({ sessions })} />}
       <Field label="Notes">
         <textarea rows={2} value={t.notes ?? ''} onChange={(e) => update({ notes: e.target.value || undefined })} />
       </Field>

@@ -22,7 +22,7 @@ const routine = (
 export function defaultData(): AppData {
   const home = { id: uid(), name: 'Home', isHome: true, aliases: [] };
   return {
-    version: 2,
+    version: 3,
     settings: {
       dayStart: '08:00',
       dayEnd: '22:00',

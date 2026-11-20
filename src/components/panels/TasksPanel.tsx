@@ -4,13 +4,15 @@ import { useStore } from '../../store';
 import type { AppData, Task } from '../../types';
 import { quickAddTask, setTaskOnCalendar, toggleTaskDone } from '../../lib/actions';
 import { taskWarning } from '../../lib/scheduler';
+import { doneMinutes, nextSession } from '../../lib/tasks';
 import { fmtDur, fromLocal } from '../../lib/time';
 import { useNow } from '../../hooks/useNow';
 import { useUI } from '../ui';
 
 const LAST = '9999';
 const byDeadline = (a: Task, b: Task) => (a.deadline ?? LAST).localeCompare(b.deadline ?? LAST);
-const bySlot = (a: Task, b: Task) => (a.scheduled?.start ?? LAST).localeCompare(b.scheduled?.start ?? LAST);
+const nextStart = (t: Task) => nextSession(t)?.start ?? LAST;
+const bySlot = (a: Task, b: Task) => nextStart(a).localeCompare(nextStart(b));
 
 export function TasksPanel() {
   const data = useStore((s) => s.data);
@@ -72,6 +74,8 @@ function TaskRow({ task: t, data }: { task: Task; data: AppData }) {
   const open = useUI((s) => s.open);
   const now = useNow(60_000);
   const warning = taskWarning(t, now, data.settings.warnHours);
+  const next = nextSession(t);
+  const openSessions = t.sessions.filter((s) => !s.done);
   const course = data.modules.find((m) => m.id === t.moduleId);
   const activity = !course && t.activityId ? data.activities.find((a) => a.id === t.activityId) : undefined;
   return (
@@ -95,11 +99,18 @@ function TaskRow({ task: t, data }: { task: Task; data: AppData }) {
         <span className="task-meta">
           {fmtDur(t.durationMin)}
           {t.deadline && <> · due {format(fromLocal(t.deadline), 'EEE d MMM HH:mm')}</>}
-          {t.scheduled && t.onCalendar && (
+          {next && t.onCalendar && (
             <>
               {' '}
-              · 🗓 {format(fromLocal(t.scheduled.start), 'EEE HH:mm')}
-              {t.pinned ? ' 📌' : ''}
+              · 🗓 {format(fromLocal(next.start), 'EEE HH:mm')}
+              {next.pinned ? ' 📌' : ''}
+              {openSessions.length > 1 ? ` (+${openSessions.length - 1} more)` : ''}
+            </>
+          )}
+          {t.split && (
+            <>
+              {' '}
+              · {fmtDur(doneMinutes(t))} of {fmtDur(t.durationMin)} done
             </>
           )}
           {t.rolledForward && <> · moved forward</>}

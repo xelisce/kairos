@@ -155,7 +155,25 @@ export interface CalEvent {
 
 export type TaskCategory = 'homework' | 'admin' | 'personal' | 'other';
 
-/** Something to do that needs a slot: homework, bidding for modules, applications. */
+/** One block of work on a task. */
+export interface TaskSession {
+  id: ID;
+  start: LocalDateTime;
+  end: LocalDateTime;
+  done: boolean;
+  /** You placed it, so the scheduler leaves it alone. */
+  pinned: boolean;
+}
+
+/** How a task may be split into sessions. */
+export interface TaskSplit {
+  maxSessionMin: number;
+  maxPerDayMin: number;
+  /** Sessions shorter than this aren't made (except a last bit smaller than it). */
+  minSessionMin: number;
+}
+
+/** Something to do that needs time: homework, bidding for modules, applications. */
 export interface Task {
   id: ID;
   title: string;
@@ -164,18 +182,21 @@ export interface Task {
   moduleId?: ID;
   /** ...or under a CCA / club / activity (e.g. "Glaze pottery" under Pottery). */
   activityId?: ID;
+  /** Total time it needs (all sessions together). */
   durationMin: number;
   /** Hard deadline: scheduling after this is flagged red. */
   deadline?: LocalDateTime;
   /** Don't schedule before this. */
   earliest?: LocalDateTime;
-  /** The "on calendar" checkbox. When true, the scheduler finds it a slot. */
+  /** The "on calendar" checkbox. When true, the scheduler finds time for it. */
   onCalendar: boolean;
-  scheduled?: TimeOverride;
-  /** User dragged it, so the scheduler leaves it alone. */
-  pinned: boolean;
+  /** When you're working on it. One session unless `split` is set. */
+  sessions: TaskSession[];
+  /** Split into several sessions with these limits; unset = one session. */
+  split?: TaskSplit;
+  /** The whole task is finished. */
   done: boolean;
-  /** Set when a missed task got moved forward automatically. */
+  /** Set when a missed session got moved forward automatically. */
   rolledForward?: boolean;
   location?: string;
   notes?: string;
@@ -251,7 +272,7 @@ export type OccSource =
   | { type: 'routine'; routineId: ID; date: LocalDate }
   | { type: 'activity'; activityId: ID; date: LocalDate }
   | { type: 'event'; eventId: ID }
-  | { type: 'task'; taskId: ID }
+  | { type: 'task'; taskId: ID; sessionId: ID }
   | { type: 'travel'; key: string; minutes: number; from: string; to: string; overridden: boolean; moved: boolean };
 
 export interface Occ {
