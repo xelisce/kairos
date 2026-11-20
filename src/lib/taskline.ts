@@ -1,6 +1,6 @@
 // The Taskline: one semester's tasks laid out left to right. Each task is a bar from its start
 // ("not before", else the day it was added) to its deadline, with a dot per session.
-// Everything here is scoped to one semester, so a semester can later be exported on its own (v5).
+// Everything here is scoped to one semester, so a semester can later be exported on its own (v7).
 import { addDays, endOfWeek, startOfDay } from 'date-fns';
 import type { AppData, Semester, Task } from '../types';
 import { ASSESSMENT_EVENTS, CATEGORY_COLORS } from './labels';
@@ -77,7 +77,7 @@ export function currentSemester(data: AppData, now: Date): Semester | undefined 
   );
 }
 
-export function barFor(data: AppData, t: Task, now: Date): Bar {
+function barFor(data: AppData, t: Task, now: Date): Bar {
   const mod = t.moduleId ? data.modules.find((m) => m.id === t.moduleId) : undefined;
   const act = !mod && t.activityId ? data.activities.find((a) => a.id === t.activityId) : undefined;
   const deadline = t.deadline ? fromLocal(t.deadline) : undefined;

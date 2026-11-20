@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { useStore } from '../../store';
+import { listCloudBackups, loadCloudBackup, useAccount } from '../../lib/cloud';
+import { hasLocalDb } from '../../lib/sync';
 
 /** Export / import a JSON copy, and restore automatic database backups. */
 export function BackupSection() {
   const data = useStore((s) => s.data);
   const replaceAll = useStore((s) => s.replaceAll);
   const [showBackups, setShowBackups] = useState(false);
+  const account = useAccount((s) => s.account);
 
   const exportFile = () => {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -29,8 +32,18 @@ export function BackupSection() {
     <>
       <h3>Backup</h3>
       <p className="muted small">
-        Everything is saved in a local database on this computer (<code>data/kairos.db</code> in the project folder),
-        with an automatic backup at most once an hour. Cloud sync comes in v3.
+        {account ? (
+          <>
+            Everything is saved in your cloud account ({account.email}), with an automatic backup at most once an hour.
+          </>
+        ) : hasLocalDb ? (
+          <>
+            Everything is saved in a local database on this computer (<code>data/kairos.db</code> in the project
+            folder), with an automatic backup at most once an hour. Sign in to save to the cloud instead.
+          </>
+        ) : (
+          <>You're not signed in, so changes are only kept in this browser. Export a copy, or sign in.</>
+        )}
       </p>
       <div className="panel-actions">
         <button className="btn" onClick={exportFile}>
@@ -40,11 +53,13 @@ export function BackupSection() {
           Import
           <input type="file" accept="application/json" hidden onChange={(e) => importFile(e.target.files?.[0])} />
         </label>
-        <button className="btn" onClick={() => setShowBackups(!showBackups)}>
-          {showBackups ? 'Hide' : 'Database'} backups
-        </button>
+        {(account || hasLocalDb) && (
+          <button className="btn" onClick={() => setShowBackups(!showBackups)}>
+            {showBackups ? 'Hide backups' : 'Automatic backups'}
+          </button>
+        )}
       </div>
-      {showBackups && <DatabaseBackups />}
+      {showBackups && <DatabaseBackups key={account?.id ?? 'local'} cloud={!!account} />}
     </>
   );
 }
@@ -52,24 +67,35 @@ export function BackupSection() {
 interface BackupInfo {
   id: number;
   created_at: string;
-  size: number;
+  size?: number;
 }
 
-/** Automatic database backups (hourly), restorable with one click (undoable). */
-function DatabaseBackups() {
+/** Automatic backups (hourly) in the cloud or the local database, restorable with one click (undoable). */
+function DatabaseBackups({ cloud }: { cloud: boolean }) {
   const [list, setList] = useState<BackupInfo[] | null>(null);
   const [error, setError] = useState('');
   const replaceAll = useStore((s) => s.replaceAll);
 
   useEffect(() => {
+    if (cloud) {
+      listCloudBackups()
+        .then(setList)
+        .catch(() => setError("Can't reach the cloud right now."));
+      return;
+    }
     fetch('/api/backups')
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then(setList)
       .catch(() => setError("The database server isn't running."));
-  }, []);
+  }, [cloud]);
 
   const restore = async (id: number) => {
     if (!confirm('Restore this backup? You can undo it with Ctrl+Z.')) return;
+    if (cloud) {
+      // Loading it is enough: the restored copy then saves like any other change.
+      replaceAll(await loadCloudBackup(id), 'Restore backup');
+      return;
+    }
     const res = await fetch(`/api/backups/${id}/restore`, { method: 'POST' });
     if (res.ok) replaceAll((await res.json()).data, 'Restore database backup');
   };
@@ -85,7 +111,7 @@ function DatabaseBackups() {
         <li key={b.id}>
           <span className="route-name">
             {format(new Date(b.created_at), 'EEE d MMM yyyy, HH:mm')}{' '}
-            <span className="muted small">({Math.round(b.size / 1024)} KB)</span>
+            {b.size !== undefined && <span className="muted small">({Math.round(b.size / 1024)} KB)</span>}
           </span>
           <button className="chip" onClick={() => restore(b.id)}>
             Restore

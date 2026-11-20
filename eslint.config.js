@@ -23,4 +23,9 @@ export default tseslint.config(
     extends: [js.configs.recommended, prettier],
     languageOptions: { ecmaVersion: 2022, globals: globals.node },
   },
+  {
+    files: ['public/sw.js'],
+    extends: [js.configs.recommended, prettier],
+    languageOptions: { ecmaVersion: 2022, globals: globals.serviceworker },
+  },
 );

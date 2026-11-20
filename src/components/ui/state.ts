@@ -22,7 +22,8 @@ export type ModalState =
   | { kind: 'activity'; id?: string }
   | { kind: 'newChoice'; start: Date; end: Date }
   | { kind: 'away'; id?: string; start?: Date; end?: Date }
-  | { kind: 'nusmods'; semesterId: string };
+  | { kind: 'nusmods'; semesterId: string }
+  | { kind: 'account' };
 
 type OpenModal = Exclude<ModalState, null>;
 export type ModalKind = OpenModal['kind'];

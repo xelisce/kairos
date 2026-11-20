@@ -26,7 +26,7 @@ const MAX_REPAIR_ROUNDS = 3;
  * A missed auto-scheduled session waits this long after its end before rolling forward,
  * so there's time to tick it done. Re-plan moves it right away.
  */
-export const ROLL_OVER_AFTER_MIN = 5 * 60;
+const ROLL_OVER_AFTER_MIN = 5 * 60;
 
 const ceilTo = (d: Date, step: number) => {
   const ms = step * 60_000;

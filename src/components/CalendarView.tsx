@@ -72,8 +72,37 @@ export function CalendarView({
     moveOcc(o, info.event.start, info.event.end ?? info.event.start, how);
   };
 
+  // Swipe left / right on a phone: next / previous day. A quick, mostly sideways flick only, so
+  // scrolling the day up and down and long-press dragging blocks still work as before.
+  const swipeStart = useRef<{ x: number; y: number; t: number } | null>(null);
+  const [swipe, setSwipe] = useState<'next' | 'prev' | null>(null);
+  const onTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0];
+    swipeStart.current = e.touches.length === 1 ? { x: t.clientX, y: t.clientY, t: Date.now() } : null;
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const s = swipeStart.current;
+    swipeStart.current = null;
+    if (!s || document.querySelector('.fc-event-dragging, .fc-event-resizing')) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - s.x;
+    const dy = t.clientY - s.y;
+    if (Date.now() - s.t > 600 || Math.abs(dx) < 60 || Math.abs(dx) < 2 * Math.abs(dy)) return;
+    const api = calRef.current?.getApi();
+    if (!api) return;
+    const dir = dx < 0 ? 'next' : 'prev';
+    if (dir === 'next') api.next();
+    else api.prev();
+    setSwipe(dir);
+  };
+
   return (
-    <div className="calendar-wrap">
+    <div
+      className={`calendar-wrap ${swipe ? `swipe-${swipe}` : ''}`}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+      onAnimationEnd={() => setSwipe(null)}
+    >
       <FullCalendar
         ref={calRef}
         plugins={[timeGridPlugin, dayGridPlugin, interactionPlugin]}

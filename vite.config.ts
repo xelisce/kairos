@@ -5,4 +5,24 @@ export default defineConfig({
   plugins: [react()],
   // The local database server (server/index.mjs) answers /api.
   server: { port: 5173, proxy: { '/api': 'http://127.0.0.1:5175' } },
+  build: {
+    rollupOptions: {
+      output: {
+        // Big libraries in their own files: they change rarely, so after an update the browser
+        // only downloads Kairos's own code again.
+        manualChunks: {
+          react: ['react', 'react-dom', 'zustand'],
+          calendar: [
+            '@fullcalendar/core',
+            '@fullcalendar/daygrid',
+            '@fullcalendar/interaction',
+            '@fullcalendar/react',
+            '@fullcalendar/timegrid',
+          ],
+          supabase: ['@supabase/supabase-js'],
+          dates: ['date-fns'],
+        },
+      },
+    },
+  },
 });
