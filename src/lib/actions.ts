@@ -2,7 +2,7 @@
 import { addDays, addMinutes, startOfDay, startOfWeek } from 'date-fns';
 import { useStore } from '../store';
 import type { Activity, AppData, CalEvent, ClassKind, ClassSeries, Occ, Routine, Task, TrashItem } from '../types';
-import { unplannedMinutes } from './tasks';
+import { fitDuration, unplannedMinutes } from './tasks';
 import { fromLocal, toLocal, uid } from './time';
 
 const commit = (label: string, fn: (d: AppData) => void) => useStore.getState().commit(label, fn);
@@ -409,5 +409,30 @@ export function toggleSessionDone(taskId: string, sessionId: string) {
     if (!task || !s) return;
     s.done = !s.done;
     task.done = s.done && task.sessions.every((x) => x.done) && unplannedMinutes(task) === 0;
+  });
+}
+
+/** Add a session at a time you choose (it stays put). The task's total grows if needed. */
+export function addSession(taskId: string, start: Date, end: Date) {
+  const t = useStore.getState().data.tasks.find((x) => x.id === taskId);
+  if (!t || end <= start) return;
+  commit(`Add a session to ${t.title}`, (d) => {
+    const i = d.tasks.findIndex((x) => x.id === taskId);
+    if (i < 0) return;
+    const task = d.tasks[i];
+    task.onCalendar = true;
+    task.done = false;
+    task.sessions.push({ id: uid(), start: toLocal(start), end: toLocal(end), done: false, pinned: true });
+    d.tasks[i] = fitDuration(task);
+  });
+}
+
+/** Remove one session. If the task is auto-planned, its time is planned again elsewhere. */
+export function deleteSession(taskId: string, sessionId: string) {
+  const t = useStore.getState().data.tasks.find((x) => x.id === taskId);
+  if (!t) return;
+  commit(`Delete a session of ${t.title}`, (d) => {
+    const task = d.tasks.find((x) => x.id === taskId);
+    if (task) task.sessions = task.sessions.filter((s) => s.id !== sessionId);
   });
 }

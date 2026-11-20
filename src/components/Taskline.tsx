@@ -265,6 +265,20 @@ export function Taskline() {
                 <div key={i} className="tl-shade" style={{ left: i * 7 * px, width: 7 * px }} />
               ) : null,
             )}
+            {/* Weekends: tinted top to bottom. */}
+            {Array.from({ length: days }, (_, i) => i)
+              .filter((i) => addDays(range.start, i).getDay() === 6 || (i === 0 && range.start.getDay() === 0))
+              .map((i) => (
+                <div
+                  key={`we${i}`}
+                  className="tl-weekend"
+                  style={{ left: i * px, width: (range.start.getDay() === 0 && i === 0 ? 1 : 2) * px }}
+                />
+              ))}
+            {/* Today's column, once days are wide enough to see one. */}
+            {px >= 16 && todayX >= 0 && todayX <= width && (
+              <div className="tl-today-col" style={{ left: Math.floor(todayX / px) * px, width: px }} />
+            )}
             {todayX >= 0 && todayX <= width && <div className="tl-today" style={{ left: todayX }} />}
           </div>
 
@@ -319,6 +333,10 @@ export function Taskline() {
               ))}
             </div>
           ))}
+          {/* Fills the rest of the height, so the names column runs all the way down. */}
+          <div className="tl-row tl-fill">
+            <div className="tl-label" />
+          </div>
         </div>
       </div>
     </div>

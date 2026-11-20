@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { useStore } from '../store';
 import type { AppData } from '../types';
 import {
+  addSession,
   deleteOcc,
+  deleteSession,
   moveOcc,
   replan,
   replanRange,
@@ -177,5 +179,46 @@ describe('task sessions', () => {
     expect(t.sessions.find((s) => s.id === 'a')).toMatchObject({ start: '2027-01-04T15:00', pinned: true });
     expect(t.sessions.find((s) => s.id === 'b')!.pinned).toBe(false);
     expect(t.durationMin).toBe(120); // split tasks keep their total
+  });
+
+  it('adding a session at a set time keeps the total (auto time shrinks), or grows it if needed', () => {
+    const d = sampleData();
+    d.tasks.push(
+      task({
+        id: 't',
+        durationMin: 120,
+        split: DEFAULT_SPLIT,
+        sessions: [session('a', '2027-01-04T09:00', '2027-01-04T11:00')],
+      }),
+    );
+    load(d);
+    addSession('t', fromLocal('2027-01-05T14:00'), fromLocal('2027-01-05T15:00'));
+    let t = data().tasks[0];
+    expect(t.sessions.find((s) => s.start === '2027-01-05T14:00')).toMatchObject({ pinned: true, done: false });
+    expect(t.durationMin).toBe(120);
+    expect(
+      t.sessions.reduce((n, s) => n + lengthMin({ start: fromLocal(s.start), end: fromLocal(s.end) }), 0),
+    ).toBeLessThanOrEqual(120);
+    addSession('t', fromLocal('2027-01-06T09:00'), fromLocal('2027-01-06T11:00'));
+    t = data().tasks[0];
+    expect(t.durationMin).toBe(180); // 1h + 2h placed by you
+  });
+
+  it('deleting one session leaves the others', () => {
+    const d = sampleData();
+    d.tasks.push(
+      task({
+        id: 't',
+        durationMin: 120,
+        autoPlan: false,
+        sessions: [
+          session('a', '2027-01-04T09:00', '2027-01-04T10:00'),
+          session('b', '2027-01-05T09:00', '2027-01-05T10:00'),
+        ],
+      }),
+    );
+    load(d);
+    deleteSession('t', 'a');
+    expect(data().tasks[0].sessions.map((s) => s.id)).toEqual(['b']);
   });
 });

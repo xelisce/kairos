@@ -66,6 +66,8 @@ const hasPassed = (s: TaskSession, now: Date) => fromLocal(s.end) <= now;
 const rollOverTime = (s: TaskSession) => addMinutes(fromLocal(s.end), ROLL_OVER_AFTER_MIN);
 /** A session the scheduler may move: planned automatically, not done, still ahead. */
 const mayMove = (s: TaskSession, now: Date) => !s.done && !s.pinned && !hasPassed(s, now);
+/** Auto-scheduled: on the calendar, not done, and you haven't turned auto-planning off for it. */
+const autoPlanned = (t: Task) => t.onCalendar && !t.done && t.autoPlan !== false;
 
 /** Returns a new tasks array. Pure: does not mutate `data`. */
 export function planTasks(data: AppData, now: Date): Task[] {
@@ -78,7 +80,8 @@ export function planTasks(data: AppData, now: Date): Task[] {
       t.sessions = t.sessions.filter((s) => s.done);
       continue;
     }
-    if (t.done) continue;
+    // Done, or you plan its sessions yourself: leave them exactly as they are.
+    if (t.done || t.autoPlan === false) continue;
     // Missed auto-scheduled sessions roll forward (gently, no guilt), 5h after they ended.
     // Sessions you placed yourself stay where you put them, even in the past.
     const rolled = t.sessions.filter((s) => !s.done && !s.pinned && rollOverTime(s) <= now);
@@ -88,7 +91,7 @@ export function planTasks(data: AppData, now: Date): Task[] {
     }
   }
 
-  const active = tasks.filter((t) => t.onCalendar && !t.done);
+  const active = tasks.filter(autoPlanned);
   const movableIds = new Set(active.flatMap((t) => t.sessions.filter((s) => mayMove(s, now)).map((s) => s.id)));
   // Hard blocks: everything except skipped sessions, routines that can slide out of the way,
   // and the auto sessions being (re)planned.
@@ -275,9 +278,7 @@ export function planTasks(data: AppData, now: Date): Task[] {
 }
 
 function movableSessionIds(tasks: Task[], now: Date) {
-  return tasks.flatMap((t) =>
-    (t.onCalendar && !t.done ? t.sessions : []).filter((s) => mayMove(s, now)).map((s) => s.id),
-  );
+  return tasks.flatMap((t) => (autoPlanned(t) ? t.sessions : []).filter((s) => mayMove(s, now)).map((s) => s.id));
 }
 
 /** Days where `layout` has more warnings than `baseline`. */
@@ -296,7 +297,7 @@ function daysWithMoreWarnings(layout: Occ[], baseline: Occ[]): string[] {
 /** Auto sessions that overlap something else in this layout, or whose own trips do. */
 function clashingSessions(occs: Occ[], tasks: Task[], now: Date): Set<string> {
   const movable = new Set(
-    tasks.flatMap((t) => (t.onCalendar && !t.done ? t.sessions : []).filter((s) => mayMove(s, now)).map((s) => s.id)),
+    tasks.flatMap((t) => (autoPlanned(t) ? t.sessions : []).filter((s) => mayMove(s, now)).map((s) => s.id)),
   );
   const live = occs.filter((o) => !o.skipped);
   const out = new Set<string>();
@@ -326,6 +327,7 @@ export function taskWarning(t: Task, now: Date, warnHours: number): { level: 'ba
   }
   const unplanned = unplannedMinutes(t);
   if (t.onCalendar && unplanned > 0) {
+    if (t.autoPlan === false) return { level: 'warn', text: `${fmtDur(unplanned)} not planned yet` };
     return { level: 'bad', text: t.sessions.length ? `${fmtDur(unplanned)} still needs a slot` : 'No free slot found' };
   }
   const passed = open.filter((s) => hasPassed(s, now));

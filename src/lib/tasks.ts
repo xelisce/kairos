@@ -14,6 +14,17 @@ export const doneMinutes = (t: Task) =>
   t.done ? t.durationMin : t.sessions.filter((s) => s.done).reduce((n, s) => n + sessionMinutes(s), 0);
 
 /** Minutes covered by sessions (done or planned). */
+/** Time in sessions you placed yourself or finished: auto-schedule can't take these away. */
+export const fixedMinutes = (t: Task) =>
+  t.sessions.filter((s) => s.done || s.pinned).reduce((n, s) => n + sessionMinutes(s), 0);
+
+/** The task's total grows if the sessions you placed add up to more than it. */
+export const fitDuration = (t: Task): Task => {
+  // Planning it yourself: every session is yours, so they all count.
+  const mine = t.autoPlan === false ? plannedMinutes(t) : fixedMinutes(t);
+  return mine > t.durationMin ? { ...t, durationMin: mine } : t;
+};
+
 export const plannedMinutes = (t: Task) => t.sessions.reduce((n, s) => n + sessionMinutes(s), 0);
 
 /** Minutes that still need a session. */

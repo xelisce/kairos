@@ -181,3 +181,23 @@ describe('regressions', () => {
     expect(occs.filter((o) => o.warning)).toHaveLength(0);
   });
 });
+
+describe('planning sessions yourself (auto-planning off)', () => {
+  it('nothing is added or moved, even a missed session; the rest shows as not planned yet', () => {
+    const d = sampleData();
+    d.tasks.push(
+      task({
+        id: 't',
+        durationMin: 120,
+        autoPlan: false,
+        deadline: '2026-09-10T23:59',
+        sessions: [session('s', '2026-08-31T08:00', '2026-08-31T09:00')],
+      }),
+    );
+    const now = fromLocal('2026-09-01T09:00');
+    const [t] = planTasks(d, now);
+    expect(t.sessions.map((s) => s.start)).toEqual(['2026-08-31T08:00']);
+    expect(t.rolledForward).toBeFalsy();
+    expect(taskWarning(t, now, 48)?.text).toBe('1h not planned yet');
+  });
+});

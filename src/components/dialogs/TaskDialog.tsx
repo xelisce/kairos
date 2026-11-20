@@ -4,7 +4,7 @@ import type { Task, TaskCategory } from '../../types';
 import { trashItem } from '../../lib/actions';
 import { fromLocal, toLocal, uid } from '../../lib/time';
 import { DateTimeInput, DialogButtons, Field, LocationInput, Modal, NumberInput, Row, useModal, useUI } from '../ui';
-import { DEFAULT_SPLIT } from '../../lib/tasks';
+import { DEFAULT_SPLIT, fitDuration, sessionMinutes } from '../../lib/tasks';
 import { SessionList } from './SessionList';
 import { locationSuggestions, upsert, useDraft } from './shared';
 
@@ -49,6 +49,14 @@ export function TaskDialog() {
       upsert(d.tasks, next);
     });
     close();
+  };
+
+  /** Sessions changed in the list: keep the task's total in step with them. */
+  const setSessions = (sessions: Task['sessions']) => {
+    const next = { ...t, sessions };
+    // One session, not split: the task is as long as that session.
+    if (!t.split && sessions.length === 1) update({ sessions, durationMin: sessionMinutes(sessions[0]) });
+    else update({ sessions, durationMin: fitDuration(next).durationMin });
   };
 
   const under = t.moduleId ? `m:${t.moduleId}` : t.activityId ? `a:${t.activityId}` : '';
@@ -147,17 +155,29 @@ export function TaskDialog() {
       </Row>
       <label className="check">
         <input type="checkbox" checked={t.onCalendar} onChange={(e) => update({ onCalendar: e.target.checked })} /> Put
-        on calendar (auto-finds time)
+        on calendar
       </label>
-      <label className="check">
-        <input
-          type="checkbox"
-          checked={!!t.split}
-          onChange={(e) => update({ split: e.target.checked ? DEFAULT_SPLIT : undefined })}
-        />{' '}
-        Split into sessions (spread over several days before the deadline)
-      </label>
-      {t.split && (
+      {t.onCalendar && (
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={t.autoPlan !== false}
+            onChange={(e) => update({ autoPlan: e.target.checked ? undefined : false })}
+          />{' '}
+          Find times automatically (off: you add and place every session yourself)
+        </label>
+      )}
+      {t.onCalendar && t.autoPlan !== false && (
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={!!t.split}
+            onChange={(e) => update({ split: e.target.checked ? DEFAULT_SPLIT : undefined })}
+          />{' '}
+          Split into sessions (spread over several days before the deadline)
+        </label>
+      )}
+      {t.onCalendar && t.autoPlan !== false && t.split && (
         <Row>
           <Field label="Longest session (min)">
             <NumberInput
@@ -182,7 +202,7 @@ export function TaskDialog() {
           </Field>
         </Row>
       )}
-      {t.onCalendar && t.sessions.length > 0 && <SessionList task={t} onChange={(sessions) => update({ sessions })} />}
+      {t.onCalendar && <SessionList task={t} onChange={setSessions} />}
       <Field label="Notes">
         <textarea rows={2} value={t.notes ?? ''} onChange={(e) => update({ notes: e.target.value || undefined })} />
       </Field>

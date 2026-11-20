@@ -13,6 +13,7 @@ import {
   setTravel,
   skipOcc,
   toggleSessionDone,
+  deleteSession,
   toggleTaskDone,
 } from '../../lib/actions';
 import { fmtDur, fmtTime } from '../../lib/time';
@@ -219,12 +220,25 @@ export function OccurrenceDialog() {
               {o.skipped ? 'Un-skip' : 'Skip this one'}
             </button>
           )}
+          {task && session && multiSession && (
+            <button
+              className="btn danger"
+              title={
+                task.autoPlan === false
+                  ? 'Remove just this session'
+                  : 'Remove just this session (auto-schedule finds another time for it)'
+              }
+              onClick={act(() => deleteSession(task.id, session.id))}
+            >
+              Delete this session
+            </button>
+          )}
           <button
             className="btn danger"
             title="Remove it. Restore it from the Deleted tab."
             onClick={act(() => deleteOcc(o))}
           >
-            {isSession ? 'Delete this one' : 'Delete'}
+            {isSession ? 'Delete this one' : task && multiSession ? 'Delete whole task' : 'Delete'}
           </button>
           {moved && (
             <button className="btn" onClick={act(() => resetOcc(o))}>

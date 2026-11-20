@@ -204,6 +204,8 @@ export interface Task {
   sessions: TaskSession[];
   /** Split into several sessions with these limits; unset = one session. */
   split?: TaskSplit;
+  /** false: you add and place its sessions yourself; auto-schedule leaves it alone. */
+  autoPlan?: boolean;
   /** The whole task is finished. */
   done: boolean;
   /** Set when a missed session got moved forward automatically. */
