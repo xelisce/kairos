@@ -5,7 +5,7 @@
 // Tasks may use time a flexible routine (lunch, dinner...) was using, as long as that
 // routine can still fit somewhere in its window. Tasks with a location need their trips
 // to fit too: a candidate is checked by laying out that day with the task in it.
-import { addDays, addMinutes, startOfDay } from 'date-fns';
+import { addDays, addMinutes, format, startOfDay } from 'date-fns';
 import type { AppData, Occ, Task } from '../types';
 import { expand } from './expand';
 import { atMin, dateKey, eachDay, fromLocal, hmToMin, overlaps, toLocal } from './time';
@@ -49,15 +49,24 @@ const isTravel = (o: Occ) => o.source.type === 'travel';
 const warningsOn = (occs: Occ[], skipId?: string) =>
   occs.filter((o) => o.warning && !o.skipped && o.id !== skipId).length;
 
+/**
+ * A missed auto-scheduled task waits this long after its end before rolling forward,
+ * so there's time to tick it done. Re-plan moves it right away.
+ */
+export const ROLL_OVER_AFTER_MIN = 5 * 60;
+
+const passed = (t: Task, now: Date) => !!t.scheduled && fromLocal(t.scheduled.end) <= now;
+const rollOverTime = (t: Task) => addMinutes(fromLocal(t.scheduled!.end), ROLL_OVER_AFTER_MIN);
+
 /** Returns a new tasks array. Pure: does not mutate `data`. */
 export function planTasks(data: AppData, now: Date): Task[] {
   const horizon = addDays(startOfDay(now), data.settings.horizonDays);
   const tasks = data.tasks.map((t) => ({ ...t }));
 
-  // Missed auto-scheduled tasks roll forward (gently, no guilt) to a new slot.
+  // Missed auto-scheduled tasks roll forward (gently, no guilt) to a new slot, 5h after they ended.
   // Tasks you placed yourself (pinned) stay where you put them, even in the past.
   for (const t of tasks) {
-    if (t.onCalendar && !t.done && !t.pinned && t.scheduled && fromLocal(t.scheduled.end) < now) {
+    if (t.onCalendar && !t.done && !t.pinned && passed(t, now) && rollOverTime(t) <= now) {
       t.scheduled = undefined;
       t.pinned = false;
       t.rolledForward = true;
@@ -120,8 +129,9 @@ export function planTasks(data: AppData, now: Date): Task[] {
   const start = ceilTo(now, STEP);
   const needsSlot: Task[] = [];
 
-  // Pass 1: keep slots that are still fine.
+  // Pass 1: keep slots that are still fine (including ones that just passed and are waiting to be ticked).
   for (const t of movable) {
+    if (passed(t, now)) continue;
     if (t.scheduled) {
       const s = fromLocal(t.scheduled.start);
       const e = fromLocal(t.scheduled.end);
@@ -169,8 +179,13 @@ export function taskWarning(t: Task, now: Date, warnHours: number): { level: 'ba
   if (t.onCalendar && t.scheduled && dl && fromLocal(t.scheduled.end) > dl)
     return { level: 'bad', text: 'Scheduled after deadline' };
   if (t.onCalendar && !t.scheduled) return { level: 'bad', text: 'No free slot found' };
-  if (t.onCalendar && t.pinned && t.scheduled && fromLocal(t.scheduled.end) < now)
+  if (t.onCalendar && t.pinned && passed(t, now))
     return { level: 'warn', text: 'Time passed: mark done, or let auto-schedule move it' };
+  if (t.onCalendar && passed(t, now))
+    return {
+      level: 'warn',
+      text: `Time passed: mark done, or it moves forward at ${format(rollOverTime(t), 'HH:mm')}`,
+    };
   if (dl && !t.onCalendar && dl.getTime() - now.getTime() < warnHours * 3600_000)
     return { level: 'warn', text: 'Due soon, not scheduled' };
   return null;

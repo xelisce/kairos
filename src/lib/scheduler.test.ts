@@ -30,7 +30,7 @@ describe('auto-scheduling tasks', () => {
     expect(final.filter((o) => o.warning)).toHaveLength(0);
   });
 
-  it('rolls missed auto-scheduled tasks forward', () => {
+  const missed = () => {
     const d = sampleData();
     d.tasks.push({
       id: 't',
@@ -43,9 +43,19 @@ describe('auto-scheduling tasks', () => {
       createdAt: '2026-08-30T00:00',
       scheduled: { start: '2026-08-31T08:00', end: '2026-08-31T09:00' },
     });
-    const [t] = planTasks(d, fromLocal('2026-08-31T10:00'));
+    return d;
+  };
+
+  it('keeps a missed task in place for 5 hours, so you can tick it done', () => {
+    const [t] = planTasks(missed(), fromLocal('2026-08-31T13:59'));
+    expect(t.scheduled).toEqual({ start: '2026-08-31T08:00', end: '2026-08-31T09:00' });
+    expect(t.rolledForward).toBeFalsy();
+  });
+
+  it('then rolls it forward', () => {
+    const [t] = planTasks(missed(), fromLocal('2026-08-31T14:00'));
     expect(t.rolledForward).toBe(true);
-    expect(fromLocal(t.scheduled!.start) >= fromLocal('2026-08-31T10:00')).toBe(true);
+    expect(fromLocal(t.scheduled!.start) >= fromLocal('2026-08-31T14:00')).toBe(true);
   });
 
   it('leaves a task you placed by hand where it is, even in the past', () => {

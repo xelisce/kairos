@@ -112,3 +112,26 @@ describe('skip, delete and the Deleted tab', () => {
     expect(data().trash).toHaveLength(0);
   });
 });
+
+describe('Re-plan moves a missed task right away', () => {
+  it('does not wait the 5 hours', () => {
+    const d = sampleData();
+    const today = dateKey(new Date());
+    const hour = new Date().getHours();
+    if (hour < 1) return; // needs a slot earlier today to have "missed"
+    d.tasks.push({
+      id: 't',
+      title: 'HW',
+      category: 'homework',
+      durationMin: 30,
+      onCalendar: true,
+      pinned: false,
+      done: false,
+      createdAt: `${today}T00:00`,
+      scheduled: { start: `${today}T00:00`, end: `${today}T00:30` },
+    });
+    load(d);
+    replan('today');
+    expect(fromLocal(data().tasks[0].scheduled!.start) > new Date(Date.now() - 60_000)).toBe(true);
+  });
+});
