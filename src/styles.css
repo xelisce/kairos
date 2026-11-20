@@ -1270,7 +1270,10 @@ body.resizing {
 .tl-label {
   position: sticky;
   left: 0;
-  z-index: 3;
+  /* Above bars, dots and ◆ scrolling underneath. */
+  z-index: 8;
+  /* Covers the row's bottom border, so nothing behind (the today line) shows through the gap. */
+  box-shadow: 0 1px 0 0 color-mix(in srgb, var(--border) 50%, var(--surface));
   flex: 0 0 var(--tl-label);
   width: var(--tl-label);
   padding: 4px 8px;
@@ -1288,23 +1291,53 @@ body.resizing {
 .tl-head {
   position: sticky;
   top: 0;
-  z-index: 4;
+  z-index: 9;
   background: var(--surface);
   font-size: 0.8em;
 }
 .tl-head .tl-label {
-  z-index: 5;
+  z-index: 10;
   font-weight: 600;
+}
+.tl-head .tl-track {
+  min-height: 46px;
 }
 .tl-week {
   position: absolute;
   top: 0;
-  bottom: 0;
-  padding: 8px 4px;
+  height: 22px;
+  padding: 3px 4px;
   border-left: 1px solid var(--border);
   white-space: nowrap;
-  overflow: hidden;
+  overflow: clip;
   color: var(--text-2);
+}
+/* Week/day names stay visible at the left edge while their week or day is on screen. */
+.tl-sticky {
+  position: sticky;
+  left: calc(var(--tl-label) + 4px);
+}
+.tl-day {
+  position: absolute;
+  top: 22px;
+  bottom: 0;
+  padding: 3px 3px;
+  border-left: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  white-space: nowrap;
+  overflow: clip;
+  color: var(--text-2);
+  font-size: 0.92em;
+}
+.tl-day.weekend {
+  background: color-mix(in srgb, var(--skipped) 10%, transparent);
+}
+.tl-hour {
+  position: absolute;
+  bottom: 1px;
+  transform: translateX(-50%);
+  font-size: 9px;
+  opacity: 0.6;
 }
 .tl-week.break {
   font-style: italic;

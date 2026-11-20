@@ -1,6 +1,6 @@
 // The Taskline view: one semester's tasks left to right, a bar per task (start → deadline) with
 // a dot per session. Drag ◆ to move a deadline, drag a dot to move that session to another day.
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { addDays, differenceInCalendarDays, format } from 'date-fns';
 import { useStore } from '../store';
 import { moveOcc } from '../lib/actions';
@@ -16,19 +16,23 @@ import {
   type Extra,
   type GroupBy,
 } from '../lib/taskline';
-import { weekLabelText } from '../lib/weeks';
+import { US_DAY_LETTERS, weekLabelText } from '../lib/weeks';
 import { useNow } from '../hooks/useNow';
 import { usePref } from '../hooks/usePref';
 import { useUI } from './ui';
 
 const DAY = 86_400_000;
-const PX_PER_DAY = { day: 30, week: 9 } as const;
-type Zoom = keyof typeof PX_PER_DAY;
+/** Zoom: how wide one day is. Presets for the buttons; the wheel zooms smoothly between the limits. */
+const ZOOM_PRESETS = { Weeks: 9, Days: 30, Hours: 120 } as const;
+const MIN_PX = 4;
+const MAX_PX = 400;
+const clampPx = (v: number) => Math.min(MAX_PX, Math.max(MIN_PX, v));
 
 interface Prefs {
   semId?: string;
   groupBy: GroupBy;
-  zoom: Zoom;
+  /** Width of one day, in pixels. */
+  px: number;
   showDone: boolean;
   extras: Extra[];
 }
@@ -43,7 +47,7 @@ export function Taskline() {
   const now = useNow(60_000);
   const [prefs, setPrefs] = usePref<Prefs>('kairos:taskline', {
     groupBy: 'course',
-    zoom: 'day',
+    px: ZOOM_PRESETS.Days,
     showDone: false,
     extras: [],
   });
@@ -57,19 +61,61 @@ export function Taskline() {
   const [drag, setDrag] = useState<Drag | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
 
-  const px = PX_PER_DAY[prefs.zoom];
+  const px = clampPx(prefs.px || ZOOM_PRESETS.Days);
   const range = sem ? semesterRange(sem) : { start: now, end: addDays(now, 1) };
   const x = (d: Date) => ((d.getTime() - range.start.getTime()) / DAY) * px;
-  const width = differenceInCalendarDays(range.end, range.start) * px;
+  const days = differenceInCalendarDays(range.end, range.start);
+  const width = days * px;
   const todayX = x(now);
 
   const scrollToToday = () => {
     const el = scroller.current;
     if (el) el.scrollLeft = Math.max(0, todayX - 80);
   };
-  // Start at today when the semester or zoom changes.
+  // Start at today when the semester changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(scrollToToday, [sem?.id, prefs.zoom]);
+  useEffect(scrollToToday, [sem?.id]);
+
+  /**
+   * Change the zoom, keeping the day under `anchorX` (px from the scroller's left edge; default:
+   * the middle of the timeline) in the same place on screen.
+   */
+  const pendingScroll = useRef<number | null>(null);
+  const zoomTo = (next: number, anchorX?: number) => {
+    const el = scroller.current;
+    const newPx = clampPx(next);
+    if (!el || newPx === px) return;
+    const label = (el.querySelector('.tl-label') as HTMLElement | null)?.offsetWidth ?? 0;
+    const ax = anchorX ?? label + (el.clientWidth - label) / 2;
+    const dayAtAnchor = (el.scrollLeft + ax - label) / px;
+    pendingScroll.current = dayAtAnchor * newPx - (ax - label);
+    setPrefs((p) => ({ ...p, px: newPx }));
+  };
+  useLayoutEffect(() => {
+    if (pendingScroll.current !== null && scroller.current) scroller.current.scrollLeft = pendingScroll.current;
+    pendingScroll.current = null;
+  }, [px]);
+
+  // Wheel over the dates header, or Ctrl/⌘ + wheel (and trackpad pinch) anywhere: zoom in/out.
+  // A plain wheel over the rows still scrolls up and down.
+  const zoomRef = useRef(zoomTo);
+  zoomRef.current = zoomTo;
+  const pxRef = useRef(px);
+  pxRef.current = px;
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      const overHeader = (e.target as HTMLElement).closest('.tl-head');
+      if (!overHeader && !e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      const delta = (e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY) || e.deltaX;
+      const rect = el.getBoundingClientRect();
+      zoomRef.current(pxRef.current * Math.exp(-delta * 0.002), e.clientX - rect.left);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [sem?.id]);
 
   /** Snapped number of days the current drag has moved. */
   const dragDays = drag ? Math.round(drag.dx / px) : 0;
@@ -142,12 +188,23 @@ export function Taskline() {
             </button>
           ))}
         </div>
-        <div className="segmented" role="group" aria-label="Zoom">
-          {(['day', 'week'] as const).map((z) => (
-            <button key={z} className={prefs.zoom === z ? 'on' : ''} onClick={() => set({ zoom: z })}>
-              {z === 'day' ? 'Days' : 'Weeks'}
+        <div
+          className="segmented"
+          role="group"
+          aria-label="Zoom"
+          title="Or scroll over the dates (Ctrl + scroll anywhere) to zoom"
+        >
+          <button onClick={() => zoomTo(px / 1.5)} aria-label="Zoom out">
+            −
+          </button>
+          {(Object.entries(ZOOM_PRESETS) as [string, number][]).map(([name, v]) => (
+            <button key={name} className={Math.abs(px - v) < 0.5 ? 'on' : ''} onClick={() => zoomTo(v)}>
+              {name}
             </button>
           ))}
+          <button onClick={() => zoomTo(px * 1.5)} aria-label="Zoom in">
+            +
+          </button>
         </div>
         <button className="btn" onClick={scrollToToday}>
           Today
@@ -181,15 +238,28 @@ export function Taskline() {
                   style={{ left: i * 7 * px, width: 7 * px }}
                   title={`${weekLabelText(w)} · from ${format(addDays(range.start, i * 7), 'd MMM')}`}
                 >
-                  {w.type === 'teaching' ? `W${w.n}` : w.name}
-                  {prefs.zoom === 'day' && <small> {format(addDays(range.start, i * 7), 'd/M')}</small>}
+                  <span className="tl-sticky">
+                    {w.type === 'teaching' ? `W${w.n}` : w.name}
+                    {px >= 14 && <small> {format(addDays(range.start, i * 7), 'd/M')}</small>}
+                  </span>
                 </div>
               ))}
+              {px >= 16 && <DayLabels start={range.start} days={days} px={px} usLetters={sem.style === 'us'} />}
             </div>
           </div>
 
           {/* Break weeks shaded, and today's line, behind the rows */}
-          <div className="tl-overlay" style={{ width }}>
+          <div
+            className="tl-overlay"
+            style={{
+              width,
+              // A faint line between days once they're wide enough to tell apart.
+              backgroundImage:
+                px >= 16
+                  ? `repeating-linear-gradient(90deg, color-mix(in srgb, var(--border) 45%, transparent) 0 1px, transparent 1px ${px}px)`
+                  : undefined,
+            }}
+          >
             {sem.layout.map((w, i) =>
               w.type === 'break' ? (
                 <div key={i} className="tl-shade" style={{ left: i * 7 * px, width: 7 * px }} />
@@ -252,6 +322,32 @@ export function Taskline() {
         </div>
       </div>
     </div>
+  );
+}
+
+/** One label per day under the weeks: "R 19", or "Thu 19 Nov" when there's room; hours when zoomed far in. */
+function DayLabels({ start, days, px, usLetters }: { start: Date; days: number; px: number; usLetters: boolean }) {
+  const hourStep = px >= 320 ? 3 : px >= 160 ? 6 : px >= 90 ? 12 : 0;
+  return (
+    <>
+      {Array.from({ length: days }, (_, i) => {
+        const d = addDays(start, i);
+        const wd = (d.getDay() + 6) % 7;
+        const text =
+          px >= 70 ? format(d, 'EEE d MMM') : `${usLetters ? US_DAY_LETTERS[wd] : format(d, 'EEEEE')} ${d.getDate()}`;
+        return (
+          <div key={i} className={`tl-day ${wd >= 5 ? 'weekend' : ''}`} style={{ left: i * px, width: px }}>
+            <span className="tl-sticky">{text}</span>
+            {hourStep > 0 &&
+              Array.from({ length: 24 / hourStep - 1 }, (_, h) => (
+                <span key={h} className="tl-hour" style={{ left: ((h + 1) * hourStep * px) / 24 }}>
+                  {String((h + 1) * hourStep).padStart(2, '0')}
+                </span>
+              ))}
+          </div>
+        );
+      })}
+    </>
   );
 }
 
