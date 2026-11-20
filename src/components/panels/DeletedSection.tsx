@@ -35,7 +35,7 @@ function deletedSessions(data: AppData) {
 }
 
 /** Everything you deleted: single sessions and whole items. Restore brings it back (also undoable). */
-export function DeletedPanel() {
+export function DeletedSection() {
   const data = useStore((s) => s.data);
   const sessions = deletedSessions(data);
   const itemLabel = (t: TrashItem) => {
@@ -51,7 +51,7 @@ export function DeletedPanel() {
   };
 
   return (
-    <div className="panel">
+    <>
       <p className="muted small">
         Things you deleted. <b>Restore</b> puts them back. Skipped sessions aren't here; they stay on the calendar,
         faded.
@@ -98,6 +98,6 @@ export function DeletedPanel() {
           </li>
         ))}
       </ul>
-    </div>
+    </>
   );
 }

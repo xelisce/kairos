@@ -1,19 +1,16 @@
 import { useState } from 'react';
 import { useStore } from '../../store';
-import type { Place, Settings } from '../../types';
+import type { Place } from '../../types';
 import { renamePlace } from '../../lib/places';
 import { uid } from '../../lib/time';
 import { Field, NumberInput, Row } from '../ui';
-import { BackupSection } from './BackupSection';
 
-/** Places (with aliases), usual travel times, scheduling settings and backups. */
+/** Places (with aliases) and usual travel times. */
 export function PlacesPanel() {
   return (
     <div className="panel">
       <PlacesSection />
       <RoutesSection />
-      <SettingsSection />
-      <BackupSection />
     </div>
   );
 }
@@ -247,39 +244,6 @@ function RoutesSection() {
         <input type="checkbox" checked={route.both} onChange={(e) => setRoute({ ...route, both: e.target.checked })} />{' '}
         Same time both ways (untick if e.g. the way back takes longer)
       </label>
-    </>
-  );
-}
-
-function SettingsSection() {
-  const settings = useStore((s) => s.data.settings);
-  const commit = useStore((s) => s.commit);
-  const set = <K extends keyof Settings>(key: K, value: Settings[K]) =>
-    commit(`Setting ${key}`, (d) => {
-      d.settings[key] = value;
-    });
-  return (
-    <>
-      <h3>Settings</h3>
-      <Row>
-        <Field label="Tasks no earlier than">
-          <input type="time" value={settings.dayStart} onChange={(e) => set('dayStart', e.target.value)} />
-        </Field>
-        <Field label="Tasks no later than">
-          <input type="time" value={settings.dayEnd} onChange={(e) => set('dayEnd', e.target.value)} />
-        </Field>
-      </Row>
-      <Row>
-        <Field label="Gap between things (min)">
-          <NumberInput value={settings.bufferMin} onCommit={(v) => set('bufferMin', v)} />
-        </Field>
-        <Field label="Extra per trip (min)">
-          <NumberInput value={settings.travelBufferMin} onCommit={(v) => set('travelBufferMin', v)} />
-        </Field>
-        <Field label="Unknown trip (min)">
-          <NumberInput value={settings.defaultTravelMin} onCommit={(v) => set('defaultTravelMin', v)} />
-        </Field>
-      </Row>
     </>
   );
 }

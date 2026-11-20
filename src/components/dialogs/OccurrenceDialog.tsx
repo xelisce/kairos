@@ -235,7 +235,7 @@ export function OccurrenceDialog() {
           )}
           <button
             className="btn danger"
-            title="Remove it. Restore it from the Deleted tab."
+            title="Remove it. Restore it from Settings, Deleted."
             onClick={act(() => deleteOcc(o))}
           >
             {isSession ? 'Delete this one' : task && multiSession ? 'Delete whole task' : 'Delete'}

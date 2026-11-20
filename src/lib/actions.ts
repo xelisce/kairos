@@ -164,7 +164,7 @@ export function skipOcc(o: Occ) {
   });
 }
 
-/** Delete one session (restorable from the Deleted tab). Events and tasks go to the Deleted tab whole. */
+/** Delete one session (restorable from Settings > Deleted). Events and tasks go to Settings > Deleted whole. */
 export function deleteOcc(o: Occ) {
   const src = o.source;
   if (src.type === 'event') return trashItem('event', src.eventId);
@@ -223,7 +223,7 @@ export function setSessionLocation(o: Occ, location: string) {
   });
 }
 
-// ---------- Deleted tab ----------
+// ---------- Deleted (in Settings) ----------
 
 type TrashKind = TrashItem['kind'];
 interface TrashableByKind {
@@ -242,7 +242,7 @@ const LIST_OF: { [K in TrashKind]: (d: AppData) => TrashableByKind[K][] } = {
 };
 const titleOf = (item: TrashableByKind[TrashKind]) => ('title' in item ? item.title : item.kind);
 
-/** Move a whole event / task / class / routine / CCA to the Deleted tab. */
+/** Move a whole event / task / class / routine / CCA to Settings > Deleted. */
 export function trashItem<K extends TrashKind>(kind: K, id: string) {
   const item = LIST_OF[kind](useStore.getState().data).find((x) => x.id === id);
   if (!item) return;
@@ -265,7 +265,7 @@ export function restoreTrash(index: number) {
   });
 }
 
-/** Permanently remove one item from the Deleted tab. */
+/** Permanently remove one item from Settings > Deleted. */
 export function purgeTrash(index: number) {
   commit('Delete forever', (d) => {
     d.trash.splice(index, 1);

@@ -71,7 +71,7 @@ into their windows, then trips between places).
 | `src/lib/nusmods.ts`      | Import from a NUSMods share link                                                  |
 | `src/components/`         | `CalendarView`, `NowNext`, top-bar buttons                                        |
 | `src/components/dialogs/` | One file per dialog; `ModalHost` shows the open one                               |
-| `src/components/panels/`  | Sidebar tabs (Tasks, Classes, Routines, Places, Deleted)                          |
+| `src/components/panels/`  | Sidebar tabs (Tasks, Classes, Routines, Places, Settings with Deleted inside)     |
 | `src/components/ui/`      | Shared building blocks (dialog frame, inputs, dd/mm/yyyy dates, dialog state)     |
 | `server/index.mjs`        | Local database server (SQLite + hourly backups); also serves the built app        |
 | `src/**/*.test.ts`        | Tests, next to the code they test (`src/test/fixtures.ts` has shared sample data) |

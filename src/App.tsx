@@ -6,9 +6,9 @@ import { usePref } from './hooks/usePref';
 import { NowNext } from './components/NowNext';
 import { ModalHost } from './components/dialogs/ModalHost';
 import { ClassesPanel } from './components/panels/ClassesPanel';
-import { DeletedPanel } from './components/panels/DeletedPanel';
 import { PlacesPanel } from './components/panels/PlacesPanel';
 import { RoutinesPanel } from './components/panels/RoutinesPanel';
+import { SettingsPanel } from './components/panels/SettingsPanel';
 import { TasksPanel } from './components/panels/TasksPanel';
 import { academicWeekFor, weekLabelText } from './lib/weeks';
 import { ReplanButton, ResetButton } from './components/ReplanButton';
@@ -16,14 +16,14 @@ import { SyncBadge } from './components/SyncBadge';
 import { readJson, writeStored } from './lib/storage';
 import { useNarrow } from './hooks/useNarrow';
 
-type Tab = 'calendar' | 'tasks' | 'classes' | 'routines' | 'places' | 'deleted';
+type Tab = 'calendar' | 'tasks' | 'classes' | 'routines' | 'places' | 'settings';
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'calendar', label: 'Day', icon: '🗓' },
   { id: 'tasks', label: 'Tasks', icon: '📝' },
   { id: 'classes', label: 'Classes', icon: '🎓' },
   { id: 'routines', label: 'Routines', icon: '🕐' },
   { id: 'places', label: 'Places', icon: '📍' },
-  { id: 'deleted', label: 'Deleted', icon: '🗑' },
+  { id: 'settings', label: 'Settings', icon: '⚙' },
 ];
 
 const SIDEBAR_MIN = 260;
@@ -101,7 +101,7 @@ export default function App() {
       classes: <ClassesPanel />,
       routines: <RoutinesPanel />,
       places: <PlacesPanel />,
-      deleted: <DeletedPanel />,
+      settings: <SettingsPanel />,
       calendar: null,
     })[t];
 
