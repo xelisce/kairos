@@ -1,6 +1,6 @@
 // The Taskline: one semester's tasks laid out left to right. Each task is a bar from its start
 // ("not before", else the day it was added) to its deadline, with a dot per session.
-// Everything here is scoped to one semester, so a semester can later be exported on its own (v7).
+// Everything here is scoped to one semester, so a semester can later be exported on its own (v8).
 import { addDays, endOfWeek, startOfDay } from 'date-fns';
 import type { AppData, Semester, Task } from '../types';
 import { ASSESSMENT_EVENTS, CATEGORY_COLORS } from './labels';
