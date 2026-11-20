@@ -143,7 +143,8 @@ export default function App() {
           </button>
         )}
         <div className="brand">
-          <img src="/icon.svg" alt="" width={24} height={24} /> Kairos
+          <img src="/icon.svg" alt="" width={24} height={24} />
+          <span className="label">Kairos</span>
         </div>
         <div className="segmented view-switch" role="group" aria-label="View">
           <button className={view === 'calendar' ? 'on' : ''} onClick={() => setView({ view: 'calendar' })}>
@@ -154,7 +155,7 @@ export default function App() {
           </button>
         </div>
         {wk && view === 'calendar' && (
-          <span className="tag neutral" title={wk.sem.name}>
+          <span className="tag neutral week-tag" title={wk.sem.name}>
             {weekLabelText(wk.label)}
           </span>
         )}

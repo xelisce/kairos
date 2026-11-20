@@ -46,7 +46,8 @@ function ScopeButton({
   return (
     <div className="split" ref={ref}>
       <button className="btn split-main" onClick={() => go('today')} title={help}>
-        {icon} {labels.today}
+        {icon}
+        <span className="label"> {labels.today}</span>
       </button>
       <button
         className="btn split-arrow"
