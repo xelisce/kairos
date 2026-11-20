@@ -214,10 +214,10 @@ function renderEvent(arg: EventContentArg) {
 }
 
 /**
- * Classes and CCAs are outlined (a light tint of their color, with a solid border), so the
- * tasks under them, which are solid, stand out from their course or club.
+ * Tasks are outlined (a light tint of their color, with a solid border), so they look different
+ * from the course or club they belong to; classes, CCAs and events stay solid.
  */
-const isOutlined = (o: Occ) => !o.skipped && (o.source.type === 'class' || o.source.type === 'activity');
+const isOutlined = (o: Occ) => !o.skipped && o.source.type === 'task';
 
 function colorsOf(o: Occ) {
   const border = o.warning ? 'var(--bad)' : o.color;

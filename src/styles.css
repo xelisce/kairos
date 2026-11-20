@@ -1272,7 +1272,7 @@ body.resizing {
   opacity: 0.6;
 }
 
-/* Classes and CCAs: outlined, so their (solid) tasks stand out */
+/* Tasks: outlined, so they look different from their (solid) course or club */
 .fc-event.k-outline {
   border-width: 2px;
   border-style: solid;
