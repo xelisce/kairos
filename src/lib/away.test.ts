@@ -34,6 +34,23 @@ describe('time away', () => {
     expect(sessions.filter(inAway)).toHaveLength(0);
   });
 
+  it('a fixed routine that runs into it keeps the part before: you still sleep the night before', () => {
+    const d = thanksgiving();
+    Object.assign(
+      d.routines.find((r) => r.title === 'Sleep')!,
+      { preferredStart: '02:00' },
+    );
+    d.settings.anyTime = true;
+    d.tasks = [task({ id: 't', durationMin: 60 })];
+    const occs = expand(d, fromLocal('2026-11-25'), fromLocal('2026-11-26'));
+    const sleep = occs.find(
+      (o) => o.title === 'Sleep' && o.start.getTime() === fromLocal('2026-11-25T02:00').getTime(),
+    );
+    expect(sleep?.end).toEqual(awayStart);
+    const [s] = planTasks(d, fromLocal('2026-11-25T01:30'))[0].sessions;
+    expect(overlaps(fromLocal(s.start), fromLocal(s.end), fromLocal('2026-11-25T02:00'), awayStart)).toBe(false);
+  });
+
   it('routines are hidden while away, and fit around it at the edges', () => {
     const occs = expand(thanksgiving(), fromLocal('2026-11-24'), fromLocal('2026-11-30'));
     const routines = occs.filter((o) => o.source.type === 'routine');

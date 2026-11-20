@@ -71,7 +71,7 @@ export interface ClassSeries {
   location?: string;
   /** Skipped: still shown (faded), but other things can use that time. */
   skipDates: LocalDate[];
-  /** Deleted: not shown at all (restore from the Deleted tab). */
+  /** Deleted: not shown at all (restore from Settings > Deleted). */
   deletedDates?: LocalDate[];
   /** Per-date moves, keyed by the original date. */
   overrides: Record<LocalDate, TimeOverride>;
@@ -102,7 +102,7 @@ export interface Activity {
   until?: LocalDate;
   /** Skipped: still shown (faded), but other things can use that time. */
   skipDates: LocalDate[];
-  /** Deleted: not shown at all (restore from the Deleted tab). */
+  /** Deleted: not shown at all (restore from Settings > Deleted). */
   deletedDates?: LocalDate[];
   overrides: Record<LocalDate, TimeOverride>;
   /** Per-date details, e.g. "Guest talk" or "Full team meeting". */
@@ -131,7 +131,7 @@ export interface Routine {
   color: string;
   /** Skipped: still shown (faded), but other things can use that time. */
   skipDates: LocalDate[];
-  /** Deleted: not shown at all (restore from the Deleted tab). */
+  /** Deleted: not shown at all (restore from Settings > Deleted). */
   deletedDates?: LocalDate[];
   /** Moved by hand on that day: pinned there, Re-plan leaves it alone until Reset. */
   overrides: Record<LocalDate, TimeOverride>;
@@ -237,6 +237,8 @@ export interface Settings {
   /** Hours the scheduler may place tasks in. */
   dayStart: HHMM;
   dayEnd: HHMM;
+  /** No hours limit: tasks may go any time nothing else (sleep, classes...) is there. */
+  anyTime?: boolean;
   /** Gap kept between scheduled things. */
   bufferMin: number;
   /** Extra minutes added to every trip (get out of the door, find the room). */
@@ -266,7 +268,7 @@ export interface AppData {
   travelOverrides: Record<string, number>;
   /** Travel blocks dragged to a different start time, keyed by travel key. */
   travelMoves: Record<string, LocalDateTime>;
-  /** Deleted events, tasks, classes, routines and CCAs, restorable from the Deleted tab. */
+  /** Deleted events, tasks, classes, routines and CCAs, restorable from Settings > Deleted. */
   trash: TrashItem[];
   /** Trips and holidays: no tasks planned, classes, CCAs and routines hidden. */
   away: AwayRange[];

@@ -48,7 +48,22 @@ export function expand(data: AppData, from: Date, to: Date, opts: ExpandOpts = {
   // Routines: fixed ones (not auto-scheduled, or moved by hand) go in now;
   // flexible ones are fitted around everything once the first trips are known.
   const { pinned, flexible, skippedRoutines } = routineOccs(data, pFrom, pTo);
-  fixed.push(...pinned.filter(notAway));
+  // A fixed routine that runs into the time away keeps the part before (or after) it: you still
+  // sleep the night before you leave.
+  const outsideAway = (o: Occ): Occ | null => {
+    let { start, end } = o;
+    for (const a of away) {
+      if (!(start < a.end && a.start < end)) continue;
+      if (start < a.start) end = a.start;
+      else if (end > a.end) start = a.end;
+      else return null;
+    }
+    return start < end ? { ...o, start, end } : null;
+  };
+  for (const o of pinned) {
+    const kept = outsideAway(o);
+    if (kept) fixed.push(kept);
+  }
   skippedRoutines.filter(notAway).forEach((o) => add([o, true]));
 
   // Tasks without a place happen wherever you are, so a trip waits until they're done.

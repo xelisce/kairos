@@ -7,7 +7,7 @@
 // routine can still fit somewhere in its window. Tasks with a location need their trips
 // to fit too: a candidate is checked by laying out that day with the session in it.
 import { addDays, addMinutes, format, startOfDay } from 'date-fns';
-import type { AppData, Occ, Task, TaskSession } from '../types';
+import type { AppData, Occ, Settings, Task, TaskSession } from '../types';
 import { awayIntervals } from './away';
 import { expand } from './expand';
 import { doneMinutes, limitsOf, plannedMinutes, sessionMinutes, unplannedMinutes } from './tasks';
@@ -38,15 +38,35 @@ interface Interval {
   end: Date;
 }
 
-/** Free gaps of `durationMin` (with the buffer around them), earliest first. */
-function* candidates(data: AppData, busy: Interval[], durationMin: number, from: Date, until: Date) {
-  const { dayStart, dayEnd, bufferMin } = data.settings;
-  const ds = hmToMin(dayStart);
-  const de = hmToMin(dayEnd);
-  for (const day of eachDay(from, until)) {
-    for (let m = ds; m + durationMin <= de; m += STEP) {
+/**
+ * When tasks may go, in minutes after midnight. An end at or before the start is on the next
+ * day (09:00 to 02:00 is 540 to 1560). `shift`: where one planning day ends and the next starts
+ * (02:00 there; midnight when the window doesn't cross it), so a late night counts as the day before.
+ * "Any time": the whole day, so only what's on the calendar (sleep, classes...) limits tasks.
+ */
+export function taskWindow({ dayStart, dayEnd, anyTime }: Pick<Settings, 'dayStart' | 'dayEnd' | 'anyTime'>) {
+  if (anyTime) return { start: 0, end: 24 * 60, shift: 0 };
+  const start = hmToMin(dayStart);
+  let end = hmToMin(dayEnd);
+  if (end <= start) end += 24 * 60;
+  return { start, end, shift: Math.max(0, end - 24 * 60) };
+}
+
+/**
+ * Free gaps of `durationMin` (with the buffer around them), earliest first: starting in
+ * [from, startBefore) and ending by `until`.
+ */
+function* candidates(data: AppData, busy: Interval[], durationMin: number, from: Date, startBefore: Date, until: Date) {
+  const { bufferMin } = data.settings;
+  const { start: ds, end: de } = taskWindow(data.settings);
+  // The window covers the whole day: a session may start late and end after it.
+  const wholeDay = de - ds >= 24 * 60;
+  // Start a day early: last night's window may still be open after midnight.
+  for (const day of eachDay(addDays(from, -1), startBefore)) {
+    for (let m = ds; wholeDay ? m < de : m + durationMin <= de; m += STEP) {
       const s = atMin(day, m);
       if (s < from) continue;
+      if (s >= startBefore) return;
       const e = addMinutes(s, durationMin);
       if (e > until) return;
       const bs = addMinutes(s, -bufferMin);
@@ -103,14 +123,20 @@ export function planTasks(data: AppData, now: Date): Task[] {
       .map((o) => ({ start: o.start, end: o.end })),
   ];
 
-  // Lay out one day with the current sessions. Cached per day; cleared when a session lands there.
+  // Lay out the day(s) a slot is on (two when it crosses midnight) with the current sessions.
+  // Warning counts are cached per range; cleared when a session lands on one of its days.
   const dayCache = new Map<string, number>();
-  const layout = (day: Date, list: Task[]) =>
-    expand({ ...data, tasks: list }, startOfDay(day), addDays(startOfDay(day), 1));
-  const baseline = (day: Date) => {
-    const k = dateKey(day);
-    if (!dayCache.has(k)) dayCache.set(k, warningsOn(layout(day, tasks)));
+  const lastDay = (slot: Interval) => addMinutes(slot.end, -1);
+  const layout = (slot: Interval, list: Task[]) =>
+    expand({ ...data, tasks: list }, startOfDay(slot.start), addDays(startOfDay(lastDay(slot)), 1));
+  const baseline = (slot: Interval) => {
+    const k = `${dateKey(slot.start)}|${dateKey(lastDay(slot))}`;
+    if (!dayCache.has(k)) dayCache.set(k, warningsOn(layout(slot, tasks)));
     return dayCache.get(k)!;
+  };
+  const forgetDays = (slot: Interval) => {
+    const days = [dateKey(slot.start), dateKey(lastDay(slot))];
+    for (const k of [...dayCache.keys()]) if (k.split('|').some((d) => days.includes(d))) dayCache.delete(k);
   };
 
   /** Would a new session of `t` at `slot` work? Its trips fit, nothing overlaps it, no new warnings that day. */
@@ -123,7 +149,7 @@ export function planTasks(data: AppData, now: Date): Task[] {
       pinned: false,
     };
     const trial = tasks.map((x) => (x.id === t.id ? { ...x, sessions: [...x.sessions, trialSession] } : x));
-    const occs = layout(slot.start, trial);
+    const occs = layout(slot, trial);
     const id = `task:${t.id}:trial`;
     const others = occs.filter((o) => o.id !== id && !o.skipped && !isTravel(o));
     // Nothing may sit on top of it (a routine that couldn't move away would),
@@ -135,19 +161,19 @@ export function planTasks(data: AppData, now: Date): Task[] {
     const myTrips = occs.filter((o) => isTravel(o) && o.id.includes(id));
     if (myTrips.some((tr) => tr.warning || others.some((o) => overlaps(tr.start, tr.end, o.start, o.end))))
       return false;
-    return warningsOn(occs, id) <= baseline(slot.start);
+    return warningsOn(occs, id) <= baseline(slot);
   };
 
-  /** First slot of `length` in [from, until) that fits; after MAX_CHECKS checks, the first free gap. */
   const checksUsed = new Map<string, number>();
   /**
-   * First slot of `length` in [from, until) that really works (see `fits`), or null.
+   * First slot of `length` starting in [from, startBefore) and ending by `until` that really
+   * works (see `fits`), or null.
    * Checks the start of every free gap, then every 15 minutes within it.
    */
-  const findSlot = (t: Task, length: number, from: Date, until: Date): Interval | null => {
+  const findSlot = (t: Task, length: number, from: Date, startBefore: Date, until: Date): Interval | null => {
     let lastChecked: Date | null = null;
     let previous: Date | null = null;
-    for (const c of candidates(data, busy, length, from, until)) {
+    for (const c of candidates(data, busy, length, from, startBefore, until)) {
       const newGap = !previous || c.start.getTime() - previous.getTime() > STEP * 60_000;
       previous = c.start;
       if (!newGap && lastChecked && c.start.getTime() - lastChecked.getTime() < CHECK_SPACING_MIN * 60_000) continue;
@@ -160,15 +186,22 @@ export function planTasks(data: AppData, now: Date): Task[] {
     return null;
   };
 
+  // Planning days run from `shift` to `shift` (02:00 to 02:00 for a 09:00-02:00 window), so a
+  // session at 00:30 counts towards the day before for the per-day limit.
+  const { shift } = taskWindow(data.settings);
+  const planDay = (d: Date) => dateKey(addMinutes(d, -shift));
   const minutesOnDay = (t: Task, day: Date) =>
-    t.sessions.filter((s) => dateKey(fromLocal(s.start)) === dateKey(day)).reduce((n, s) => n + sessionMinutes(s), 0);
+    t.sessions.filter((s) => planDay(fromLocal(s.start)) === dateKey(day)).reduce((n, s) => n + sessionMinutes(s), 0);
 
   /** Add sessions to `t` in [from, until) until its time is covered, within its limits. */
   const placeSessions = (t: Task, from: Date, until: Date) => {
     const limits = limitsOf(t);
-    for (const day of eachDay(from, until)) {
-      const dayFrom = day < from ? from : day;
-      const dayUntil = addDays(day, 1) < until ? addDays(day, 1) : until;
+    for (const day of eachDay(addMinutes(from, -shift), until)) {
+      const begin = atMin(day, shift);
+      const end = atMin(day, 24 * 60 + shift);
+      const dayFrom = begin < from ? from : begin;
+      const dayUntil = end < until ? end : until;
+      if (dayFrom >= dayUntil) continue;
       for (;;) {
         const remaining = unplannedMinutes(t);
         if (remaining <= 0) return;
@@ -181,11 +214,12 @@ export function planTasks(data: AppData, now: Date): Task[] {
           const shorter = length - (limits.minSessionMin - leftover);
           if (shorter >= limits.minSessionMin) length = shorter;
         }
-        const slot = findSlot(t, length, dayFrom, dayUntil);
+        // It may run past the end of the day (into the night), just not past `until`.
+        const slot = findSlot(t, length, dayFrom, dayUntil, until);
         if (!slot) break;
         t.sessions.push({ id: uid(), start: toLocal(slot.start), end: toLocal(slot.end), done: false, pinned: false });
         busy.push(slot);
-        dayCache.delete(dateKey(slot.start));
+        forgetDays(slot);
       }
     }
   };

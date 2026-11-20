@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { defaultData } from './defaults';
 import { expand } from './expand';
-import { planTasks, taskWarning } from './scheduler';
+import { planTasks, taskWarning, taskWindow } from './scheduler';
 import { DEFAULT_SPLIT, sessionMinutes } from './tasks';
 import { dateKey, fromLocal } from './time';
 import { sampleData, session, task } from '../test/fixtures';
@@ -199,5 +199,59 @@ describe('planning sessions yourself (auto-planning off)', () => {
     expect(t.sessions.map((s) => s.start)).toEqual(['2026-08-31T08:00']);
     expect(t.rolledForward).toBeFalsy();
     expect(taskWarning(t, now, 48)?.text).toBe('1h not planned yet');
+  });
+});
+
+describe('a task window that runs past midnight (09:00 to 02:00)', () => {
+  const overnight = () => {
+    const d = sampleData();
+    d.routines = [];
+    Object.assign(d.settings, { dayStart: '09:00', dayEnd: '02:00', bufferMin: 0 });
+    return d;
+  };
+
+  it('understands the end as the next day', () => {
+    expect(taskWindow({ dayStart: '09:00', dayEnd: '02:00' })).toEqual({ start: 540, end: 1560, shift: 120 });
+    expect(taskWindow({ dayStart: '08:00', dayEnd: '22:00' })).toEqual({ start: 480, end: 1320, shift: 0 });
+  });
+
+  it('plans late in the evening, even across midnight', () => {
+    const d = overnight();
+    d.tasks.push(task({ id: 't', durationMin: 60 }));
+    const [s] = planTasks(d, fromLocal('2026-08-31T23:30'))[0].sessions;
+    expect(s.start).toBe('2026-08-31T23:30');
+    expect(s.end).toBe('2026-09-01T00:30');
+  });
+
+  it('uses the time after midnight, but nothing after 02:00', () => {
+    const d = overnight();
+    d.tasks.push(task({ id: 't', durationMin: 60 }));
+    expect(planTasks(d, fromLocal('2026-09-01T00:40'))[0].sessions[0].start).toBe('2026-09-01T00:40');
+    expect(planTasks(d, fromLocal('2026-09-01T01:30'))[0].sessions[0].start).toBe('2026-09-01T09:00');
+  });
+});
+
+describe('tasks any time of day', () => {
+  const anyTime = () => {
+    const d = sampleData();
+    d.routines = [];
+    Object.assign(d.settings, { dayStart: '09:00', dayEnd: '17:00', anyTime: true, bufferMin: 0 });
+    return d;
+  };
+
+  it('ignores the hours, and may cross midnight', () => {
+    const d = anyTime();
+    d.tasks.push(task({ id: 't', durationMin: 60 }));
+    const [s] = planTasks(d, fromLocal('2026-08-31T23:30'))[0].sessions;
+    expect([s.start, s.end]).toEqual(['2026-08-31T23:30', '2026-09-01T00:30']);
+  });
+
+  it('still keeps out of sleep', () => {
+    const d = anyTime();
+    d.routines = defaultData().routines.filter((r) => r.title === 'Sleep');
+    Object.assign(d.routines[0], { flexible: false, preferredStart: '23:30', durationMin: 480 });
+    d.tasks.push(task({ id: 't', durationMin: 60 }));
+    const [s] = planTasks(d, fromLocal('2026-08-31T23:00'))[0].sessions;
+    expect(fromLocal(s.start) >= fromLocal('2026-09-01T07:30')).toBe(true);
   });
 });
