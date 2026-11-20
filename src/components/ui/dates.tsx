@@ -6,14 +6,17 @@ import { MAX_YEAR, MIN_YEAR } from '../../lib/limits';
  * Date box that always reads dd/mm/yyyy, whatever the browser's region.
  * Type it (checked when you leave the box) or use 📅 for the usual picker.
  * `value`/`onChange` use "yyyy-mm-dd" ('' = empty).
+ * `suggest`: filled in when you click into the box while it's empty (e.g. an arrival on the day you leave).
  */
 export function DateInput({
   value,
   onChange,
+  suggest,
   'aria-label': ariaLabel,
 }: {
   value: string;
   onChange: (v: string) => void;
+  suggest?: string;
   'aria-label'?: string;
 }) {
   const [text, setText] = useState(toDMY(value));
@@ -62,7 +65,13 @@ export function DateInput({
         placeholder="dd/mm/yyyy"
         value={text}
         aria-label={ariaLabel}
-        onFocus={() => setFocused(true)}
+        onFocus={() => {
+          setFocused(true);
+          if (!value && suggest) {
+            setText(toDMY(suggest));
+            onChange(suggest);
+          }
+        }}
         onChange={(e) => setText(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => {
@@ -94,17 +103,28 @@ export function DateTimeInput({
   value,
   onChange,
   defaultTime = '09:00',
+  suggest,
 }: {
   value: string;
   onChange: (v: string) => void;
   /** Used when a date is picked before a time. */
   defaultTime?: string;
+  /** Filled in (date and time) when you click into the empty date box. */
+  suggest?: string;
 }) {
   const date = value ? value.slice(0, 10) : '';
   const time = value ? value.slice(11, 16) : '';
+  const suggestedDate = suggest?.slice(0, 10);
+  // The suggested date comes with its time; any other date picked first gets the default time.
+  const timeFor = (d: string) => time || (d === suggestedDate ? suggest!.slice(11, 16) : '') || defaultTime;
   return (
     <div className="datetimeinput">
-      <DateInput value={date} aria-label="Date" onChange={(d) => onChange(d ? `${d}T${time || defaultTime}` : '')} />
+      <DateInput
+        value={date}
+        aria-label="Date"
+        suggest={suggestedDate}
+        onChange={(d) => onChange(d ? `${d}T${timeFor(d)}` : '')}
+      />
       <input
         type="time"
         aria-label="Time"

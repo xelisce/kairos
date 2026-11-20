@@ -167,7 +167,8 @@ export function PlanFields({
           <DateTimeInput value={p.start} onChange={(v) => v && onChange({ start: v })} />
         </Field>
         <Field label={p.kind === 'stay' ? 'Check out' : 'Arrives (optional)'}>
-          <DateTimeInput value={p.end ?? ''} onChange={(v) => onChange({ end: v || undefined })} />
+          {/* Click into the empty box: it starts from when you leave, so you only change the time. */}
+          <DateTimeInput value={p.end ?? ''} suggest={p.start} onChange={(v) => onChange({ end: v || undefined })} />
         </Field>
       </Row>
       <Row>
