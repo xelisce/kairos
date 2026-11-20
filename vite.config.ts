@@ -10,9 +10,13 @@ export default defineConfig({
       output: {
         // Big libraries in their own files: they change rarely, so after an update the browser
         // only downloads Kairos's own code again.
+        // (React and FullCalendar stay in one file: split apart, the calendar code can run
+        // before React is ready, and the app shows a blank page.)
         manualChunks: {
-          react: ['react', 'react-dom', 'zustand'],
-          calendar: [
+          vendor: [
+            'react',
+            'react-dom',
+            'zustand',
             '@fullcalendar/core',
             '@fullcalendar/daygrid',
             '@fullcalendar/interaction',
