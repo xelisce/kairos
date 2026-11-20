@@ -184,13 +184,13 @@ export function setSessionKind(o: Occ, kind: ClassKind | null) {
   });
 }
 
-/** What's special about one class/CCA session ("Guest talk"), or an event's / task's notes. Empty clears it. */
+/** What's special about one class/CCA/routine session ("Guest talk"), or an event's / task's notes. Empty clears it. */
 export function setDetail(o: Occ, text: string) {
   const value = text.trim();
   const src = o.source;
   commit(value ? `Details: ${value}` : `Clear details of ${o.title}`, (d) => {
-    if (src.type === 'class' || src.type === 'activity') {
-      const s = seriesOf(d, o) as ClassSeries | Activity | undefined;
+    if (src.type === 'class' || src.type === 'activity' || src.type === 'routine') {
+      const s = seriesOf(d, o);
       if (!s) return;
       s.details ??= {};
       if (value) s.details[src.date] = value;
@@ -200,6 +200,20 @@ export function setDetail(o: Occ, text: string) {
         src.type === 'event' ? d.events.find((x) => x.id === src.eventId) : d.tasks.find((x) => x.id === src.taskId);
       if (item) item.notes = value || undefined;
     }
+  });
+}
+
+/** Where one class / routine / CCA session happens, or `''` for its usual place. */
+export function setSessionLocation(o: Occ, location: string) {
+  const value = location.trim();
+  const src = o.source;
+  if (!('date' in src)) return;
+  commit(value ? `${o.title} at ${value}` : `${o.title} at usual place`, (d) => {
+    const s = seriesOf(d, o);
+    if (!s) return;
+    s.locationOverrides ??= {};
+    if (value && value !== s.location) s.locationOverrides[src.date] = value;
+    else delete s.locationOverrides[src.date];
   });
 }
 

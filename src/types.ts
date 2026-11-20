@@ -79,6 +79,8 @@ export interface ClassSeries {
   kindOverrides: Record<LocalDate, ClassKind>;
   /** Per-date details, e.g. "Midterm review". */
   details?: Record<LocalDate, string>;
+  /** Per-date place, e.g. a room change, or dinner out instead of at home. */
+  locationOverrides?: Record<LocalDate, string>;
 }
 
 /**
@@ -105,6 +107,8 @@ export interface Activity {
   overrides: Record<LocalDate, TimeOverride>;
   /** Per-date details, e.g. "Guest talk" or "Full team meeting". */
   details?: Record<LocalDate, string>;
+  /** Per-date place, e.g. a room change, or dinner out instead of at home. */
+  locationOverrides?: Record<LocalDate, string>;
 }
 
 export type RoutineCategory = 'meal' | 'hygiene' | 'sleep' | 'chores' | 'exercise' | 'other';
@@ -133,6 +137,10 @@ export interface Routine {
   overrides: Record<LocalDate, TimeOverride>;
   /** Length changed for that day only (minutes). Still auto-scheduled, keeps this length until Reset. */
   durationOverrides?: Record<LocalDate, number>;
+  /** Per-date details, e.g. "Dinner with Alex". */
+  details?: Record<LocalDate, string>;
+  /** Per-date place, e.g. a room change, or dinner out instead of at home. */
+  locationOverrides?: Record<LocalDate, string>;
 }
 
 export type EventCategory =

@@ -8,6 +8,7 @@ import {
   resetOcc,
   setDetail,
   setSessionKind,
+  setSessionLocation,
   setTaskOnCalendar,
   setTravel,
   skipOcc,
@@ -15,8 +16,8 @@ import {
   toggleTaskDone,
 } from '../../lib/actions';
 import { fmtDur, fmtTime } from '../../lib/time';
-import { Field, Modal, Row, useModal, useUI } from '../ui';
-import { kindOptions } from './shared';
+import { Field, LocationInput, Modal, Row, useModal, useUI } from '../ui';
+import { kindOptions, locationSuggestions } from './shared';
 
 export function OccurrenceDialog() {
   const { occ: o } = useModal('occ');
@@ -34,6 +35,15 @@ export function OccurrenceDialog() {
   const [detail, setDetailText] = useState(() =>
     src.type === 'event' || src.type === 'task' ? savedNotes : (o.detail ?? ''),
   );
+  const usualPlace =
+    src.type === 'class'
+      ? (series?.location ?? '')
+      : src.type === 'routine'
+        ? (data.routines.find((r) => r.id === src.routineId)?.location ?? '')
+        : src.type === 'activity'
+          ? (data.activities.find((a) => a.id === src.activityId)?.location ?? '')
+          : undefined;
+  const [place, setPlace] = useState(o.location ?? '');
   const [travelMin, setTravelMin] = useState(src.type === 'travel' ? String(src.minutes) : '');
 
   const moved =
@@ -77,15 +87,17 @@ export function OccurrenceDialog() {
       </p>
       {o.warning && <p className="warn-box">⚠️ {o.warning}</p>}
 
-      {src.type !== 'travel' && src.type !== 'routine' && (
+      {src.type !== 'travel' && (
         <Field
-          label={src.type === 'class' || src.type === 'activity' ? 'Details for this session only' : 'Details'}
+          label={isSession ? 'Details for this session only' : 'Details'}
           hint={
             src.type === 'activity'
               ? 'e.g. Guest talk by …, Full team meeting'
               : src.type === 'class'
                 ? 'e.g. Midterm review, bring laptop'
-                : undefined
+                : src.type === 'routine'
+                  ? 'e.g. Dinner with Alex'
+                  : undefined
           }
         >
           <div className="detail-row">
@@ -101,6 +113,24 @@ export function OccurrenceDialog() {
               className="btn"
               disabled={detail === (o.detail ?? savedNotes)}
               onClick={act(() => setDetail(o, detail))}
+            >
+              Save
+            </button>
+          </div>
+        </Field>
+      )}
+
+      {isSession && usualPlace !== undefined && (
+        <Field
+          label="Location for this session only"
+          hint={usualPlace ? `Usually: ${usualPlace}. Clear it to go back to that.` : 'Usually no place set.'}
+        >
+          <div className="detail-row">
+            <LocationInput value={place} onChange={setPlace} places={locationSuggestions(data)} />
+            <button
+              className="btn"
+              disabled={place.trim() === (o.location ?? '')}
+              onClick={act(() => setSessionLocation(o, place))}
             >
               Save
             </button>

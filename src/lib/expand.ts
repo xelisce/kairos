@@ -85,7 +85,7 @@ function classOccs(data: AppData, from: Date, to: Date): Candidate[] {
           subtitle: kind !== c.kind ? `instead of ${c.kind}` : mod.name,
           start: moved ? fromLocal(moved.start) : at(day, c.start),
           end: moved ? fromLocal(moved.end) : at(day, c.end),
-          location: c.location,
+          location: c.locationOverrides?.[dk] ?? c.location,
           color: mod.color,
           movable: true,
           assessment: ASSESSMENT_KINDS.includes(kind),
@@ -114,7 +114,7 @@ function activityOccs(data: AppData, from: Date, to: Date): Candidate[] {
           title: a.title,
           start: moved ? fromLocal(moved.start) : at(day, a.start),
           end: moved ? fromLocal(moved.end) : at(day, a.end),
-          location: a.location,
+          location: a.locationOverrides?.[dk] ?? a.location,
           color: a.color,
           movable: true,
           detail: a.details?.[dk],
@@ -202,7 +202,11 @@ function routineOccs(data: AppData, from: Date, to: Date) {
       if (!base.enabled || !base.days.includes(weekdayMon0(day)) || base.deletedDates?.includes(dk)) continue;
       // This day's own length, if you changed it.
       const len = base.durationOverrides?.[dk];
-      const r = len ? { ...base, durationMin: len } : base;
+      const r: Routine = {
+        ...base,
+        durationMin: len ?? base.durationMin,
+        location: base.locationOverrides?.[dk] ?? base.location,
+      };
       const moved = r.overrides[dk];
       const start = moved ? fromLocal(moved.start) : at(day, r.preferredStart);
       const end = moved ? fromLocal(moved.end) : addMinutes(start, r.durationMin);

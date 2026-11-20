@@ -19,6 +19,7 @@ export function routineOcc(r: Routine, dk: string, start: Date, end: Date, warni
     color: r.color,
     movable: true,
     warning,
+    detail: r.details?.[dk],
   };
 }
 
