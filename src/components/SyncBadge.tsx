@@ -10,6 +10,10 @@ const LOCAL = {
     label: 'Not saved to database',
     tip: 'The database server isn\'t running. Changes are kept in this browser and saved to the database when it\'s back. Start it with "npm run dev".',
   },
+  signedout: {
+    label: 'Not signed in',
+    tip: 'Changes are only kept in this browser. Sign in to save them to your account',
+  },
 } as const;
 
 const CLOUD = {
@@ -20,6 +24,7 @@ const CLOUD = {
     label: 'Offline',
     tip: "Can't reach the cloud. Changes are kept in this browser and saved once you're back online",
   },
+  signedout: LOCAL.signedout,
 } as const;
 
 /** Small status pill in the top bar: is everything saved, and where? Click it to sign in or out. */

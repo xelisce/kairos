@@ -80,3 +80,20 @@ export function watchAccount(onChange: (account: Account | null) => void) {
     setTimeout(() => onChange(account), 0);
   });
 }
+
+/** Your account's automatic backups (hourly, newest first). */
+export async function listCloudBackups(): Promise<{ id: number; created_at: string }[]> {
+  const { data, error } = await supabase!
+    .from('kairos_backups')
+    .select('id, created_at')
+    .order('id', { ascending: false })
+    .limit(100);
+  if (error) throw error;
+  return data;
+}
+
+export async function loadCloudBackup(id: number): Promise<AppData> {
+  const { data, error } = await supabase!.from('kairos_backups').select('data').eq('id', id).single();
+  if (error) throw error;
+  return data.data as AppData;
+}

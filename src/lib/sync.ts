@@ -7,7 +7,11 @@ import { applyRemote, useStore } from '../store';
 import { loadCloud, saveCloud, supabase, watchAccount, type Account, type SaveResult } from './cloud';
 import { merge3 } from './merge';
 
-export type SyncStatus = 'connecting' | 'saving' | 'saved' | 'offline';
+/** 'signedout': on the hosted site with nobody signed in, so changes stay in this browser only. */
+export type SyncStatus = 'connecting' | 'saving' | 'saved' | 'offline' | 'signedout';
+
+/** The local database only exists when Kairos runs on this computer (npm run dev / npm start). */
+export const hasLocalDb = ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname);
 
 export const useSync = create<{ status: SyncStatus; cloud: boolean; detail?: string }>(() => ({
   status: 'connecting',
@@ -49,6 +53,14 @@ const cloudBackend = (account: Account): Backend => ({
   load: loadCloud,
   save: saveCloud,
 });
+
+/** Hosted site, signed out: saves go nowhere (the browser copy still keeps them). */
+const signedOutBackend: Backend = {
+  metaKey: 'kairos:sync:none',
+  cloud: false,
+  load: () => Promise.reject(new Error('signed out')),
+  save: () => Promise.reject(new Error('signed out')),
+};
 
 interface Meta {
   version: number;
@@ -141,6 +153,7 @@ async function push() {
 }
 
 function schedulePush() {
+  if (backend === signedOutBackend) return;
   // Nothing really changed (the 5-minute re-plan often gives the same plan): don't save, so
   // other windows don't have to merge for nothing.
   if (synced && !meta.dirty && JSON.stringify(useStore.getState().data) === synced.json) return;
@@ -183,10 +196,17 @@ async function connect() {
   }
 }
 
-/** Start saving somewhere else (after signing in or out). */
-function useBackend(next: Backend) {
+/** Start saving somewhere else (after signing in or out); null: nowhere, until you sign in. */
+function useBackend(next: Backend | null) {
   clearTimeout(timer);
   clearTimeout(retry);
+  if (!next) {
+    backend = signedOutBackend;
+    meta = { version: 0, dirty: false };
+    synced = undefined;
+    setStatus('signedout');
+    return;
+  }
   backend = next;
   meta = readMeta(next.metaKey);
   synced = undefined;
@@ -198,7 +218,7 @@ function useBackend(next: Backend) {
 
 /** Load the saved copy if another window or device saved since; unsaved changes here get merged on save. */
 async function pull() {
-  if (inFlight) return;
+  if (inFlight || backend === signedOutBackend) return;
   const b = backend;
   try {
     const cur = await b.load();
@@ -225,5 +245,5 @@ export function startSync() {
     return;
   }
   // Supabase reports the saved sign-in (or none) first, then every sign-in and sign-out.
-  watchAccount((account) => useBackend(account ? cloudBackend(account) : localBackend));
+  watchAccount((account) => useBackend(account ? cloudBackend(account) : hasLocalDb ? localBackend : null));
 }
