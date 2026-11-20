@@ -97,3 +97,25 @@ export async function loadCloudBackup(id: number): Promise<AppData> {
   if (error) throw error;
   return data.data as AppData;
 }
+
+/**
+ * Hear about saves to your row from other devices, within seconds. `onVersion` gets the new
+ * version number; `onConnected` runs each time the live connection is (re)established, since
+ * saves made while it was down weren't heard. Returns a function that stops listening.
+ */
+export function watchCloud(userId: string, onVersion: (version: number) => void, onConnected: () => void) {
+  const channel = supabase!
+    .channel(`kairos-data-${userId}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'kairos_data', filter: `user_id=eq.${userId}` },
+      (payload) => {
+        const version = (payload.new as { version?: number } | null)?.version;
+        if (typeof version === 'number') onVersion(version);
+      },
+    )
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') onConnected();
+    });
+  return () => void supabase!.removeChannel(channel);
+}

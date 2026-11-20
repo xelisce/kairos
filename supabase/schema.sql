@@ -76,3 +76,15 @@ grant execute on function public.kairos_save(integer, jsonb) to authenticated;
 -- Signed-in accounts may read their own row (row security above); writes only go through kairos_save.
 revoke all on public.kairos_data, public.kairos_backups from anon, authenticated;
 grant select on public.kairos_data, public.kairos_backups to authenticated;
+
+-- Live updates: devices hear about each other's saves within seconds (row security still applies).
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'kairos_data'
+  ) then
+    alter publication supabase_realtime add table public.kairos_data;
+  end if;
+end
+$$;

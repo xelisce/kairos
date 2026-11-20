@@ -4,7 +4,7 @@
 import { create } from 'zustand';
 import type { AppData } from '../types';
 import { applyRemote, useStore } from '../store';
-import { loadCloud, saveCloud, supabase, watchAccount, type Account, type SaveResult } from './cloud';
+import { loadCloud, saveCloud, supabase, watchAccount, watchCloud, type Account, type SaveResult } from './cloud';
 import { merge3 } from './merge';
 
 /** 'signedout': on the hosted site with nobody signed in, so changes stay in this browser only. */
@@ -25,6 +25,8 @@ interface Backend {
   cloud: boolean;
   load(): Promise<{ data: AppData | null; version: number }>;
   save(data: AppData, baseVersion: number): Promise<SaveResult>;
+  /** Live updates: call `onVersion` when another device saves. Returns a function that stops it. */
+  watch?(onVersion: (version: number) => void, onConnected: () => void): () => void;
 }
 
 const localBackend: Backend = {
@@ -52,6 +54,7 @@ const cloudBackend = (account: Account): Backend => ({
   cloud: true,
   load: loadCloud,
   save: saveCloud,
+  watch: (onVersion, onConnected) => watchCloud(account.id, onVersion, onConnected),
 });
 
 /** Hosted site, signed out: saves go nowhere (the browser copy still keeps them). */
@@ -90,11 +93,30 @@ let retry: ReturnType<typeof setTimeout> | undefined;
 let inFlight = false;
 let again = false;
 let remoteApplying = false;
-/** The saved copy as of the last load or save: the common starting point when merging. */
+/**
+ * The saved copy as of the last load or save: the common starting point when merging. Kept in
+ * localStorage too, so edits made offline merge properly even after the app was closed.
+ */
 let synced: { data: AppData; json: string } | undefined;
-const remember = (data: AppData) => {
-  synced = { data: structuredClone(data), json: JSON.stringify(data) };
-};
+const baseKey = () => `${backend.metaKey}:base`;
+function setSynced(data: AppData | undefined) {
+  synced = data && { data: structuredClone(data), json: JSON.stringify(data) };
+  try {
+    if (synced) localStorage.setItem(baseKey(), synced.json);
+    else localStorage.removeItem(baseKey());
+  } catch {
+    /* storage full: merging just keeps a bit more */
+  }
+}
+function readSynced() {
+  try {
+    const json = localStorage.getItem(baseKey());
+    synced = json ? { data: JSON.parse(json) as AppData, json } : undefined;
+  } catch {
+    synced = undefined;
+  }
+}
+let unwatch: (() => void) | undefined;
 
 /** Switch to the saved copy (another window or device changed it, and we have nothing unsaved). */
 function takeRemote(data: AppData, version: number) {
@@ -103,7 +125,7 @@ function takeRemote(data: AppData, version: number) {
   applyRemote(data);
   remoteApplying = false;
   // The app re-plans what it loads, so remember the copy as the app holds it.
-  remember(useStore.getState().data);
+  setSynced(useStore.getState().data);
 }
 
 const setStatus = (status: SyncStatus, detail?: string) => useSync.setState({ status, detail, cloud: backend.cloud });
@@ -129,12 +151,12 @@ async function push() {
       remoteApplying = true;
       applyRemote(merged);
       remoteApplying = false;
-      synced = { data: res.data, json: JSON.stringify(res.data) };
+      setSynced(res.data);
       again = true;
       setStatus('saving', 'Merged with changes from another window');
     } else {
       writeMeta({ version: res.version, dirty: false });
-      remember(sent);
+      setSynced(sent);
       setStatus('saved');
     }
   } catch {
@@ -200,6 +222,8 @@ async function connect() {
 function useBackend(next: Backend | null) {
   clearTimeout(timer);
   clearTimeout(retry);
+  unwatch?.();
+  unwatch = undefined;
   if (!next) {
     backend = signedOutBackend;
     meta = { version: 0, dirty: false };
@@ -209,11 +233,18 @@ function useBackend(next: Backend | null) {
   }
   backend = next;
   meta = readMeta(next.metaKey);
-  synced = undefined;
+  readSynced();
   inFlight = false;
   again = false;
   setStatus('connecting');
   void connect();
+  // Another device saved: load it now (or merge, if there are unsaved changes here).
+  unwatch = next.watch?.(
+    (version) => {
+      if (version !== meta.version) void pull();
+    },
+    () => void pull(),
+  );
 }
 
 /** Load the saved copy if another window or device saved since; unsaved changes here get merged on save. */
@@ -240,7 +271,14 @@ export function startSync() {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') void pull();
   });
+  // Back online: save what was changed offline (or load what changed elsewhere) right away.
+  window.addEventListener('online', () => {
+    if (useSync.getState().status !== 'offline') return;
+    clearTimeout(retry);
+    void (meta.dirty ? push() : connect());
+  });
   if (!supabase) {
+    readSynced();
     void connect();
     return;
   }
