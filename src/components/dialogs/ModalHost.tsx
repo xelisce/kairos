@@ -12,6 +12,7 @@ import { OccurrenceDialog } from './OccurrenceDialog';
 import { RoutineDialog } from './RoutineDialog';
 import { SemesterDialog } from './SemesterDialog';
 import { TaskDialog } from './TaskDialog';
+import { TravelPlanDialog } from './TravelPlanDialog';
 
 export function ModalHost() {
   const modal = useUI((s) => s.modal);
@@ -37,6 +38,8 @@ export function ModalHost() {
       return <NusmodsDialog />;
     case 'away':
       return <AwayDialog key={modal.id ?? 'new'} />;
+    case 'travelPlan':
+      return <TravelPlanDialog key={modal.planId} />;
     case 'account':
       return <AccountDialog />;
     case 'newChoice':

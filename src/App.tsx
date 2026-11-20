@@ -15,6 +15,7 @@ import { ReplanButton, ResetButton } from './components/ReplanButton';
 import { SyncBadge } from './components/SyncBadge';
 import { readJson, writeStored } from './lib/storage';
 import { useNarrow } from './hooks/useNarrow';
+import { displayOf } from './lib/display';
 
 type Tab = 'calendar' | 'tasks' | 'classes' | 'routines' | 'places' | 'settings';
 const TABS: { id: Tab; label: string; icon: string }[] = [
@@ -66,6 +67,12 @@ export default function App() {
   useEffect(() => {
     window.dispatchEvent(new Event('resize'));
   }, [sb.width, sb.open]);
+
+  // How faded skipped sessions are (Settings > Display).
+  const skippedOpacity = displayOf(data.settings).skippedOpacity;
+  useEffect(() => {
+    document.documentElement.style.setProperty('--skipped-opacity', String(skippedOpacity));
+  }, [skippedOpacity]);
 
   // Keyboard undo/redo (not while typing).
   useEffect(() => {

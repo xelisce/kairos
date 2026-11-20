@@ -8,6 +8,7 @@ import {
   resetOcc,
   setDetail,
   setSessionKind,
+  resetSessionLocation,
   setSessionLocation,
   setTaskOnCalendar,
   setTravel,
@@ -45,6 +46,16 @@ export function OccurrenceDialog() {
           ? (data.activities.find((a) => a.id === src.activityId)?.location ?? '')
           : undefined;
   const [place, setPlace] = useState(o.location ?? '');
+  // This session has its own place (or none) instead of the usual one.
+  const ownPlace =
+    'date' in src &&
+    (src.type === 'class'
+      ? series?.locationOverrides
+      : src.type === 'routine'
+        ? data.routines.find((r) => r.id === src.routineId)?.locationOverrides
+        : src.type === 'activity'
+          ? data.activities.find((a) => a.id === src.activityId)?.locationOverrides
+          : undefined)?.[src.date] !== undefined;
   const [travelMin, setTravelMin] = useState(src.type === 'travel' ? String(src.minutes) : '');
 
   const moved =
@@ -124,7 +135,9 @@ export function OccurrenceDialog() {
       {isSession && usualPlace !== undefined && (
         <Field
           label="Location for this session only"
-          hint={usualPlace ? `Usually: ${usualPlace}. Clear it to go back to that.` : 'Usually no place set.'}
+          hint={
+            usualPlace ? `Usually: ${usualPlace}. Clear it and save for no place this time.` : 'Usually no place set.'
+          }
         >
           <div className="detail-row">
             <LocationInput value={place} onChange={setPlace} places={locationSuggestions(data)} />
@@ -135,6 +148,15 @@ export function OccurrenceDialog() {
             >
               Save
             </button>
+            {ownPlace && (
+              <button
+                className="btn"
+                onClick={act(() => resetSessionLocation(o))}
+                title={`Back to ${usualPlace || 'no place'}`}
+              >
+                Use usual place
+              </button>
+            )}
           </div>
         </Field>
       )}

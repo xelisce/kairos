@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { addDays, differenceInMinutes, startOfDay } from 'date-fns';
 import { useStore } from '../store';
 import { expand } from '../lib/expand';
+import { displayOf, shown } from '../lib/display';
 import { runningLate } from '../lib/actions';
 import { fmtDur, fmtTime } from '../lib/time';
 import { useUI } from './ui';
@@ -15,7 +16,9 @@ export function NowNext() {
   const now = useNow();
   const occs = useMemo(
     () =>
-      expand(data, startOfDay(now), addDays(startOfDay(now), 2)).sort((a, b) => a.start.getTime() - b.start.getTime()),
+      expand(data, startOfDay(now), addDays(startOfDay(now), 2))
+        .map((o) => shown(o, displayOf(data.settings)))
+        .sort((a, b) => a.start.getTime() - b.start.getTime()),
     [data, now],
   );
   const live = occs.filter((o) => !o.skipped);

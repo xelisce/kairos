@@ -5,7 +5,7 @@ import { useStore } from '../../store';
 import type { AwayRange, TravelPlan, TravelPlanKind } from '../../types';
 import { at, toLocal, uid } from '../../lib/time';
 import { newDefaults } from '../../lib/newDefaults';
-import { coverPlans, PLAN_KINDS } from '../../lib/travelPlans';
+import { PLAN_KINDS, withPlans } from '../../lib/travelPlans';
 import { DateTimeInput, DialogButtons, Field, Modal, Row, useModal, useUI } from '../ui';
 import { upsert, useDraft } from './shared';
 
@@ -33,14 +33,8 @@ export function AwayDialog() {
   const name = a.title.trim() || 'Away';
   const save = () => {
     if (!canSave) return;
-    const tidy = plans.map((p) => ({
-      ...p,
-      title: p.title.trim(),
-      where: p.where?.trim() || undefined,
-      notes: p.notes?.trim() || undefined,
-      end: p.end && p.end > p.start ? p.end : undefined,
-    }));
-    const saved = coverPlans({ ...a, title: a.title.trim(), plans: tidy.length ? tidy : undefined });
+    // Saved in time order: a plan added later (or moved to another day) lands where it belongs.
+    const saved = withPlans(a, plans);
     commit(existing ? `Edit ${name}` : `Add ${name}`, (d) => upsert(d.away, saved));
     close();
   };
@@ -109,48 +103,7 @@ function TravelPlans({
       <h4 className="plans-head">Travel plans</h4>
       {plans.map((p) => (
         <div key={p.id} className="plan-edit">
-          <Row>
-            <Field label="Kind">
-              <select value={p.kind} onChange={(e) => edit(p.id, { kind: e.target.value as TravelPlanKind })}>
-                {Object.entries(PLAN_KINDS).map(([k, v]) => (
-                  <option key={k} value={k}>
-                    {v.icon} {v.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="What">
-              <input
-                value={p.title}
-                placeholder={PLAN_KINDS[p.kind].placeholder}
-                onChange={(e) => edit(p.id, { title: e.target.value })}
-              />
-            </Field>
-          </Row>
-          <Row>
-            <Field label={p.kind === 'stay' ? 'Check in' : 'Leaves'}>
-              <DateTimeInput value={p.start} onChange={(v) => v && edit(p.id, { start: v })} />
-            </Field>
-            <Field label={p.kind === 'stay' ? 'Check out' : 'Arrives (optional)'}>
-              <DateTimeInput value={p.end ?? ''} onChange={(v) => edit(p.id, { end: v || undefined })} />
-            </Field>
-          </Row>
-          <Row>
-            <Field label="Where (optional)">
-              <input
-                value={p.where ?? ''}
-                placeholder={p.kind === 'flight' ? 'e.g. MSN Terminal, gate B4' : 'Address or station'}
-                onChange={(e) => edit(p.id, { where: e.target.value })}
-              />
-            </Field>
-            <Field label="Notes (optional)">
-              <input
-                value={p.notes ?? ''}
-                placeholder="Booking code, seat…"
-                onChange={(e) => edit(p.id, { notes: e.target.value })}
-              />
-            </Field>
-          </Row>
+          <PlanFields plan={p} onChange={(patch) => edit(p.id, patch)} />
           <button className="linkish bad small" onClick={() => onChange(plans.filter((x) => x.id !== p.id))}>
             Remove {PLAN_KINDS[p.kind].label.toLowerCase()}
           </button>
@@ -168,6 +121,62 @@ function TravelPlans({
           Some plans are outside the dates above: saving stretches the time away to cover them.
         </p>
       )}
+    </>
+  );
+}
+
+/** The fields of one travel plan: kind, what, when, where, notes. */
+export function PlanFields({
+  plan: p,
+  onChange,
+}: {
+  plan: TravelPlan;
+  onChange: (patch: Partial<TravelPlan>) => void;
+}) {
+  return (
+    <>
+      <Row>
+        <Field label="Kind">
+          <select value={p.kind} onChange={(e) => onChange({ kind: e.target.value as TravelPlanKind })}>
+            {Object.entries(PLAN_KINDS).map(([k, v]) => (
+              <option key={k} value={k}>
+                {v.icon} {v.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="What">
+          <input
+            value={p.title}
+            placeholder={PLAN_KINDS[p.kind].placeholder}
+            onChange={(e) => onChange({ title: e.target.value })}
+          />
+        </Field>
+      </Row>
+      <Row>
+        <Field label={p.kind === 'stay' ? 'Check in' : 'Leaves'}>
+          <DateTimeInput value={p.start} onChange={(v) => v && onChange({ start: v })} />
+        </Field>
+        <Field label={p.kind === 'stay' ? 'Check out' : 'Arrives (optional)'}>
+          <DateTimeInput value={p.end ?? ''} onChange={(v) => onChange({ end: v || undefined })} />
+        </Field>
+      </Row>
+      <Row>
+        <Field label="Where (optional)">
+          <input
+            value={p.where ?? ''}
+            placeholder={p.kind === 'flight' ? 'e.g. MSN Terminal, gate B4' : 'Address or station'}
+            onChange={(e) => onChange({ where: e.target.value })}
+          />
+        </Field>
+        <Field label="Notes (optional)">
+          <input
+            value={p.notes ?? ''}
+            placeholder="Booking code, seat…"
+            onChange={(e) => onChange({ notes: e.target.value })}
+          />
+        </Field>
+      </Row>
     </>
   );
 }

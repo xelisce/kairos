@@ -210,17 +210,27 @@ export function setDetail(o: Occ, text: string) {
   });
 }
 
-/** Where one class / routine / CCA session happens, or `''` for its usual place. */
+/** Where one class / routine / CCA session happens. `''`: nowhere this time (not its usual place). */
 export function setSessionLocation(o: Occ, location: string) {
   const value = location.trim();
   const src = o.source;
   if (!('date' in src)) return;
-  commit(value ? `${o.title} at ${value}` : `${o.title} at usual place`, (d) => {
+  commit(value ? `${o.title} at ${value}` : `${o.title} with no place`, (d) => {
     const s = seriesOf(d, o);
     if (!s) return;
     s.locationOverrides ??= {};
-    if (value && value !== s.location) s.locationOverrides[src.date] = value;
-    else delete s.locationOverrides[src.date];
+    if (value === (s.location ?? '')) delete s.locationOverrides[src.date];
+    else s.locationOverrides[src.date] = value;
+  });
+}
+
+/** Back to the usual place for one class / routine / CCA session. */
+export function resetSessionLocation(o: Occ) {
+  const src = o.source;
+  if (!('date' in src)) return;
+  commit(`${o.title} at usual place`, (d) => {
+    const s = seriesOf(d, o);
+    if (s?.locationOverrides) delete s.locationOverrides[src.date];
   });
 }
 

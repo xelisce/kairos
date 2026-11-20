@@ -125,7 +125,8 @@ function classOccs(data: AppData, from: Date, to: Date): Candidate[] {
           subtitle: kind !== c.kind ? `instead of ${c.kind}` : mod.name,
           start: moved ? fromLocal(moved.start) : at(day, c.start),
           end: moved ? fromLocal(moved.end) : at(day, c.end),
-          location: c.locationOverrides?.[dk] ?? c.location,
+          // An override of '' means no place that day.
+          location: (c.locationOverrides?.[dk] ?? c.location) || undefined,
           color: mod.color,
           movable: true,
           assessment: ASSESSMENT_KINDS.includes(kind),
@@ -154,7 +155,7 @@ function activityOccs(data: AppData, from: Date, to: Date): Candidate[] {
           title: a.title,
           start: moved ? fromLocal(moved.start) : at(day, a.start),
           end: moved ? fromLocal(moved.end) : at(day, a.end),
-          location: a.locationOverrides?.[dk] ?? a.location,
+          location: (a.locationOverrides?.[dk] ?? a.location) || undefined,
           color: a.color,
           movable: true,
           detail: a.details?.[dk],
@@ -248,7 +249,7 @@ function routineOccs(data: AppData, from: Date, to: Date) {
       const r: Routine = {
         ...base,
         durationMin: len ?? base.durationMin,
-        location: base.locationOverrides?.[dk] ?? base.location,
+        location: (base.locationOverrides?.[dk] ?? base.location) || undefined,
       };
       const moved = r.overrides[dk];
       const start = moved ? fromLocal(moved.start) : at(day, r.preferredStart);

@@ -50,3 +50,17 @@ export function coverPlans(a: AwayRange): AwayRange {
   }
   return { ...a, start, end };
 }
+
+/** A trip with these plans, ready to save: tidied, in time order, and stretched to cover them. */
+export function withPlans(a: AwayRange, plans: TravelPlan[]): AwayRange {
+  const tidy = [...plans]
+    .sort((x, y) => x.start.localeCompare(y.start))
+    .map((p) => ({
+      ...p,
+      title: p.title.trim(),
+      where: p.where?.trim() || undefined,
+      notes: p.notes?.trim() || undefined,
+      end: p.end && p.end > p.start ? p.end : undefined,
+    }));
+  return coverPlans({ ...a, title: a.title.trim(), plans: tidy.length ? tidy : undefined });
+}

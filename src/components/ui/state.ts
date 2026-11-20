@@ -22,6 +22,7 @@ export type ModalState =
   | { kind: 'activity'; id?: string }
   | { kind: 'newChoice'; start: Date; end: Date }
   | { kind: 'away'; id?: string; start?: Date; end?: Date }
+  | { kind: 'travelPlan'; awayId: string; planId: string }
   | { kind: 'nusmods'; semesterId: string }
   | { kind: 'account' };
 

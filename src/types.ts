@@ -243,6 +243,8 @@ export interface Settings {
   anyTime?: boolean;
   /** What new tasks, events, trips... start with; only what you changed (see lib/newDefaults.ts). */
   newDefaults?: Partial<NewItemDefaults>;
+  /** How the calendar looks (see lib/display.ts); only what you changed. */
+  display?: Partial<DisplaySettings>;
   /** Gap kept between scheduled things. */
   bufferMin: number;
   /** Extra minutes added to every trip (get out of the door, find the room). */
@@ -253,6 +255,26 @@ export interface Settings {
   horizonDays: number;
   /** Warn for unscheduled tasks due within this many hours. */
   warnHours: number;
+}
+
+/** How things are shown (Settings > Display). */
+export interface DisplaySettings {
+  /** Don't show warnings on routines (squeezed out of their window...). */
+  silenceRoutines: boolean;
+  /** ...on tasks (after the deadline, not planned...). */
+  silenceTasks: boolean;
+  /** ...on trips (arriving late, too little time...). */
+  silenceTravel: boolean;
+  /** Travel blocks can be dragged to another time. */
+  dragTravel: boolean;
+  /** Holidays, break and exam weeks shown as tinted columns with a label. */
+  showSpecialDays: boolean;
+  /** The place shown on calendar blocks. */
+  showLocations: boolean;
+  /** How visible skipped sessions are: 0.1 (barely) to 0.8. */
+  skippedOpacity: number;
+  /** Swatches in the color picker. */
+  colorPresets: string[];
 }
 
 /** What new things start with (Settings > New items). */

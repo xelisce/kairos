@@ -150,3 +150,14 @@ describe('CCAs and events', () => {
     expect(occs.find((o) => o.id === 'event:e')!.detail).toBe('Guest talk');
   });
 });
+
+describe('a routine with its place changed for one day', () => {
+  it('can have no place that day, instead of falling back to its usual one', () => {
+    const d = defaultData();
+    const dinner = d.routines.find((r) => r.title === 'Dinner')!;
+    Object.assign(dinner, { location: 'Home', locationOverrides: { '2026-11-20': '' } });
+    const at = (dk: string) => expand(d, ...day(dk)).find((o) => o.title === 'Dinner')!.location;
+    expect(at('2026-11-20')).toBeUndefined();
+    expect(at('2026-11-21')).toBe('Home');
+  });
+});

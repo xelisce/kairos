@@ -11,8 +11,9 @@ import { expand } from '../lib/expand';
 import { moveOcc } from '../lib/actions';
 import { fmtTime, fromLocal } from '../lib/time';
 import { dayMarker } from '../lib/weeks';
+import { displayOf, shown } from '../lib/display';
 import { useUI } from './ui';
-import type { AwayRange, Occ, TravelPlan } from '../types';
+import type { AwayRange, DisplaySettings, Occ, TravelPlan } from '../types';
 import { PLAN_KINDS, planBlocks, planTitle } from '../lib/travelPlans';
 
 export function CalendarView({
@@ -29,11 +30,19 @@ export function CalendarView({
   const [initialScroll] = useState(() => new Date(Date.now() - 3600_000).toTimeString().slice(0, 8));
   const narrow = typeof window !== 'undefined' && window.innerWidth < 720;
 
-  const occs = useMemo(() => (range ? expand(data, range.start, range.end) : []), [data, range]);
+  const display = displayOf(data.settings);
+  // Without the warnings you turned off (Settings > Display).
+  const occs = useMemo(() => {
+    const d = displayOf(data.settings);
+    return range ? expand(data, range.start, range.end).map((o) => shown(o, d)) : [];
+  }, [data, range]);
+  /** Holidays, break and exam weeks, unless you hid them. */
+  const markerOf = (date: Date) => (display.showSpecialDays ? dayMarker(data.semesters, date) : null);
   const byId = useMemo(() => new Map(occs.map((o) => [o.id, o])), [occs]);
 
-  const events = useMemo(
-    () => [
+  const events = useMemo(() => {
+    const d = displayOf(data.settings);
+    return [
       // Time away: a striped band behind everything. Click it to edit.
       ...data.away.map((a) => ({
         id: `away:${a.id}`,
@@ -64,7 +73,7 @@ export function CalendarView({
         start: o.start,
         end: o.end,
         ...colorsOf(o),
-        editable: o.movable,
+        editable: canDrag(o, d),
         // Skipped: drawn behind everything, so other blocks can sit on top of it.
         display: o.skipped ? 'background' : 'auto',
         classNames: [
@@ -75,15 +84,14 @@ export function CalendarView({
           o.skipped ? 'k-skipped' : '',
           isOutlined(o) ? 'k-outline' : '',
         ].filter(Boolean),
-        extendedProps: { occ: o },
+        extendedProps: { occ: o, hideLocation: !d.showLocations },
       })),
-    ],
-    [occs, data.away],
-  );
+    ];
+  }, [occs, data.away, data.settings]);
 
   const onChange = (how: 'move' | 'resize') => (info: EventDropArg | EventResizeDoneArg) => {
     const o = byId.get(info.event.id);
-    if (!o || !o.movable || !info.event.start) return info.revert();
+    if (!o || !canDrag(o, display) || !info.event.start) return info.revert();
     moveOcc(o, info.event.start, info.event.end ?? info.event.start, how);
   };
 
@@ -196,6 +204,9 @@ export function CalendarView({
         eventResize={onChange('resize')}
         eventClick={(info: EventClickArg) => {
           const away = info.event.extendedProps.away as AwayRange | undefined;
+          const plan = info.event.extendedProps.plan as TravelPlan | undefined;
+          // A flight, bus ride...: just that plan. The striped band: the whole trip.
+          if (away && plan) return open({ kind: 'travelPlan', awayId: away.id, planId: plan.id });
           if (away) return open({ kind: 'away', id: away.id });
           const o = byId.get(info.event.id);
           if (o) open({ kind: 'occ', occ: o });
@@ -213,15 +224,15 @@ export function CalendarView({
         }}
         eventContent={renderEvent}
         dayCellClassNames={(arg) => {
-          const mk = dayMarker(data.semesters, arg.date);
+          const mk = markerOf(arg.date);
           return mk ? ['k-day-marked', `k-day-${mk.kind}`] : [];
         }}
         dayHeaderClassNames={(arg) => {
-          const mk = dayMarker(data.semesters, arg.date);
+          const mk = markerOf(arg.date);
           return mk ? ['k-day-marked', `k-day-${mk.kind}`] : [];
         }}
         dayHeaderContent={(arg) => {
-          const mk = dayMarker(data.semesters, arg.date);
+          const mk = markerOf(arg.date);
           return (
             <div className="day-head">
               <span>{arg.text}</span>
@@ -237,6 +248,9 @@ export function CalendarView({
     </div>
   );
 }
+
+/** Can this block be dragged? Trips only if Settings > Display allows it. */
+const canDrag = (o: Occ, d: DisplaySettings) => o.movable && (d.dragTravel || o.source.type !== 'travel');
 
 const isDone = (o: Occ) => o.source.type === 'task' && o.title.startsWith('✓');
 
@@ -274,9 +288,11 @@ function renderEvent(arg: EventContentArg) {
   const end = arg.event.end ?? o.end;
   const time = `${fmtTime(start)}–${fmtTime(end)}`;
   const mins = (end.getTime() - start.getTime()) / 60000;
+  // Settings > Display can hide the place on blocks (it's still in the block's dialog).
+  const place = arg.event.extendedProps.hideLocation ? undefined : o.location;
   const tip = [
     o.detail ? `${o.title} · ${o.detail}` : o.title,
-    `${time}${o.location ? `, ${o.location}` : ''}`,
+    `${time}${place ? `, ${place}` : ''}`,
     o.subtitle,
     o.warning && `⚠️ ${o.warning}`,
   ]
@@ -298,7 +314,7 @@ function renderEvent(arg: EventContentArg) {
       </div>
     );
   }
-  const where = o.location ? `, ${o.location}` : '';
+  const where = place ? `, ${place}` : '';
   // Short blocks: one line "Title · detail, place", cut off with "…".
   if (mins < 30) {
     return (

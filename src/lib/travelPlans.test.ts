@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { coverPlans, planBlocks, planEnd, sortedPlans } from './travelPlans';
+import { coverPlans, planBlocks, planEnd, sortedPlans, withPlans } from './travelPlans';
 import type { AwayRange } from '../types';
 
 const trip = (): AwayRange => ({
@@ -37,5 +37,25 @@ describe('travel plans on the calendar', () => {
     expect(planBlocks(out).map((b) => b.label)).toEqual(['MSN → SFO']);
     const stay = { ...trip().plans![2], end: '2026-11-29T11:00' };
     expect(planBlocks(stay).map((b) => b.label)).toEqual(['Check in: Aunt May', 'Check out: Aunt May']);
+  });
+});
+
+describe('saving a trip', () => {
+  it('puts its plans in time order (a flight added on the 29th goes before the bus on the 30th)', () => {
+    const a: AwayRange = {
+      id: 'a',
+      title: ' Trip ',
+      start: '2026-11-21T06:00',
+      end: '2026-11-30T23:00',
+      plans: [
+        { id: 'f1', kind: 'flight', title: 'Out', start: '2026-11-21T09:00' },
+        { id: 'bus', kind: 'bus', title: 'Bus', start: '2026-11-30T10:00', where: '  ' },
+        { id: 'f2', kind: 'flight', title: 'Back', start: '2026-11-29T18:00' },
+      ],
+    };
+    const saved = withPlans(a, a.plans!);
+    expect(saved.plans!.map((p) => p.id)).toEqual(['f1', 'f2', 'bus']);
+    expect(saved.title).toBe('Trip');
+    expect(saved.plans![2].where).toBeUndefined();
   });
 });

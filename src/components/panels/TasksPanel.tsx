@@ -5,6 +5,7 @@ import type { AppData, AwayRange, Task } from '../../types';
 import { quickAddTask, setTaskOnCalendar, toggleTaskDone } from '../../lib/actions';
 import { taskWarning } from '../../lib/scheduler';
 import { blockersOf } from '../../lib/dependencies';
+import { displayOf } from '../../lib/display';
 import { doneMinutes, nextSession } from '../../lib/tasks';
 import { fmtDur, fromLocal } from '../../lib/time';
 import { PLAN_KINDS, planTitle, sortedPlans } from '../../lib/travelPlans';
@@ -131,19 +132,25 @@ function AwayItem({ away: a }: { away: AwayRange }) {
         <ol className="plan-list">
           {plans.map((p) => (
             <li key={p.id}>
-              <span className="plan-icon" aria-label={PLAN_KINDS[p.kind].label}>
-                {PLAN_KINDS[p.kind].icon}
-              </span>
-              <span className="plan-body">
-                <span className="plan-title">{planTitle(p)}</span>
-                <span className="task-meta">
-                  {when(p.start)}
-                  {p.end &&
-                    ` → ${format(fromLocal(p.end), p.end.slice(0, 10) === p.start.slice(0, 10) ? 'HH:mm' : 'EEE d MMM HH:mm')}`}
-                  {p.where && ` · ${p.where}`}
+              <button
+                className="plan-open"
+                onClick={() => open({ kind: 'travelPlan', awayId: a.id, planId: p.id })}
+                title="Edit this plan"
+              >
+                <span className="plan-icon" aria-label={PLAN_KINDS[p.kind].label}>
+                  {PLAN_KINDS[p.kind].icon}
                 </span>
-                {p.notes && <span className="task-meta">{p.notes}</span>}
-              </span>
+                <span className="plan-body">
+                  <span className="plan-title">{planTitle(p)}</span>
+                  <span className="task-meta">
+                    {when(p.start)}
+                    {p.end &&
+                      ` → ${format(fromLocal(p.end), p.end.slice(0, 10) === p.start.slice(0, 10) ? 'HH:mm' : 'EEE d MMM HH:mm')}`}
+                    {p.where && ` · ${p.where}`}
+                  </span>
+                  {p.notes && <span className="task-meta">{p.notes}</span>}
+                </span>
+              </button>
             </li>
           ))}
         </ol>
@@ -155,7 +162,10 @@ function AwayItem({ away: a }: { away: AwayRange }) {
 function TaskRow({ task: t, data }: { task: Task; data: AppData }) {
   const open = useUI((s) => s.open);
   const now = useNow(60_000);
-  const warning = taskWarning(t, now, data.settings.warnHours, data.tasks);
+  // Settings > Display can turn task warnings off.
+  const warning = displayOf(data.settings).silenceTasks
+    ? null
+    : taskWarning(t, now, data.settings.warnHours, data.tasks);
   const next = nextSession(t);
   const openSessions = t.sessions.filter((s) => !s.done);
   const course = data.modules.find((m) => m.id === t.moduleId);

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { COLOR_PRESETS } from '../../lib/labels';
+import { useStore } from '../../store';
+import { displayOf } from '../../lib/display';
 
 /**
  * Location box with its own dropdown (saved places first, then places you've used before).
@@ -200,8 +201,9 @@ export function NumberInput({
   );
 }
 
-/** Preset swatches; "Custom…" reveals the full color picker. */
+/** Your swatches (Settings > Display); "Custom…" reveals the full color picker. */
 export function ColorPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const COLOR_PRESETS = useStore((s) => displayOf(s.data.settings).colorPresets).map((c) => c.toLowerCase());
   const [custom, setCustom] = useState(!COLOR_PRESETS.includes(value.toLowerCase()));
   return (
     <div className="colorpicker">

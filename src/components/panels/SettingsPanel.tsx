@@ -9,6 +9,7 @@ import { Field, NumberInput, Row } from '../ui';
 import { BackupSection } from './BackupSection';
 import { DeletedSection } from './DeletedSection';
 import { NewItemsSection } from './NewItemsSection';
+import { DisplaySection } from './DisplaySection';
 import { savedTheme, setTheme, type Theme } from '../../lib/theme';
 
 type Section = 'settings' | 'deleted';
@@ -36,6 +37,7 @@ export function SettingsPanel() {
       {section === 'settings' ? (
         <>
           <AppearanceSection />
+          <DisplaySection />
           <SchedulingSection />
           <NewItemsSection />
           <BackupSection />
