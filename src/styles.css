@@ -1218,6 +1218,279 @@ body.resizing {
   margin-left: auto;
   font-size: 0.85em;
 }
+/* ---------- Taskline ---------- */
+.taskline {
+  --tl-label: 230px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+.narrow .taskline {
+  --tl-label: 130px;
+}
+.tl-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.tl-toolbar select {
+  max-width: 220px;
+}
+.tl-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.9em;
+  white-space: nowrap;
+}
+.tl-legend {
+  margin-left: auto;
+  white-space: nowrap;
+}
+.tl-scroll {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+.tl-body {
+  position: relative;
+  min-height: 100%;
+}
+.tl-row {
+  display: flex;
+  min-height: 34px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+}
+.tl-label {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  flex: 0 0 var(--tl-label);
+  width: var(--tl-label);
+  padding: 4px 8px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.tl-track {
+  position: relative;
+  flex: 0 0 auto;
+}
+.tl-head {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  background: var(--surface);
+  font-size: 0.8em;
+}
+.tl-head .tl-label {
+  z-index: 5;
+  font-weight: 600;
+}
+.tl-week {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  padding: 8px 4px;
+  border-left: 1px solid var(--border);
+  white-space: nowrap;
+  overflow: hidden;
+  color: var(--text-2);
+}
+.tl-week.break {
+  font-style: italic;
+}
+.tl-week small {
+  opacity: 0.7;
+}
+.tl-overlay {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--tl-label);
+  pointer-events: none;
+  z-index: 1;
+}
+.tl-shade {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background-image: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--skipped) 14%, transparent) 0 6px,
+    transparent 6px 12px
+  );
+}
+.tl-today {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--bad);
+  opacity: 0.8;
+}
+.tl-group-head {
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
+}
+.tl-group-head .tl-label {
+  font-weight: 700;
+}
+.tl-chip {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+}
+.tl-marker {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  cursor: pointer;
+  font-size: 15px;
+  white-space: nowrap;
+}
+.tl-marker small {
+  margin-left: 3px;
+  font-size: 11px;
+  color: var(--text);
+}
+.tl-task {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0;
+  text-align: left;
+  border: none;
+  border-right: 1px solid var(--border);
+  border-radius: 0;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+}
+.tl-task:hover {
+  background: color-mix(in srgb, var(--surface) 85%, var(--text));
+}
+.tl-title,
+.tl-meta {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tl-title {
+  font-size: 0.9em;
+}
+.tl-meta {
+  font-size: 0.75em;
+  color: var(--text-2);
+}
+.tl-bar-row.done .tl-bar,
+.tl-bar-row.done .tl-title {
+  opacity: 0.55;
+}
+.tl-bar {
+  position: absolute;
+  top: 50%;
+  height: 14px;
+  transform: translateY(-50%);
+  z-index: 2;
+  border: 1.5px solid;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--c) 22%, transparent);
+  cursor: pointer;
+}
+.tl-dot {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  border-radius: 50%;
+  border: 2px solid var(--c);
+  background: var(--c);
+  color: #fff;
+  font-size: 9px;
+  line-height: 8px;
+  text-align: center;
+  cursor: grab;
+  touch-action: none;
+}
+.tl-dot.missed {
+  background: var(--bg);
+}
+.tl-dot.late {
+  border-color: var(--bad);
+  background: var(--bad);
+}
+.tl-dot.late.missed {
+  background: var(--bg);
+}
+.tl-dot.dragging,
+.tl-deadline.dragging {
+  cursor: grabbing;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  z-index: 6;
+}
+.tl-deadline {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 4;
+  font-size: 15px;
+  color: var(--text);
+  cursor: ew-resize;
+  touch-action: none;
+  user-select: none;
+  white-space: nowrap;
+}
+.tl-deadline.overdue {
+  color: var(--bad);
+}
+.tl-deadline small {
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  transform: translateX(-50%);
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+}
+.tl-empty {
+  padding: 24px;
+}
+.tl-toolbar .segmented,
+.view-switch {
+  margin-bottom: 0;
+  flex: none;
+}
+.tl-toolbar .segmented button,
+.view-switch button {
+  white-space: nowrap;
+  padding: 6px 10px;
+  color: var(--text);
+}
+.tl-toolbar .segmented button.on,
+.view-switch button.on {
+  color: #fff;
+}
+.narrow .view-switch .label {
+  display: none;
+}
 /* Time away: a striped band behind everything */
 .fc .fc-bg-event.k-away {
   background-color: var(--skipped) !important;
