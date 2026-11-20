@@ -1716,3 +1716,20 @@ body.resizing {
 .fc-event.k-outline .ev-meta {
   opacity: 0.8;
 }
+
+/* Sync badge as a button (opens sign-in / account) */
+.sync-btn {
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.sync-btn:hover {
+  border-color: var(--text-2);
+}
+.narrow .sync-btn {
+  font-size: 0;
+}
+.narrow .sign-in-btn {
+  padding: 2px 6px;
+}

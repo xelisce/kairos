@@ -1,6 +1,8 @@
+import { supabase, useAccount } from '../lib/cloud';
 import { useSync } from '../lib/sync';
+import { useUI } from './ui';
 
-const TEXT = {
+const LOCAL = {
   connecting: { label: 'Connecting…', tip: 'Looking for the local database' },
   saving: { label: 'Saving…', tip: 'Saving to the local database' },
   saved: { label: 'Saved', tip: 'Saved in the local database on this computer (data/kairos.db)' },
@@ -10,19 +12,56 @@ const TEXT = {
   },
 } as const;
 
-/** Small status pill in the top bar: is everything in the database? */
+const CLOUD = {
+  connecting: { label: 'Connecting…', tip: 'Connecting to your cloud account' },
+  saving: { label: 'Saving…', tip: 'Saving to the cloud' },
+  saved: { label: 'Synced', tip: 'Saved in the cloud: your other devices see the same' },
+  offline: {
+    label: 'Offline',
+    tip: "Can't reach the cloud. Changes are kept in this browser and saved once you're back online",
+  },
+} as const;
+
+/** Small status pill in the top bar: is everything saved, and where? Click it to sign in or out. */
 export function SyncBadge() {
-  const { status, detail } = useSync();
-  const t = TEXT[status];
-  return (
-    <span
-      className={`sync sync-${status}`}
-      title={detail ? `${t.tip}. ${detail}` : t.tip}
-      role="status"
-      aria-live="polite"
-    >
+  const { status, detail, cloud } = useSync();
+  const account = useAccount((s) => s.account);
+  const open = useUI((s) => s.open);
+  const t = (cloud ? CLOUD : LOCAL)[status];
+  const tip = [
+    detail ? `${t.tip}. ${detail}` : t.tip,
+    account ? `Signed in as ${account.email}` : supabase && 'Click to sign in and sync your devices',
+  ]
+    .filter(Boolean)
+    .join('. ');
+  const badge = (
+    <>
       <span className="sync-dot" aria-hidden="true" />
+      {cloud && <span aria-hidden="true">☁️</span>}
       {t.label}
-    </span>
+    </>
+  );
+  if (!supabase)
+    return (
+      <span className={`sync sync-${status}`} title={tip} role="status" aria-live="polite">
+        {badge}
+      </span>
+    );
+  return (
+    <>
+      <button
+        className={`sync sync-${status} sync-btn`}
+        title={tip}
+        aria-live="polite"
+        onClick={() => open({ kind: 'account' })}
+      >
+        {badge}
+      </button>
+      {!account && (
+        <button className="btn small sign-in-btn" onClick={() => open({ kind: 'account' })}>
+          Sign in
+        </button>
+      )}
+    </>
   );
 }

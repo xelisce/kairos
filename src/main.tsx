@@ -4,7 +4,7 @@ import App from './App';
 import './styles.css';
 import { startSync } from './lib/sync';
 
-void startSync();
+startSync();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
