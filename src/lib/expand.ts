@@ -42,7 +42,9 @@ export function expand(data: AppData, from: Date, to: Date, opts: ExpandOpts = {
   fixed.push(...pinned);
   skippedRoutines.forEach((o) => add([o, true]));
 
-  const firstTravel = computeTravel(data, fixed);
+  // Tasks without a place happen wherever you are, so a trip waits until they're done.
+  const taskStays = fixed.filter((o) => o.source.type === 'task' && !o.location && !o.title.startsWith('✓'));
+  const firstTravel = computeTravel(data, fixed, taskStays);
   const busy = [...fixed, ...firstTravel];
   const placed: Occ[] = [];
   for (const { r, day, dk } of flexible) {
@@ -53,7 +55,7 @@ export function expand(data: AppData, from: Date, to: Date, opts: ExpandOpts = {
 
   // Final travel now that routines have their times. Routines without a place happen wherever
   // you are, so a trip that would overlap one waits until it's over (lunch at MH, then go home).
-  const stays = placed.filter((o) => !o.location);
+  const stays = [...taskStays, ...placed.filter((o) => !o.location)];
   const travel = computeTravel(data, [...fixed, ...placed], stays);
   return [...fixed, ...travel, ...placed, ...skipped].filter((o) => overlaps(o.start, o.end, from, to));
 }

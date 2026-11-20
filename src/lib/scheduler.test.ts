@@ -119,3 +119,65 @@ describe('splitting a task into sessions', () => {
     expect(t.sessions.reduce((n, s) => n + sessionMinutes(s), 0)).toBe(120);
   });
 });
+
+describe('regressions', () => {
+  it('a too-short leftover is folded into the last session (240 + 230 + 30, not 240 + 240 + 20)', () => {
+    const d = sampleData();
+    d.routines = [];
+    d.tasks.push(
+      task({
+        id: 'k',
+        durationMin: 500,
+        split: { maxSessionMin: 240, maxPerDayMin: 360, minSessionMin: 30 },
+        sessions: [
+          session('a', '2026-09-01T09:00', '2026-09-01T13:00'),
+          session('b', '2026-09-02T09:00', '2026-09-02T13:00'),
+        ],
+      }),
+    );
+    const [t] = planTasks(d, fromLocal('2026-08-31T20:00'));
+    const lengths = t.sessions.map(sessionMinutes);
+    expect(lengths.reduce((a, b) => a + b, 0)).toBe(500);
+    expect(Math.min(...lengths)).toBeGreaterThanOrEqual(30);
+  });
+
+  it('a task without a place never ends up under a trip, and the day gets no new warnings', () => {
+    const d = defaultData();
+    d.routines = d.routines.filter((r) => r.title === 'Dinner');
+    Object.assign(d.routines[0], {
+      location: 'Home',
+      preferredStart: '20:00',
+      windowStart: '18:30',
+      windowEnd: '23:30',
+      durationMin: 90,
+    });
+    d.places.push({ id: 'b', name: 'Bakke', aliases: [] });
+    d.routes.push({ id: 'r', a: d.places[0].id, b: 'b', minutes: 15, bidirectional: true });
+    d.events = [
+      {
+        id: 'skate',
+        title: 'Public Skate',
+        category: 'cca',
+        start: '2026-11-20T17:15',
+        end: '2026-11-20T18:15',
+        location: 'Bakke',
+      },
+    ];
+    d.tasks = [
+      task({ id: 'a5', durationMin: 60, deadline: '2026-11-20T23:59' }),
+      task({ id: 'video', durationMin: 60, deadline: '2026-11-29T23:59' }),
+    ];
+    const now = fromLocal('2026-11-20T17:30');
+    const tasks = planTasks(d, now);
+    const occs = expand({ ...d, tasks }, fromLocal('2026-11-20'), fromLocal('2026-11-30')).filter((o) => !o.skipped);
+    const overlapping = occs.filter(
+      (o) =>
+        o.source.type === 'task' &&
+        occs.some(
+          (x) => x !== o && x.start < o.end && o.start < x.end && !(x.source.type === 'travel' && x.id.includes(o.id)),
+        ),
+    );
+    expect(overlapping).toHaveLength(0);
+    expect(occs.filter((o) => o.warning)).toHaveLength(0);
+  });
+});

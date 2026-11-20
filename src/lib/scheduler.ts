@@ -9,13 +9,17 @@
 import { addDays, addMinutes, format, startOfDay } from 'date-fns';
 import type { AppData, Occ, Task, TaskSession } from '../types';
 import { expand } from './expand';
-import { limitsOf, plannedMinutes, sessionMinutes, unplannedMinutes } from './tasks';
+import { doneMinutes, limitsOf, plannedMinutes, sessionMinutes, unplannedMinutes } from './tasks';
 import { atMin, dateKey, eachDay, fmtDur, fromLocal, hmToMin, overlaps, toLocal, uid } from './time';
 
 // Try every 5 minutes so a session can start right after a trip or another block.
 const STEP = 5;
-/** How many full day-layouts we try per session before settling for the first free gap. */
-const MAX_CHECKS = 80;
+/** Full day-layout checks allowed per task per planning run (keeps planning fast). */
+const MAX_CHECKS_PER_TASK = 400;
+/** After a candidate fails, the next one checked is at least this much later (unless a new gap starts). */
+const CHECK_SPACING_MIN = 15;
+/** How many times the finished plan is checked and fixed. */
+const MAX_REPAIR_ROUNDS = 3;
 
 /**
  * A missed auto-scheduled session waits this long after its end before rolling forward,
@@ -85,9 +89,11 @@ export function planTasks(data: AppData, now: Date): Task[] {
 
   const active = tasks.filter((t) => t.onCalendar && !t.done);
   const movableIds = new Set(active.flatMap((t) => t.sessions.filter((s) => mayMove(s, now)).map((s) => s.id)));
-  const base: Occ[] = expand({ ...data, tasks }, now, horizon, { excludeSessionIds: movableIds });
-  // Hard blocks: everything except skipped sessions and routines that can slide out of the way.
-  const busy: Interval[] = base.filter((o) => !o.skipped && !o.auto).map((o) => ({ start: o.start, end: o.end }));
+  // Hard blocks: everything except skipped sessions, routines that can slide out of the way,
+  // and the auto sessions being (re)planned.
+  const busy: Interval[] = expand({ ...data, tasks }, now, horizon, { excludeSessionIds: movableIds })
+    .filter((o) => !o.skipped && !o.auto)
+    .map((o) => ({ start: o.start, end: o.end }));
 
   // Lay out one day with the current sessions. Cached per day; cleared when a session lands there.
   const dayCache = new Map<string, number>();
@@ -125,15 +131,25 @@ export function planTasks(data: AppData, now: Date): Task[] {
   };
 
   /** First slot of `length` in [from, until) that fits; after MAX_CHECKS checks, the first free gap. */
+  const checksUsed = new Map<string, number>();
+  /**
+   * First slot of `length` in [from, until) that really works (see `fits`), or null.
+   * Checks the start of every free gap, then every 15 minutes within it.
+   */
   const findSlot = (t: Task, length: number, from: Date, until: Date): Interval | null => {
-    let firstFree: Interval | null = null;
-    let checks = 0;
+    let lastChecked: Date | null = null;
+    let previous: Date | null = null;
     for (const c of candidates(data, busy, length, from, until)) {
-      firstFree ??= c;
-      if (checks++ >= MAX_CHECKS) break;
+      const newGap = !previous || c.start.getTime() - previous.getTime() > STEP * 60_000;
+      previous = c.start;
+      if (!newGap && lastChecked && c.start.getTime() - lastChecked.getTime() < CHECK_SPACING_MIN * 60_000) continue;
+      const used = checksUsed.get(t.id) ?? 0;
+      if (used >= MAX_CHECKS_PER_TASK) return null;
+      checksUsed.set(t.id, used + 1);
+      lastChecked = c.start;
       if (fits(t, c)) return c;
     }
-    return firstFree;
+    return null;
   };
 
   const minutesOnDay = (t: Task, day: Date) =>
@@ -148,9 +164,15 @@ export function planTasks(data: AppData, now: Date): Task[] {
       for (;;) {
         const remaining = unplannedMinutes(t);
         if (remaining <= 0) return;
-        const length = Math.min(limits.maxSessionMin, remaining, limits.maxPerDayMin - minutesOnDay(t, day));
+        let length = Math.min(limits.maxSessionMin, remaining, limits.maxPerDayMin - minutesOnDay(t, day));
         // Too little room today for a useful session (a final small bit is fine).
         if (length <= 0 || (length < limits.minSessionMin && length < remaining)) break;
+        // Don't leave a leftover shorter than the minimum: make this one shorter so the last one is long enough.
+        const leftover = remaining - length;
+        if (leftover > 0 && leftover < limits.minSessionMin) {
+          const shorter = length - (limits.minSessionMin - leftover);
+          if (shorter >= limits.minSessionMin) length = shorter;
+        }
         const slot = findSlot(t, length, dayFrom, dayUntil);
         if (!slot) break;
         t.sessions.push({ id: uid(), start: toLocal(slot.start), end: toLocal(slot.end), done: false, pinned: false });
@@ -171,7 +193,9 @@ export function planTasks(data: AppData, now: Date): Task[] {
         !busy.some((b) => overlaps(start, end, b.start, b.end)) &&
         !(t.deadline && end > fromLocal(t.deadline)) &&
         !(t.earliest && start < fromLocal(t.earliest)) &&
-        sessionMinutes(s) <= limits.maxSessionMin;
+        sessionMinutes(s) <= limits.maxSessionMin &&
+        // Too short, unless it's all that's left of the task.
+        (sessionMinutes(s) >= limits.minSessionMin || t.durationMin - doneMinutes(t) <= limits.minSessionMin);
       if (ok) busy.push({ start, end });
       return ok;
     };
@@ -181,6 +205,15 @@ export function planTasks(data: AppData, now: Date): Task[] {
     while (plannedMinutes(t) > t.durationMin && latestFirst.length) {
       const last = latestFirst.shift()!;
       t.sessions = t.sessions.filter((s) => s !== last);
+    }
+    // Only a too-short bit left to plan: re-plan the latest session together with it,
+    // so it can be split into two proper sessions instead.
+    const left = unplannedMinutes(t);
+    const latest = latestFirst[0];
+    if (left > 0 && left < limits.minSessionMin && latest && t.sessions.includes(latest)) {
+      t.sessions = t.sessions.filter((s) => s !== latest);
+      const i = busy.findIndex((b) => b.start.getTime() === fromLocal(latest.start).getTime());
+      if (i >= 0) busy.splice(i, 1);
     }
   }
   dayCache.clear();
@@ -192,15 +225,88 @@ export function planTasks(data: AppData, now: Date): Task[] {
     const db = b.deadline ? fromLocal(b.deadline).getTime() : Infinity;
     return da - db || a.createdAt.localeCompare(b.createdAt);
   };
-  for (const t of [...active].sort(byDeadline)) {
-    if (unplannedMinutes(t) <= 0) continue;
+  const placeTask = (t: Task) => {
+    if (unplannedMinutes(t) <= 0) return;
     const from = t.earliest && fromLocal(t.earliest) > start ? fromLocal(t.earliest) : start;
     const deadline = t.deadline ? fromLocal(t.deadline) : null;
     placeSessions(t, from, deadline && deadline < horizon ? deadline : horizon);
     // Not enough room before the deadline: keep going after it; the calendar flags those red.
     if (unplannedMinutes(t) > 0 && deadline && deadline < horizon) placeSessions(t, deadline, horizon);
+  };
+  for (const t of [...active].sort(byDeadline)) placeTask(t);
+
+  // Pass 3: sessions were checked one at a time, so together they can still clash (one makes dinner
+  // move earlier, and the trip home then lands on another). Check the finished layout; re-place any
+  // auto session that overlaps something, a few rounds at most.
+  for (let round = 0; round < MAX_REPAIR_ROUNDS; round++) {
+    const final = expand({ ...data, tasks }, now, horizon);
+    const clashing = clashingSessions(final, tasks, now);
+    // A day with more warnings than it has without its auto sessions (dinner pushed late, a trip
+    // that makes you late...): move that day's latest auto session somewhere else.
+    const autoIds = new Set(movableSessionIds(tasks, now));
+    const without = expand({ ...data, tasks }, now, horizon, { excludeSessionIds: autoIds });
+    for (const dk of daysWithMoreWarnings(final, without)) {
+      const latest = final
+        .filter((o) => o.source.type === 'task' && autoIds.has(o.source.sessionId) && dateKey(o.start) === dk)
+        .sort((x, y) => y.start.getTime() - x.start.getTime())[0];
+      if (latest?.source.type === 'task') clashing.add(latest.source.sessionId);
+    }
+    if (!clashing.size) break;
+    for (const t of active) t.sessions = t.sessions.filter((x) => !clashing.has(x.id));
+    // Everything that stays (including kept auto sessions) blocks the sessions being re-placed.
+    busy.splice(
+      0,
+      busy.length,
+      ...expand({ ...data, tasks }, now, horizon)
+        .filter((o) => !o.skipped && !o.auto)
+        .map((o) => ({ start: o.start, end: o.end })),
+    );
+    dayCache.clear();
+    checksUsed.clear();
+    for (const t of [...active].sort(byDeadline)) placeTask(t);
   }
   return tasks;
+}
+
+function movableSessionIds(tasks: Task[], now: Date) {
+  return tasks.flatMap((t) =>
+    (t.onCalendar && !t.done ? t.sessions : []).filter((s) => mayMove(s, now)).map((s) => s.id),
+  );
+}
+
+/** Days where `layout` has more warnings than `baseline`. */
+function daysWithMoreWarnings(layout: Occ[], baseline: Occ[]): string[] {
+  const count = (occs: Occ[]) => {
+    const byDay = new Map<string, number>();
+    for (const o of occs)
+      if (o.warning && !o.skipped) byDay.set(dateKey(o.start), (byDay.get(dateKey(o.start)) ?? 0) + 1);
+    return byDay;
+  };
+  const after = count(layout);
+  const before = count(baseline);
+  return [...after].filter(([dk, n]) => n > (before.get(dk) ?? 0)).map(([dk]) => dk);
+}
+
+/** Auto sessions that overlap something else in this layout, or whose own trips do. */
+function clashingSessions(occs: Occ[], tasks: Task[], now: Date): Set<string> {
+  const movable = new Set(
+    tasks.flatMap((t) => (t.onCalendar && !t.done ? t.sessions : []).filter((s) => mayMove(s, now)).map((s) => s.id)),
+  );
+  const live = occs.filter((o) => !o.skipped);
+  const out = new Set<string>();
+  for (const o of live) {
+    if (o.source.type !== 'task' || !movable.has(o.source.sessionId)) continue;
+    const mine = (x: Occ) => x === o || (isTravel(x) && x.id.includes(o.id));
+    const others = live.filter((x) => !mine(x));
+    const myTrips = live.filter((x) => isTravel(x) && x.id.includes(o.id));
+    const clash =
+      others.some((x) => overlaps(o.start, o.end, x.start, x.end)) ||
+      myTrips.some(
+        (tr) => tr.warning || others.some((x) => !isTravel(x) && overlaps(tr.start, tr.end, x.start, x.end)),
+      );
+    if (clash) out.add(o.source.sessionId);
+  }
+  return out;
 }
 
 /** Status shown next to a task in lists. */
