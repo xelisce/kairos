@@ -3,6 +3,7 @@ import { useStore } from '../../store';
 import type { Routine, RoutineCategory } from '../../types';
 import { trashItem } from '../../lib/actions';
 import { dateKey, fromLocal, uid } from '../../lib/time';
+import { newDefaults } from '../../lib/newDefaults';
 import {
   ColorPicker,
   DayPicker,
@@ -39,7 +40,7 @@ export function RoutineDialog() {
         category: 'other',
         enabled: true,
         days: [0, 1, 2, 3, 4, 5, 6],
-        durationMin: 30,
+        durationMin: newDefaults(data.settings).routineMin,
         preferredStart: '12:00',
         flexible: true,
         windowStart: '11:00',

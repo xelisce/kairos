@@ -1,4 +1,5 @@
 // Edits the calendar, dialogs and panels make. Each is one undo step (see store.commit).
+import { newDefaults } from './newDefaults';
 import { addDays, addMinutes, startOfDay, startOfWeek } from 'date-fns';
 import { useStore } from '../store';
 import type { Activity, AppData, CalEvent, ClassKind, ClassSeries, Occ, Routine, Task, TrashItem } from '../types';
@@ -385,12 +386,13 @@ export function setTaskOnCalendar(taskId: string, onCalendar: boolean) {
 /** Brain-dump a task into the inbox (not on the calendar yet). */
 export function quickAddTask(title: string) {
   commit(`Add ${title}`, (d) => {
+    const defaults = newDefaults(d.settings);
     d.tasks.push({
       id: uid(),
       title,
       category: 'other',
-      durationMin: 30,
-      onCalendar: false,
+      durationMin: defaults.quickMin,
+      onCalendar: defaults.quickOnCalendar,
       sessions: [],
       done: false,
       createdAt: toLocal(new Date()),

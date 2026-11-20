@@ -1,9 +1,10 @@
 // A trip or holiday: no tasks get planned then; classes, CCAs and routines are hidden.
 // Its travel schedule (flights, bus rides, stays, visits) is kept with it.
-import { addDays, setHours, startOfDay } from 'date-fns';
+import { addDays, startOfDay } from 'date-fns';
 import { useStore } from '../../store';
 import type { AwayRange, TravelPlan, TravelPlanKind } from '../../types';
-import { toLocal, uid } from '../../lib/time';
+import { at, toLocal, uid } from '../../lib/time';
+import { newDefaults } from '../../lib/newDefaults';
 import { coverPlans, PLAN_KINDS } from '../../lib/travelPlans';
 import { DateTimeInput, DialogButtons, Field, Modal, Row, useModal, useUI } from '../ui';
 import { upsert, useDraft } from './shared';
@@ -14,14 +15,15 @@ export function AwayDialog() {
   const data = useStore((s) => s.data);
   const commit = useStore((s) => s.commit);
   const existing = m.id ? data.away.find((a) => a.id === m.id) : undefined;
+  const defaults = newDefaults(data.settings);
   const [a, update] = useDraft<AwayRange>(
     () =>
       existing ?? {
         id: uid(),
         title: '',
-        // From the chosen time, or tomorrow 06:00 for 2 days.
-        start: toLocal(m.start ?? setHours(addDays(startOfDay(new Date()), 1), 6)),
-        end: toLocal(m.end ?? setHours(addDays(startOfDay(new Date()), 3), 23)),
+        // From the chosen time, or tomorrow (06:00, for 2 days unless you changed that in Settings).
+        start: toLocal(m.start ?? at(addDays(startOfDay(new Date()), 1), defaults.awayStart)),
+        end: toLocal(m.end ?? at(addDays(startOfDay(new Date()), 1 + defaults.awayDays), defaults.awayEnd)),
       },
   );
 
@@ -71,7 +73,7 @@ export function AwayDialog() {
           <DateTimeInput value={a.start} onChange={(v) => v && update({ start: v })} />
         </Field>
         <Field label="Until">
-          <DateTimeInput value={a.end} onChange={(v) => v && update({ end: v })} defaultTime="23:00" />
+          <DateTimeInput value={a.end} onChange={(v) => v && update({ end: v })} defaultTime={defaults.awayEnd} />
         </Field>
       </Row>
       <p className="muted small">

@@ -4,6 +4,7 @@ import type { AppData, CalEvent, EventCategory } from '../../types';
 import { trashItem } from '../../lib/actions';
 import { EVENT_LABELS } from '../../lib/labels';
 import { at, fromLocal, toLocal, uid } from '../../lib/time';
+import { newDefaults } from '../../lib/newDefaults';
 import { DateTimeInput, DialogButtons, Field, LocationInput, Modal, Row, useModal, useUI, type ModalOf } from '../ui';
 import { locationSuggestions, upsert, useDraft } from './shared';
 
@@ -18,7 +19,7 @@ const TITLE_EXAMPLES: Partial<Record<EventCategory, string>> = {
 function newEvent(data: AppData, m: ModalOf<'event'>, now: Date): CalEvent {
   const act = m.activityId ? data.activities.find((a) => a.id === m.activityId) : undefined;
   let start = m.start ?? now;
-  let end = m.end ?? addMinutes(now, 120);
+  let end = m.end ?? addMinutes(start, newDefaults(data.settings).eventMin);
   if (act && !m.start) {
     // Tomorrow at the club's usual time.
     const tomorrow = addDays(startOfDay(now), 1);

@@ -3,6 +3,7 @@ import { useStore } from '../../store';
 import type { Activity } from '../../types';
 import { trashItem } from '../../lib/actions';
 import { uid } from '../../lib/time';
+import { newDefaults } from '../../lib/newDefaults';
 import { DAY_PRESETS, US_DAY_LETTERS } from '../../lib/weeks';
 import {
   ColorPicker,
@@ -32,8 +33,8 @@ export function ActivityDialog() {
         title: '',
         recurring: true,
         days: [0, 2, 3],
-        start: '18:00',
-        end: '20:00',
+        start: newDefaults(data.settings).activityStart,
+        end: newDefaults(data.settings).activityEnd,
         color: '#5fa83f',
         skipDates: [],
         overrides: {},

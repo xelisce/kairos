@@ -241,6 +241,8 @@ export interface Settings {
   dayEnd: HHMM;
   /** No hours limit: tasks may go any time nothing else (sleep, classes...) is there. */
   anyTime?: boolean;
+  /** What new tasks, events, trips... start with; only what you changed (see lib/newDefaults.ts). */
+  newDefaults?: Partial<NewItemDefaults>;
   /** Gap kept between scheduled things. */
   bufferMin: number;
   /** Extra minutes added to every trip (get out of the door, find the room). */
@@ -251,6 +253,34 @@ export interface Settings {
   horizonDays: number;
   /** Warn for unscheduled tasks due within this many hours. */
   warnHours: number;
+}
+
+/** What new things start with (Settings > New items). */
+export interface NewItemDefaults {
+  /** New task (the + Task dialog). */
+  taskMin: number;
+  taskCategory: TaskCategory;
+  taskOnCalendar: boolean;
+  taskAutoPlan: boolean;
+  taskSplit: boolean;
+  /** Limits a task starts with when it's split into sessions. */
+  split: TaskSplit;
+  /** Time filled in when you pick a deadline date / "not before" date. */
+  deadlineTime: HHMM;
+  notBeforeTime: HHMM;
+  /** Brain dump (type a task and press Enter). */
+  quickMin: number;
+  quickOnCalendar: boolean;
+  /** New event. */
+  eventMin: number;
+  /** New time away: starts tomorrow at awayStart, ends awayDays later at awayEnd. */
+  awayStart: HHMM;
+  awayEnd: HHMM;
+  awayDays: number;
+  /** New routine and new CCA. */
+  routineMin: number;
+  activityStart: HHMM;
+  activityEnd: HHMM;
 }
 
 export interface AppData {

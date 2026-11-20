@@ -1,4 +1,5 @@
-// Settings: when tasks may go and the gaps around things, backups, and everything you deleted.
+// Settings: when tasks may go and the gaps around things, what new things start with, backups,
+// and everything you deleted.
 import { useStore } from '../../store';
 import type { Settings } from '../../types';
 import { hmToMin } from '../../lib/time';
@@ -6,6 +7,7 @@ import { usePref } from '../../hooks/usePref';
 import { Field, NumberInput, Row } from '../ui';
 import { BackupSection } from './BackupSection';
 import { DeletedSection } from './DeletedSection';
+import { NewItemsSection } from './NewItemsSection';
 
 type Section = 'settings' | 'deleted';
 
@@ -32,6 +34,7 @@ export function SettingsPanel() {
       {section === 'settings' ? (
         <>
           <SchedulingSection />
+          <NewItemsSection />
           <BackupSection />
         </>
       ) : (

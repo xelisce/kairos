@@ -1,11 +1,13 @@
-import { addMinutes } from 'date-fns';
+import { useState } from 'react';
+import { addMinutes, format } from 'date-fns';
 import { useStore } from '../../store';
 import type { Task, TaskCategory } from '../../types';
 import { trashItem } from '../../lib/actions';
 import { dependsOn } from '../../lib/dependencies';
 import { fromLocal, toLocal, uid } from '../../lib/time';
 import { DateTimeInput, DialogButtons, Field, LocationInput, Modal, NumberInput, Row, useModal, useUI } from '../ui';
-import { DEFAULT_SPLIT, fitDuration, sessionMinutes } from '../../lib/tasks';
+import { fitDuration, sessionMinutes } from '../../lib/tasks';
+import { newDefaults } from '../../lib/newDefaults';
 import { SessionList } from './SessionList';
 import { locationSuggestions, upsert, useDraft } from './shared';
 
@@ -15,17 +17,21 @@ export function TaskDialog() {
   const data = useStore((s) => s.data);
   const commit = useStore((s) => s.commit);
   const existing = m.id ? data.tasks.find((t) => t.id === m.id) : undefined;
+  const defaults = newDefaults(data.settings);
 
   const [t, update] = useDraft<Task>(
     () =>
       existing ?? {
         id: uid(),
         title: '',
-        category: m.activityId ? 'personal' : 'homework',
+        category: m.activityId ? 'personal' : defaults.taskCategory,
         moduleId: m.moduleId,
         activityId: m.activityId,
-        durationMin: m.start && m.end ? Math.round((m.end.getTime() - m.start.getTime()) / 60000) : 60,
-        onCalendar: true,
+        durationMin: m.start && m.end ? Math.round((m.end.getTime() - m.start.getTime()) / 60000) : defaults.taskMin,
+        onCalendar: defaults.taskOnCalendar,
+        // Placed by drag-selecting: that session is the task, so no auto-planning or splitting.
+        autoPlan: m.start || defaults.taskAutoPlan ? undefined : false,
+        split: !m.start && defaults.taskSplit ? defaults.split : undefined,
         // Made by drag-selecting a time: that's its (pinned) session.
         sessions:
           m.start && m.end
@@ -137,14 +143,18 @@ export function TaskDialog() {
         <Field label="Deadline" hint="It won't be scheduled after this; if it has to be, it shows red ⚠️">
           <DateTimeInput
             value={t.deadline ?? ''}
-            defaultTime="23:59"
+            defaultTime={defaults.deadlineTime}
             onChange={(v) => update({ deadline: v || undefined })}
           />
         </Field>
       </Row>
       <Row>
         <Field label="Not before (optional)">
-          <DateTimeInput value={t.earliest ?? ''} onChange={(v) => update({ earliest: v || undefined })} />
+          <DateTimeInput
+            value={t.earliest ?? ''}
+            defaultTime={defaults.notBeforeTime}
+            onChange={(v) => update({ earliest: v || undefined })}
+          />
         </Field>
         <Field label="Location (optional)">
           <LocationInput
@@ -178,7 +188,7 @@ export function TaskDialog() {
           <input
             type="checkbox"
             checked={!!t.split}
-            onChange={(e) => update({ split: e.target.checked ? DEFAULT_SPLIT : undefined })}
+            onChange={(e) => update({ split: e.target.checked ? defaults.split : undefined })}
           />{' '}
           Split into sessions (spread over several days before the deadline)
         </label>
@@ -216,14 +226,30 @@ export function TaskDialog() {
   );
 }
 
-/** "Do these first": tasks this one waits for. Chosen ones show as chips; pick more from the list. */
+/** "Do these first": tasks this one waits for, as chips. Type to find more, like a location. */
 function DependsOnPicker({ task, tasks, onChange }: { task: Task; tasks: Task[]; onChange: (ids: string[]) => void }) {
+  const modules = useStore((s) => s.data.modules);
   const chosen = task.dependsOn ?? [];
   const byId = new Map(tasks.map((x) => [x.id, x]));
   // Not itself, not one already chosen, and not one that waits for this task (that would be a loop).
-  const options = tasks
+  const candidates = tasks
     .filter((x) => x.id !== task.id && !x.done && !chosen.includes(x.id) && !dependsOn(x, task.id, tasks))
     .sort((a, b) => (a.deadline ?? '9999').localeCompare(b.deadline ?? '9999') || a.title.localeCompare(b.title));
+  const courseOf = (x: Task) => modules.find((m) => m.id === x.moduleId)?.code;
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  // Every word typed must appear in the title or course ("ece mile 2" finds "ECE 555 · Milestone 2").
+  const options = candidates.filter((x) => {
+    const text = `${x.title} ${courseOf(x) ?? ''}`.toLowerCase();
+    return words.every((w) => text.includes(w));
+  });
+  const pick = (x: Task) => {
+    onChange([...chosen, x.id]);
+    setQuery('');
+    setActive(0);
+  };
   return (
     <Field label="Do these first (optional)" hint="It won't be scheduled until these tasks' sessions are over">
       <div className="chips">
@@ -235,6 +261,7 @@ function DependsOnPicker({ task, tasks, onChange }: { task: Task; tasks: Task[];
               {dep.done ? '✓ ' : ''}
               {dep.title}{' '}
               <button
+                type="button"
                 className="linkish"
                 aria-label={`Remove ${dep.title}`}
                 onClick={() => onChange(chosen.filter((x) => x !== id))}
@@ -244,22 +271,63 @@ function DependsOnPicker({ task, tasks, onChange }: { task: Task; tasks: Task[];
             </span>
           );
         })}
-        {options.length > 0 && (
-          <select
-            value=""
-            aria-label="Add a task to do first"
-            onChange={(e) => e.target.value && onChange([...chosen, e.target.value])}
-          >
-            <option value="">+ Add a task…</option>
-            {options.map((x) => (
-              <option key={x.id} value={x.id}>
+      </div>
+      <div className="combo">
+        <input
+          value={query}
+          placeholder={candidates.length ? 'Type a task, e.g. Milestone 2' : 'No other open tasks to pick'}
+          disabled={!candidates.length}
+          role="combobox"
+          aria-label="Add a task to do first"
+          aria-expanded={open}
+          aria-autocomplete="list"
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setOpen(true);
+            setActive(0);
+          }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setOpen(false)}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowDown') {
+              e.preventDefault();
+              setOpen(true);
+              setActive((i) => Math.min(i + 1, options.length - 1));
+            } else if (e.key === 'ArrowUp') {
+              e.preventDefault();
+              setActive((i) => Math.max(i - 1, 0));
+            } else if (e.key === 'Enter') {
+              e.preventDefault(); // never save the dialog from here
+              if (open && options[active]) pick(options[active]);
+            } else if (e.key === 'Escape' && open) {
+              e.stopPropagation(); // close the list, not the dialog
+              setOpen(false);
+            } else if (e.key === 'Backspace' && !query && chosen.length) {
+              onChange(chosen.slice(0, -1));
+            }
+          }}
+        />
+        {open && candidates.length > 0 && (
+          <ul className="combo-list" role="listbox">
+            {options.length === 0 && <li className="combo-empty">No open task matches “{query}”.</li>}
+            {options.map((x, i) => (
+              <li
+                key={x.id}
+                role="option"
+                aria-selected={i === active}
+                className={i === active ? 'on' : ''}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  pick(x);
+                }}
+                onMouseEnter={() => setActive(i)}
+              >
+                {courseOf(x) ? `${courseOf(x)} · ` : ''}
                 {x.title}
-              </option>
+                {x.deadline && <span className="muted small"> · due {format(fromLocal(x.deadline), 'd MMM')}</span>}
+              </li>
             ))}
-          </select>
-        )}
-        {!options.length && !chosen.length && (
-          <span className="muted small">No other open tasks to pick (tasks waiting for this one can't be picked).</span>
+          </ul>
         )}
       </div>
     </Field>
