@@ -9,10 +9,6 @@ export const hmToMin = (hm: HHMM): number => {
   const [h, m] = hm.split(':').map(Number);
   return h * 60 + (m || 0);
 };
-export const minToHm = (min: number): HHMM => {
-  const m = ((min % 1440) + 1440) % 1440;
-  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
-};
 
 /** Date at a given time of day. Minutes may exceed 1440 (next day). */
 export const atMin = (day: Date | LocalDate, min: number): Date =>
@@ -37,3 +33,22 @@ export const uid = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+// ---------- dd/mm/yyyy ----------
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+/** "2026-11-20" -> "20/11/2026" */
+export const toDMY = (iso: string) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : '');
+
+/** "20/11/2026", "20-11-26", "20.11.2026" -> "2026-11-20"; null if not a real date. */
+export function parseDMY(text: string): LocalDate | null {
+  const m = text.trim().match(/^(\d{1,2})[/.\-\s](\d{1,2})[/.\-\s](\d{2}|\d{4})$/);
+  if (!m) return null;
+  const d = Number(m[1]);
+  const mo = Number(m[2]);
+  const y = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
+  const dt = new Date(y, mo - 1, d);
+  if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return null;
+  return `${y}-${pad2(mo)}-${pad2(d)}`;
+}

@@ -14,7 +14,13 @@ import { dayMarker } from '../lib/weeks';
 import { useUI } from './ui';
 import type { Occ } from '../types';
 
-export function CalendarView({ range, onRange }: { range: { start: Date; end: Date } | null; onRange: (r: { start: Date; end: Date }) => void }) {
+export function CalendarView({
+  range,
+  onRange,
+}: {
+  range: { start: Date; end: Date } | null;
+  onRange: (r: { start: Date; end: Date }) => void;
+}) {
   const data = useStore((s) => s.data);
   const open = useUI((s) => s.open);
   const calRef = useRef<FullCalendar>(null);
@@ -25,21 +31,31 @@ export function CalendarView({ range, onRange }: { range: { start: Date; end: Da
   const occs = useMemo(() => (range ? expand(data, range.start, range.end) : []), [data, range]);
   const byId = useMemo(() => new Map(occs.map((o) => [o.id, o])), [occs]);
 
-  const events = useMemo(() => occs.map((o) => ({
-    id: o.id,
-    title: o.title,
-    start: o.start,
-    end: o.end,
-    // Skipped sessions turn grey, whatever their usual color.
-    backgroundColor: o.skipped ? 'var(--skipped)' : o.source.type === 'travel' ? 'transparent' : o.color,
-    borderColor: o.warning ? 'var(--bad)' : o.color,
-    textColor: o.source.type === 'travel' ? 'var(--text-2)' : '#fff',
-    editable: o.movable,
-    // Skipped: drawn behind everything, so other blocks can sit on top of it.
-    display: o.skipped ? 'background' : 'auto',
-    classNames: [`k-${o.source.type}`, o.warning ? 'k-warn' : '', isDone(o) ? 'k-done' : '', o.assessment ? 'k-assess' : '', o.skipped ? 'k-skipped' : ''].filter(Boolean),
-    extendedProps: { occ: o },
-  })), [occs]);
+  const events = useMemo(
+    () =>
+      occs.map((o) => ({
+        id: o.id,
+        title: o.title,
+        start: o.start,
+        end: o.end,
+        // Skipped sessions turn grey, whatever their usual color.
+        backgroundColor: o.skipped ? 'var(--skipped)' : o.source.type === 'travel' ? 'transparent' : o.color,
+        borderColor: o.warning ? 'var(--bad)' : o.color,
+        textColor: o.source.type === 'travel' ? 'var(--text-2)' : '#fff',
+        editable: o.movable,
+        // Skipped: drawn behind everything, so other blocks can sit on top of it.
+        display: o.skipped ? 'background' : 'auto',
+        classNames: [
+          `k-${o.source.type}`,
+          o.warning ? 'k-warn' : '',
+          isDone(o) ? 'k-done' : '',
+          o.assessment ? 'k-assess' : '',
+          o.skipped ? 'k-skipped' : '',
+        ].filter(Boolean),
+        extendedProps: { occ: o },
+      })),
+    [occs],
+  );
 
   const onChange = (how: 'move' | 'resize') => (info: EventDropArg | EventResizeDoneArg) => {
     const o = byId.get(info.event.id);
@@ -54,9 +70,11 @@ export function CalendarView({ range, onRange }: { range: { start: Date; end: Da
         plugins={[timeGridPlugin, dayGridPlugin, interactionPlugin]}
         initialView={narrow ? 'timeGridDay' : 'timeGridWeek'}
         views={{ timeGrid3: { type: 'timeGrid', duration: { days: 3 }, buttonText: '3 days' } }}
-        headerToolbar={narrow
-          ? { left: 'prev,next today', center: '', right: 'timeGridDay,timeGrid3' }
-          : { left: 'prev,next today', center: 'title', right: 'timeGridDay,timeGrid3,timeGridWeek,dayGridMonth' }}
+        headerToolbar={
+          narrow
+            ? { left: 'prev,next today', center: '', right: 'timeGridDay,timeGrid3' }
+            : { left: 'prev,next today', center: 'title', right: 'timeGridDay,timeGrid3,timeGridWeek,dayGridMonth' }
+        }
         firstDay={1}
         // Day before month everywhere: "Mon 16/11", "16 – 22 Nov 2026".
         locale={enGbLocale}
@@ -101,14 +119,24 @@ export function CalendarView({ range, onRange }: { range: { start: Date; end: Da
           }
         }}
         eventContent={renderEvent}
-        dayCellClassNames={(arg) => { const mk = dayMarker(data.semesters, arg.date); return mk ? ['k-day-marked', `k-day-${mk.kind}`] : []; }}
-        dayHeaderClassNames={(arg) => { const mk = dayMarker(data.semesters, arg.date); return mk ? ['k-day-marked', `k-day-${mk.kind}`] : []; }}
+        dayCellClassNames={(arg) => {
+          const mk = dayMarker(data.semesters, arg.date);
+          return mk ? ['k-day-marked', `k-day-${mk.kind}`] : [];
+        }}
+        dayHeaderClassNames={(arg) => {
+          const mk = dayMarker(data.semesters, arg.date);
+          return mk ? ['k-day-marked', `k-day-${mk.kind}`] : [];
+        }}
         dayHeaderContent={(arg) => {
           const mk = dayMarker(data.semesters, arg.date);
           return (
             <div className="day-head">
               <span>{arg.text}</span>
-              {mk && <span className={`day-mark ${mk.kind}`} title={mk.label}>{mk.label}</span>}
+              {mk && (
+                <span className={`day-mark ${mk.kind}`} title={mk.label}>
+                  {mk.label}
+                </span>
+              )}
             </div>
           );
         }}
@@ -122,17 +150,34 @@ const isDone = (o: Occ) => o.source.type === 'task' && o.title.startsWith('✓')
 function renderEvent(arg: EventContentArg) {
   const o = arg.event.extendedProps.occ as Occ | undefined;
   // The placeholder block FullCalendar draws while you drag-select empty time has no occurrence.
-  if (!o) return <div className="ev"><div className="ev-meta">{arg.timeText}</div></div>;
+  if (!o)
+    return (
+      <div className="ev">
+        <div className="ev-meta">{arg.timeText}</div>
+      </div>
+    );
   const mins = (o.end.getTime() - o.start.getTime()) / 60000;
-  const tip = [o.detail ? `${o.title} · ${o.detail}` : o.title, `${fmtTime(o.start)}–${fmtTime(o.end)}${o.location ? `, ${o.location}` : ''}`, o.subtitle, o.warning && `⚠️ ${o.warning}`].filter(Boolean).join('\n');
+  const tip = [
+    o.detail ? `${o.title} · ${o.detail}` : o.title,
+    `${fmtTime(o.start)}–${fmtTime(o.end)}${o.location ? `, ${o.location}` : ''}`,
+    o.subtitle,
+    o.warning && `⚠️ ${o.warning}`,
+  ]
+    .filter(Boolean)
+    .join('\n');
   // Travel: always one horizontal line, cut off with "…" if it doesn't fit.
   if (o.skipped) {
-    return <div className="ev ev-line ev-skipped" title={`Skipped: ${tip}`}>{o.title} · skipped</div>;
+    return (
+      <div className="ev ev-line ev-skipped" title={`Skipped: ${tip}`}>
+        {o.title} · skipped
+      </div>
+    );
   }
   if (o.source.type === 'travel') {
     return (
       <div className="ev ev-line" title={tip}>
-        {o.warning && '⚠️ '}{o.title} · {fmtTime(o.start)}
+        {o.warning && '⚠️ '}
+        {o.title} · {fmtTime(o.start)}
       </div>
     );
   }
@@ -141,7 +186,10 @@ function renderEvent(arg: EventContentArg) {
   if (mins < 30) {
     return (
       <div className="ev ev-line" title={tip}>
-        {o.warning && '⚠️ '}{o.title}{o.detail && <span className="ev-detail"> · {o.detail}</span>}<span className="ev-where">{where}</span>
+        {o.warning && '⚠️ '}
+        {o.title}
+        {o.detail && <span className="ev-detail"> · {o.detail}</span>}
+        <span className="ev-where">{where}</span>
       </div>
     );
   }
@@ -150,10 +198,18 @@ function renderEvent(arg: EventContentArg) {
   return (
     <div className="ev" title={tip}>
       <div className="ev-title">
-        {o.warning && <span className="ev-warn" aria-label="Warning">⚠️ </span>}
-        {o.title}{o.detail && <span className="ev-detail"> · {o.detail}</span>}
+        {o.warning && (
+          <span className="ev-warn" aria-label="Warning">
+            ⚠️{' '}
+          </span>
+        )}
+        {o.title}
+        {o.detail && <span className="ev-detail"> · {o.detail}</span>}
       </div>
-      <div className="ev-meta">{fmtTime(o.start)}–{fmtTime(o.end)}{where}</div>
+      <div className="ev-meta">
+        {fmtTime(o.start)}–{fmtTime(o.end)}
+        {where}
+      </div>
       {mins >= 90 && o.subtitle && <div className="ev-meta ev-sub">{o.subtitle}</div>}
     </div>
   );

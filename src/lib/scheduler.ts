@@ -20,7 +20,10 @@ const ceilTo = (d: Date, step: number) => {
   return new Date(Math.ceil(d.getTime() / ms) * ms);
 };
 
-interface Interval { start: Date; end: Date }
+interface Interval {
+  start: Date;
+  end: Date;
+}
 
 /** Free gaps of `durationMin` (with the buffer around them), earliest first. */
 function* candidates(data: AppData, busy: Interval[], durationMin: number, from: Date, until: Date) {
@@ -43,7 +46,8 @@ function* candidates(data: AppData, busy: Interval[], durationMin: number, from:
 const isTravel = (o: Occ) => o.source.type === 'travel';
 
 /** Problems on one day: warnings (routines squeezed out, trips too short...). */
-const warningsOn = (occs: Occ[], skipId?: string) => occs.filter((o) => o.warning && !o.skipped && o.id !== skipId).length;
+const warningsOn = (occs: Occ[], skipId?: string) =>
+  occs.filter((o) => o.warning && !o.skipped && o.id !== skipId).length;
 
 /** Returns a new tasks array. Pure: does not mutate `data`. */
 export function planTasks(data: AppData, now: Date): Task[] {
@@ -58,7 +62,10 @@ export function planTasks(data: AppData, now: Date): Task[] {
       t.pinned = false;
       t.rolledForward = true;
     }
-    if (!t.onCalendar) { t.scheduled = undefined; t.pinned = false; }
+    if (!t.onCalendar) {
+      t.scheduled = undefined;
+      t.pinned = false;
+    }
   }
 
   const movable = tasks.filter((t) => t.onCalendar && !t.done && !t.pinned);
@@ -69,7 +76,8 @@ export function planTasks(data: AppData, now: Date): Task[] {
 
   // Lay out one day with the current task slots. Cached per day; cleared when a task lands there.
   const dayCache = new Map<string, number>();
-  const layout = (day: Date, list: Task[]) => expand({ ...data, tasks: list }, startOfDay(day), addDays(startOfDay(day), 1));
+  const layout = (day: Date, list: Task[]) =>
+    expand({ ...data, tasks: list }, startOfDay(day), addDays(startOfDay(day), 1));
   const baseline = (day: Date) => {
     const k = dateKey(day);
     if (!dayCache.has(k)) dayCache.set(k, warningsOn(layout(day, tasks)));
@@ -79,17 +87,21 @@ export function planTasks(data: AppData, now: Date): Task[] {
   /** Would putting `t` at `slot` work? Its trips fit, nothing overlaps it, and no new warnings appear that day. */
   const fits = (t: Task, slot: Interval) => {
     const before = baseline(slot.start);
-    const trial = tasks.map((x) => (x.id === t.id ? { ...x, scheduled: { start: toLocal(slot.start), end: toLocal(slot.end) } } : x));
+    const trial = tasks.map((x) =>
+      x.id === t.id ? { ...x, scheduled: { start: toLocal(slot.start), end: toLocal(slot.end) } } : x,
+    );
     const occs = layout(slot.start, trial);
     const id = `task:${t.id}`;
     const others = occs.filter((o) => o.id !== id && !o.skipped && !isTravel(o));
     // Nothing may sit on top of the task itself (a routine that couldn't move away would),
     // and you can't do it while travelling somewhere else.
     if (others.some((o) => overlaps(slot.start, slot.end, o.start, o.end))) return false;
-    if (occs.some((o) => isTravel(o) && !o.id.includes(id) && overlaps(slot.start, slot.end, o.start, o.end))) return false;
+    if (occs.some((o) => isTravel(o) && !o.id.includes(id) && overlaps(slot.start, slot.end, o.start, o.end)))
+      return false;
     // Its own trips must not cut into anything else.
     const myTrips = occs.filter((o) => isTravel(o) && o.id.includes(id));
-    if (myTrips.some((tr) => tr.warning || others.some((o) => overlaps(tr.start, tr.end, o.start, o.end)))) return false;
+    if (myTrips.some((tr) => tr.warning || others.some((o) => overlaps(tr.start, tr.end, o.start, o.end))))
+      return false;
     return warningsOn(occs, id) <= before;
   };
 
@@ -154,9 +166,12 @@ export function taskWarning(t: Task, now: Date, warnHours: number): { level: 'ba
   if (t.done) return null;
   const dl = t.deadline ? fromLocal(t.deadline) : null;
   if (dl && dl < now) return { level: 'bad', text: 'Deadline passed' };
-  if (t.onCalendar && t.scheduled && dl && fromLocal(t.scheduled.end) > dl) return { level: 'bad', text: 'Scheduled after deadline' };
+  if (t.onCalendar && t.scheduled && dl && fromLocal(t.scheduled.end) > dl)
+    return { level: 'bad', text: 'Scheduled after deadline' };
   if (t.onCalendar && !t.scheduled) return { level: 'bad', text: 'No free slot found' };
-  if (t.onCalendar && t.pinned && t.scheduled && fromLocal(t.scheduled.end) < now) return { level: 'warn', text: 'Time passed: mark done, or let auto-schedule move it' };
-  if (dl && !t.onCalendar && dl.getTime() - now.getTime() < warnHours * 3600_000) return { level: 'warn', text: 'Due soon, not scheduled' };
+  if (t.onCalendar && t.pinned && t.scheduled && fromLocal(t.scheduled.end) < now)
+    return { level: 'warn', text: 'Time passed: mark done, or let auto-schedule move it' };
+  if (dl && !t.onCalendar && dl.getTime() - now.getTime() < warnHours * 3600_000)
+    return { level: 'warn', text: 'Due soon, not scheduled' };
   return null;
 }

@@ -1,4 +1,4 @@
-import { addDays, differenceInCalendarDays } from 'date-fns';
+import { differenceInCalendarDays } from 'date-fns';
 import type { Semester, SemesterStyle, WeekLabel } from '../types';
 import { fromLocal } from './time';
 
@@ -16,10 +16,18 @@ export function parseWeeks(input: string, maxWeek = 13, allowParity = true): num
     const tok = raw.trim();
     if (!tok) continue;
     if (tok === 'odd' || tok === 'even') {
-      if (!allowParity) throw new Error('Odd/even weeks are only for NUS-style semesters. Use ranges like "1-15" or lists like "1,3,5".');
-      parity = tok; continue;
+      if (!allowParity)
+        throw new Error(
+          'Odd/even weeks are only for NUS-style semesters. Use ranges like "1-15" or lists like "1,3,5".',
+        );
+      parity = tok;
+      continue;
     }
-    if (tok === 'all') { for (let i = 1; i <= maxWeek; i++) nums.add(i); hadNumbers = true; continue; }
+    if (tok === 'all') {
+      for (let i = 1; i <= maxWeek; i++) nums.add(i);
+      hadNumbers = true;
+      continue;
+    }
     const m = tok.match(/^(\d+)(?:-(\d+))?$/);
     if (!m) throw new Error(`Can't read "${tok}". Try "3-13", "odd", "1,3,5-7".`);
     const a = Number(m[1]);
@@ -45,7 +53,10 @@ export function formatWeeks(weeks: number[], allowParity = true): string {
   let prev = w[0];
   for (let i = 1; i <= w.length; i++) {
     const n = w[i];
-    if (n === prev + 1) { prev = n; continue; }
+    if (n === prev + 1) {
+      prev = n;
+      continue;
+    }
     parts.push(start === prev ? `${start}` : `${start}-${prev}`);
     start = prev = n;
   }
@@ -81,8 +92,14 @@ export function formatLayout(layout: WeekLabel[]): string {
   for (const w of layout) {
     if (w.type === 'teaching') {
       if (runEnd !== null && w.n === runEnd + 1) runEnd = w.n;
-      else { flush(); runStart = runEnd = w.n; }
-    } else { flush(); parts.push(w.name); }
+      else {
+        flush();
+        runStart = runEnd = w.n;
+      }
+    } else {
+      flush();
+      parts.push(w.name);
+    }
   }
   flush();
   return parts.join(', ');
@@ -100,7 +117,15 @@ export const DAY_PRESETS: { label: string; days: number[] }[] = [
 /** UW-style short day names: M T W R F S U */
 export const US_DAY_LETTERS = ['M', 'T', 'W', 'R', 'F', 'S', 'U'];
 export const formatDays = (days: number[], style: SemesterStyle) =>
-  style === 'us' ? [...days].sort().map((d) => US_DAY_LETTERS[d]).join('') : [...days].sort().map((d) => ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][d]).join('/');
+  style === 'us'
+    ? [...days]
+        .sort()
+        .map((d) => US_DAY_LETTERS[d])
+        .join('')
+    : [...days]
+        .sort()
+        .map((d) => ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][d])
+        .join('/');
 
 export const LAYOUT_PRESETS: { name: string; layout: string }[] = [
   { name: 'NUS (13 weeks + recess)', layout: '1-6, Recess, 7-13, Reading, Exam, Exam' },
@@ -108,7 +133,14 @@ export const LAYOUT_PRESETS: { name: string; layout: string }[] = [
 ];
 
 /** Ready-made semesters with real dates. Double-check holidays against the official calendar. */
-export const SEMESTER_PRESETS: { name: string; style: SemesterStyle; startDate: string; layout: string; holidays: { date: string; name: string }[]; source: string }[] = [
+export const SEMESTER_PRESETS: {
+  name: string;
+  style: SemesterStyle;
+  startDate: string;
+  layout: string;
+  holidays: { date: string; name: string }[];
+  source: string;
+}[] = [
   {
     // registrar.wisc.edu: instruction Sep 2, Thanksgiving Nov 26-29, last class Dec 9, study day Dec 10, finals Dec 11-17
     name: 'UW–Madison Fall 2026',
@@ -158,19 +190,24 @@ export function academicWeekFor(sems: Semester[], day: Date): { sem: Semester; l
   return null;
 }
 
-/** Date range covered by a semester. */
-export function semesterEnd(sem: Semester): Date {
-  return addDays(fromLocal(sem.startDate), sem.layout.length * 7);
-}
-
 export const maxTeachingWeek = (sem?: Semester) =>
   sem ? Math.max(1, ...sem.layout.map((w) => (w.type === 'teaching' ? w.n : 0))) : 13;
 
 export function semesterFromPreset(p: (typeof SEMESTER_PRESETS)[number], id: string): Semester {
-  return { id, name: p.name, style: p.style, startDate: p.startDate, layout: parseLayout(p.layout), holidays: [...p.holidays] };
+  return {
+    id,
+    name: p.name,
+    style: p.style,
+    startDate: p.startDate,
+    layout: parseLayout(p.layout),
+    holidays: [...p.holidays],
+  };
 }
 
-export interface DayMarker { label: string; kind: 'break' | 'exam' }
+export interface DayMarker {
+  label: string;
+  kind: 'break' | 'exam';
+}
 
 /**
  * Is this day special? Single-day holidays (Thanksgiving, Labor Day, Study day)

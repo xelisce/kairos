@@ -4,31 +4,49 @@ A day planner built for ADHD brains: it fits classes, meals, travel and tasks ar
 
 ## Run it
 
+Needs Node 22+ (for the built-in SQLite).
+
 ```
 npm install
 npm run dev      # app at http://localhost:5173 + local database server on :5175
 npm start        # build, then serve app + database at http://127.0.0.1:5175
-npm test         # unit tests for weeks, travel, scheduler
+npm run check    # type-check, lint and test
+npm test         # tests only
+npm run format   # Prettier
 ```
 
-Data lives in a SQLite database on this computer: `data/kairos.db` (git-ignored), using
-Node's built-in SQLite (Node 22+). The server keeps an automatic backup at most once an hour
-(restore from Places → Backup → Database backups). If the server isn't running, the app keeps
-changes in the browser and saves them to the database when it's back.
+Data lives in a SQLite database on this computer: `data/kairos.db` (git-ignored). The server keeps
+an automatic backup at most once an hour (restore from Places → Backup → Database backups). If the
+server isn't running, the app keeps changes in the browser and saves them to the database when it's back.
 
-## Where things live
+## How it fits together
 
-| File | What |
-|---|---|
-| `src/types.ts` | Data model (semesters, modules, classes, routines, events, tasks, places, routes) |
-| `src/lib/weeks.ts` | Week patterns (`3-13`, `odd`, `even 2-12`) and semester layouts (`1-6, Recess, 7-13, ...`) |
-| `src/lib/expand.ts` | Turns data into calendar blocks; flexible routines slide around clashes; travel blocks |
-| `src/lib/scheduler.ts` | Auto-scheduler for tasks (stable, earliest deadline first, rolls missed tasks forward) |
-| `src/store.ts` | State with undo/redo (last 30 edits) |
-| `src/lib/sync.ts` | Loads/saves the data via the local database; browser copy as offline fallback |
-| `server/index.mjs` | Local database server (SQLite file + hourly backups), also serves the built app |
-| `src/lib/nusmods.ts` | Import from a NUSMods share link |
-| `src/components/` | Calendar, Now/Next card, panels, dialogs |
+Everything you enter is one `AppData` object (`src/types.ts`). Edits go through `store.commit`, which
+records an undo step and re-runs the task scheduler. The calendar never stores blocks: `expand()` works
+them out for whatever range is on screen (classes by academic week, CCAs, events, tasks, routines fitted
+into their windows, then trips between places).
+
+| Path                      | What                                                                              |
+| ------------------------- | --------------------------------------------------------------------------------- |
+| `src/types.ts`            | Data model                                                                        |
+| `src/store.ts`            | State, undo/redo (30 steps), browser fallback copy                                |
+| `src/lib/expand.ts`       | Data → calendar blocks for a date range                                           |
+| `src/lib/routines.ts`     | Fitting meals, shower… into their windows                                         |
+| `src/lib/travel.ts`       | Trips between places                                                              |
+| `src/lib/places.ts`       | Matching a location to a saved place (names, aliases), route times, renaming      |
+| `src/lib/scheduler.ts`    | Auto-scheduling tasks (stable, earliest deadline first, checks each day's layout) |
+| `src/lib/actions.ts`      | Every edit the UI makes (move, skip, delete, re-plan, reset…)                     |
+| `src/lib/weeks.ts`        | Week patterns (`3-13`, `odd`), semester layouts, presets, special days            |
+| `src/lib/migrate.ts`      | Upgrading saved data from older versions                                          |
+| `src/lib/sync.ts`         | Loading/saving through the local database                                         |
+| `src/lib/labels.ts`       | Colors, icons and names                                                           |
+| `src/lib/nusmods.ts`      | Import from a NUSMods share link                                                  |
+| `src/components/`         | `CalendarView`, `NowNext`, top-bar buttons                                        |
+| `src/components/dialogs/` | One file per dialog; `ModalHost` shows the open one                               |
+| `src/components/panels/`  | Sidebar tabs (Tasks, Classes, Routines, Places, Deleted)                          |
+| `src/components/ui/`      | Shared building blocks (dialog frame, inputs, dd/mm/yyyy dates, dialog state)     |
+| `server/index.mjs`        | Local database server (SQLite + hourly backups); also serves the built app        |
+| `src/**/*.test.ts`        | Tests, next to the code they test (`src/test/fixtures.ts` has shared sample data) |
 
 ## Roadmap
 

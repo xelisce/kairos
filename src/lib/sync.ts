@@ -10,11 +10,24 @@ export type SyncStatus = 'connecting' | 'saving' | 'saved' | 'offline';
 export const useSync = create<{ status: SyncStatus; detail?: string }>(() => ({ status: 'connecting' }));
 
 const META = 'kairos:sync:v1';
-interface Meta { version: number; dirty: boolean }
+interface Meta {
+  version: number;
+  dirty: boolean;
+}
 const readMeta = (): Meta => {
-  try { return { version: 0, dirty: false, ...JSON.parse(localStorage.getItem(META) ?? '{}') }; } catch { return { version: 0, dirty: false }; }
+  try {
+    return { version: 0, dirty: false, ...JSON.parse(localStorage.getItem(META) ?? '{}') };
+  } catch {
+    return { version: 0, dirty: false };
+  }
 };
-const writeMeta = (m: Meta) => { try { localStorage.setItem(META, JSON.stringify(m)); } catch { /* ignore */ } };
+const writeMeta = (m: Meta) => {
+  try {
+    localStorage.setItem(META, JSON.stringify(m));
+  } catch {
+    /* ignore */
+  }
+};
 
 let meta = readMeta();
 let timer: ReturnType<typeof setTimeout> | undefined;
@@ -26,7 +39,10 @@ let remoteApplying = false;
 const setStatus = (status: SyncStatus, detail?: string) => useSync.setState({ status, detail });
 
 async function push() {
-  if (inFlight) { again = true; return; }
+  if (inFlight) {
+    again = true;
+    return;
+  }
   inFlight = true;
   setStatus('saving');
   try {
@@ -60,7 +76,10 @@ async function push() {
     retry = setTimeout(push, 10_000);
   } finally {
     inFlight = false;
-    if (again) { again = false; void push(); }
+    if (again) {
+      again = false;
+      void push();
+    }
   }
 }
 
@@ -73,7 +92,9 @@ function schedulePush() {
 
 /** Load from the database, move browser-only data into it on first run, then save after every change. */
 export async function startSync() {
-  useStore.subscribe((s, p) => { if (s.data !== p.data && !remoteApplying) schedulePush(); });
+  useStore.subscribe((s, p) => {
+    if (s.data !== p.data && !remoteApplying) schedulePush();
+  });
   try {
     const res = await fetch('/api/data');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -88,7 +109,9 @@ export async function startSync() {
         try {
           const local = localStorage.getItem('kairos:data:v1');
           if (local) localStorage.setItem('kairos:data:before-database', local);
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       }
       meta = { version: cur.version, dirty: false };
       writeMeta(meta);

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { replan, REPLAN_LABELS, resetRoutines, RESET_LABELS, type ReplanScope } from '../lib/actions';
+import { replan, REPLAN_LABELS, resetDays, RESET_LABELS, type ReplanScope } from '../lib/actions';
 
 const SCOPES: ReplanScope[] = ['today', 'tomorrow', 'next3', 'week', 'future', 'all'];
 
@@ -11,27 +11,59 @@ const RESET_HELP =
   'and re-attaches trips you dragged to their class or event. Trip lengths you typed are kept. Undo with Ctrl+Z.';
 
 /** A button for "today" plus a ▾ menu for this week / all future / all time. */
-function ScopeButton({ icon, labels, help, run, menuLabel }: {
-  icon: string; labels: Record<ReplanScope, string>; help: string; run: (s: ReplanScope) => void; menuLabel: string;
+function ScopeButton({
+  icon,
+  labels,
+  help,
+  run,
+  menuLabel,
+}: {
+  icon: string;
+  labels: Record<ReplanScope, string>;
+  help: string;
+  run: (s: ReplanScope) => void;
+  menuLabel: string;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
-    const close = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    const close = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
     window.addEventListener('mousedown', close);
     window.addEventListener('keydown', esc);
-    return () => { window.removeEventListener('mousedown', close); window.removeEventListener('keydown', esc); };
+    return () => {
+      window.removeEventListener('mousedown', close);
+      window.removeEventListener('keydown', esc);
+    };
   }, [open]);
-  const go = (s: ReplanScope) => { run(s); setOpen(false); };
+  const go = (s: ReplanScope) => {
+    run(s);
+    setOpen(false);
+  };
   return (
     <div className="split" ref={ref}>
-      <button className="btn split-main" onClick={() => go('today')} title={help}>{icon} {labels.today}</button>
-      <button className="btn split-arrow" aria-label={menuLabel} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>▾</button>
+      <button className="btn split-main" onClick={() => go('today')} title={help}>
+        {icon} {labels.today}
+      </button>
+      <button
+        className="btn split-arrow"
+        aria-label={menuLabel}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        ▾
+      </button>
       {open && (
         <div className="menu" role="menu">
-          {SCOPES.map((s) => <button key={s} role="menuitem" onClick={() => go(s)}>{labels[s]}</button>)}
+          {SCOPES.map((s) => (
+            <button key={s} role="menuitem" onClick={() => go(s)}>
+              {labels[s]}
+            </button>
+          ))}
           <p className="menu-help">{help}</p>
         </div>
       )}
@@ -40,9 +72,25 @@ function ScopeButton({ icon, labels, help, run, menuLabel }: {
 }
 
 export function ReplanButton() {
-  return <ScopeButton icon="↻" labels={REPLAN_LABELS} help={REPLAN_HELP} run={(s) => replan(s)} menuLabel="More re-plan options" />;
+  return (
+    <ScopeButton
+      icon="↻"
+      labels={REPLAN_LABELS}
+      help={REPLAN_HELP}
+      run={(s) => replan(s)}
+      menuLabel="More re-plan options"
+    />
+  );
 }
 
 export function ResetButton() {
-  return <ScopeButton icon="⟲" labels={RESET_LABELS} help={RESET_HELP} run={(s) => resetRoutines(s)} menuLabel="More reset options" />;
+  return (
+    <ScopeButton
+      icon="⟲"
+      labels={RESET_LABELS}
+      help={RESET_HELP}
+      run={(s) => resetDays(s)}
+      menuLabel="More reset options"
+    />
+  );
 }

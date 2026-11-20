@@ -36,7 +36,18 @@ export interface Module {
   color: string;
 }
 
-export type ClassKind = 'Lecture' | 'Discussion' | 'Tutorial' | 'Lab' | 'Recitation' | 'Seminar' | 'Quiz' | 'Exam' | 'Presentation' | 'Help session' | 'Other';
+export type ClassKind =
+  | 'Lecture'
+  | 'Discussion'
+  | 'Tutorial'
+  | 'Lab'
+  | 'Recitation'
+  | 'Seminar'
+  | 'Quiz'
+  | 'Exam'
+  | 'Presentation'
+  | 'Help session'
+  | 'Other';
 
 /** Kinds that count as assessments (shown with emphasis). */
 export const ASSESSMENT_KINDS: ClassKind[] = ['Quiz', 'Exam', 'Presentation'];
@@ -124,7 +135,8 @@ export interface Routine {
   durationOverrides?: Record<LocalDate, number>;
 }
 
-export type EventCategory = 'hangout' | 'cca' | 'admin' | 'appointment' | 'exam' | 'quiz' | 'presentation' | 'help' | 'meeting' | 'other';
+export type EventCategory =
+  'hangout' | 'cca' | 'admin' | 'appointment' | 'exam' | 'quiz' | 'presentation' | 'help' | 'meeting' | 'other';
 
 /** One-off fixed-time thing: hangout, appointment, admin slot. */
 export interface CalEvent {

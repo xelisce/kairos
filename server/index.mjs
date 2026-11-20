@@ -45,7 +45,9 @@ const upsertDoc = db.prepare(`
   ON CONFLICT(key) DO UPDATE SET json = excluded.json, version = excluded.version, updated_at = excluded.updated_at`);
 const lastBackup = db.prepare('SELECT created_at FROM backups ORDER BY id DESC LIMIT 1');
 const addBackup = db.prepare('INSERT INTO backups (json, created_at) VALUES (?, ?)');
-const pruneBackups = db.prepare('DELETE FROM backups WHERE id NOT IN (SELECT id FROM backups ORDER BY id DESC LIMIT ?)');
+const pruneBackups = db.prepare(
+  'DELETE FROM backups WHERE id NOT IN (SELECT id FROM backups ORDER BY id DESC LIMIT ?)',
+);
 const listBackups = db.prepare('SELECT id, created_at, length(json) AS size FROM backups ORDER BY id DESC LIMIT 100');
 const getBackup = db.prepare('SELECT json FROM backups WHERE id = ?');
 
@@ -77,23 +79,41 @@ function write(json, version) {
 
 const send = (res, status, body, headers = {}) => {
   const isJson = typeof body !== 'string' && !Buffer.isBuffer(body);
-  res.writeHead(status, { 'Content-Type': isJson ? 'application/json' : 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', ...headers });
+  res.writeHead(status, {
+    'Content-Type': isJson ? 'application/json' : 'text/plain; charset=utf-8',
+    'Cache-Control': 'no-store',
+    ...headers,
+  });
   res.end(isJson ? JSON.stringify(body) : body);
 };
 
-const readBody = (req) => new Promise((ok, fail) => {
-  let size = 0;
-  const chunks = [];
-  req.on('data', (c) => {
-    size += c.length;
-    if (size > MAX_BODY) { fail(new Error('too large')); req.destroy(); return; }
-    chunks.push(c);
+const readBody = (req) =>
+  new Promise((ok, fail) => {
+    let size = 0;
+    const chunks = [];
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > MAX_BODY) {
+        fail(new Error('too large'));
+        req.destroy();
+        return;
+      }
+      chunks.push(c);
+    });
+    req.on('end', () => ok(Buffer.concat(chunks).toString('utf8')));
+    req.on('error', fail);
   });
-  req.on('end', () => ok(Buffer.concat(chunks).toString('utf8')));
-  req.on('error', fail);
-});
 
-const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.ico': 'image/x-icon' };
+const TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript',
+  '.css': 'text/css',
+  '.svg': 'image/svg+xml',
+  '.json': 'application/json',
+  '.webmanifest': 'application/manifest+json',
+  '.png': 'image/png',
+  '.ico': 'image/x-icon',
+};
 
 function serveStatic(req, res) {
   if (!existsSync(DIST)) return send(res, 404, 'Not built yet. Run "npm run build", or use "npm run dev".');
@@ -114,7 +134,8 @@ const server = createServer(async (req, res) => {
 
     if (url.pathname === '/api/data' && req.method === 'PUT') {
       const body = JSON.parse(await readBody(req));
-      if (!body || typeof body.data !== 'object' || body.data === null) return send(res, 400, { error: 'data missing' });
+      if (!body || typeof body.data !== 'object' || body.data === null)
+        return send(res, 400, { error: 'data missing' });
       const cur = current();
       // Someone else (another tab) saved since this copy was loaded: hand back the newer one.
       if (cur.version !== 0 && body.baseVersion !== cur.version) return send(res, 409, cur);
