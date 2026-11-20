@@ -3,6 +3,7 @@ import { useStore } from '../../store';
 import type { NewItemDefaults, TaskCategory } from '../../types';
 import { newDefaults } from '../../lib/newDefaults';
 import { Field, NumberInput, Row } from '../ui';
+import { MAX_AWAY_DAYS, MAX_BLOCK_MIN } from '../../lib/limits';
 
 export function NewItemsSection() {
   const settings = useStore((s) => s.data.settings);
@@ -59,6 +60,7 @@ export function NewItemsSection() {
         <Field label="Longest session (min)">
           <NumberInput
             min={15}
+            max={MAX_BLOCK_MIN}
             value={d.split.maxSessionMin}
             onCommit={(v) => set('split', { ...d.split, maxSessionMin: v })}
           />
@@ -66,6 +68,7 @@ export function NewItemsSection() {
         <Field label="Most per day (min)">
           <NumberInput
             min={15}
+            max={MAX_BLOCK_MIN}
             value={d.split.maxPerDayMin}
             onCommit={(v) => set('split', { ...d.split, maxPerDayMin: v })}
           />
@@ -73,6 +76,7 @@ export function NewItemsSection() {
         <Field label="Shortest session (min)">
           <NumberInput
             min={5}
+            max={MAX_BLOCK_MIN}
             value={d.split.minSessionMin}
             onCommit={(v) => set('split', { ...d.split, minSessionMin: v })}
           />
@@ -96,10 +100,10 @@ export function NewItemsSection() {
       <h4 className="plans-head">New event, routine and CCA</h4>
       <Row>
         <Field label="Event length (min)">
-          <NumberInput min={5} value={d.eventMin} onCommit={(v) => set('eventMin', v)} />
+          <NumberInput min={5} max={MAX_BLOCK_MIN} value={d.eventMin} onCommit={(v) => set('eventMin', v)} />
         </Field>
         <Field label="Routine length (min)">
-          <NumberInput min={5} value={d.routineMin} onCommit={(v) => set('routineMin', v)} />
+          <NumberInput min={5} max={MAX_BLOCK_MIN} value={d.routineMin} onCommit={(v) => set('routineMin', v)} />
         </Field>
       </Row>
       <Row>
@@ -112,7 +116,7 @@ export function NewItemsSection() {
         <Field label="Leaves (tomorrow at)">{time('awayStart')}</Field>
         <Field label="Back at">{time('awayEnd')}</Field>
         <Field label="Days away">
-          <NumberInput min={0} value={d.awayDays} onCommit={(v) => set('awayDays', v)} />
+          <NumberInput min={0} max={MAX_AWAY_DAYS} value={d.awayDays} onCommit={(v) => set('awayDays', v)} />
         </Field>
       </Row>
     </>

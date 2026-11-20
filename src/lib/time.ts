@@ -1,8 +1,15 @@
 import { addDays, addMinutes, format, parseISO, startOfDay } from 'date-fns';
 import type { HHMM, LocalDate, LocalDateTime } from '../types';
+import { MAX_YEAR, MIN_YEAR } from './limits';
 
 export const toLocal = (d: Date): LocalDateTime => format(d, "yyyy-MM-dd'T'HH:mm");
-export const fromLocal = (s: LocalDateTime | LocalDate): Date => parseISO(s);
+const LOCAL_RE = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?$/;
+/** "2026-11-20T09:30" or "2026-11-20" as a local time. Hand-parsed: the planner calls this a lot. */
+export const fromLocal = (s: LocalDateTime | LocalDate): Date => {
+  const m = LOCAL_RE.exec(s);
+  if (!m) return parseISO(s); // seconds, an offset... (or not a date: Invalid Date)
+  return new Date(+m[1], +m[2] - 1, +m[3], m[4] ? +m[4] : 0, m[5] ? +m[5] : 0);
+};
 export const dateKey = (d: Date): LocalDate => format(d, 'yyyy-MM-dd');
 
 export const hmToMin = (hm: HHMM): number => {
@@ -41,13 +48,14 @@ const pad2 = (n: number) => String(n).padStart(2, '0');
 /** "2026-11-20" -> "20/11/2026" */
 export const toDMY = (iso: string) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : '');
 
-/** "20/11/2026", "20-11-26", "20.11.2026" -> "2026-11-20"; null if not a real date. */
+/** "20/11/2026", "20-11-26", "20.11.2026" -> "2026-11-20"; null if not a real date (or a year typo like 2206). */
 export function parseDMY(text: string): LocalDate | null {
   const m = text.trim().match(/^(\d{1,2})[/.\-\s](\d{1,2})[/.\-\s](\d{2}|\d{4})$/);
   if (!m) return null;
   const d = Number(m[1]);
   const mo = Number(m[2]);
   const y = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
+  if (y < MIN_YEAR || y > MAX_YEAR) return null;
   const dt = new Date(y, mo - 1, d);
   if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return null;
   return `${y}-${pad2(mo)}-${pad2(d)}`;

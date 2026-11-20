@@ -20,6 +20,7 @@ import {
 import { fmtDur, fmtTime } from '../../lib/time';
 import { Field, LocationInput, Modal, Row, useModal, useUI } from '../ui';
 import { kindOptions, locationSuggestions } from './shared';
+import { MAX_TEXT } from '../../lib/limits';
 
 export function OccurrenceDialog() {
   const { occ: o } = useModal('occ');
@@ -114,6 +115,7 @@ export function OccurrenceDialog() {
         >
           <div className="detail-row">
             <input
+              maxLength={MAX_TEXT}
               value={detail}
               onChange={(e) => setDetailText(e.target.value)}
               placeholder="What's special about this one?"

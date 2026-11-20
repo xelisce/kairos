@@ -35,7 +35,7 @@ export function TravelPlanDialog() {
           onDelete={() => saveWith(others, `Remove ${name}`)}
           onCancel={close}
           onSave={() => saveWith([...others, p], `Edit ${name}`)}
-          canSave={!!p.start}
+          problem={p.start ? undefined : 'Pick a date'}
         />
       }
     >

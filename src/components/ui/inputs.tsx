@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useStore } from '../../store';
 import { displayOf } from '../../lib/display';
+import { MAX_TASK_MIN, MAX_TEXT } from '../../lib/limits';
 
 /**
  * Location box with its own dropdown (saved places first, then places you've used before).
@@ -28,6 +29,7 @@ export function LocationInput({
   return (
     <div className="combo">
       <input
+        maxLength={MAX_TEXT}
         value={value}
         placeholder="Optional, e.g. Morgridge Hall"
         role="combobox"
@@ -157,12 +159,13 @@ export function DayPicker({
 /**
  * Number box you can clear and retype freely. The value is only checked
  * (and clamped to min/max) when you leave the box or press Enter.
+ * `max` defaults to a safe ceiling so an extra zero can't push a time past what dates can hold.
  */
 export function NumberInput({
   value,
   onCommit,
   min = 0,
-  max,
+  max = MAX_TASK_MIN,
   ...rest
 }: {
   value: number;
@@ -181,7 +184,7 @@ export function NumberInput({
     setFocused(false);
     let n = Number(text);
     if (text.trim() === '' || !Number.isFinite(n)) n = value;
-    n = Math.round(Math.max(min, max !== undefined ? Math.min(max, n) : n));
+    n = Math.round(Math.min(max, Math.max(min, n)));
     setText(String(n));
     if (n !== value) onCommit(n);
   };
@@ -192,7 +195,8 @@ export function NumberInput({
       inputMode="numeric"
       value={text}
       onFocus={() => setFocused(true)}
-      onChange={(e) => setText(e.target.value.replace(/[^\d]/g, ''))}
+      // Digits only, and no more than the largest allowed value has.
+      onChange={(e) => setText(e.target.value.replace(/[^\d]/g, '').slice(0, String(max).length))}
       onBlur={commit}
       onKeyDown={(e) => {
         if (e.key === 'Enter') (e.target as HTMLInputElement).blur();

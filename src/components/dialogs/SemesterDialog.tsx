@@ -13,6 +13,7 @@ import {
 } from '../../lib/weeks';
 import { DateInput, DialogButtons, Field, Modal, Row, useModal, useUI } from '../ui';
 import { upsert, useDraft } from './shared';
+import { MAX_TEXT } from '../../lib/limits';
 
 const mondayOf = (d: Date) => dateKey(startOfWeek(d, { weekStartsOn: 1 }));
 
@@ -39,7 +40,14 @@ export function SemesterDialog() {
   const layout = parseLayout(layoutText);
   const start = fromLocal(sem.startDate);
   const isMonday = start.getDay() === 1;
-  const canSave = !!sem.name.trim() && layout.length > 0 && isMonday;
+  const problem = !sem.name.trim()
+    ? 'Give it a name'
+    : !layout.length
+      ? 'Check the weeks'
+      : !isMonday
+        ? 'It has to start on a Monday'
+        : undefined;
+  const canSave = !problem;
 
   const save = () => {
     if (!canSave) return;
@@ -71,7 +79,7 @@ export function SemesterDialog() {
       title={existing ? 'Edit semester' : 'New semester'}
       onClose={close}
       footer={
-        <DialogButtons onDelete={existing ? remove : undefined} onCancel={close} onSave={save} canSave={canSave} />
+        <DialogButtons onDelete={existing ? remove : undefined} onCancel={close} onSave={save} problem={problem} />
       }
     >
       {!existing && (
@@ -96,6 +104,7 @@ export function SemesterDialog() {
         <Field label="Name">
           <input
             autoFocus
+            maxLength={MAX_TEXT}
             value={sem.name}
             onChange={(e) => update({ name: e.target.value })}
             placeholder="Fall 2026"
@@ -158,6 +167,7 @@ export function SemesterDialog() {
         </Field>
         <Field label="Name">
           <input
+            maxLength={MAX_TEXT}
             value={holiday.name}
             onChange={(e) => setHoliday({ ...holiday, name: e.target.value })}
             placeholder="Good Friday"

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { defaultData } from './defaults';
 import { expand } from './expand';
-import { renamePlace, resolvePlace } from './places';
+import { nameTaken, renamePlace, resolvePlace } from './places';
 import { fromLocal } from './time';
 import { clock, hm, lengthMin, sampleData } from '../test/fixtures';
 
@@ -24,6 +24,13 @@ describe('places', () => {
     expect(resolvePlace(d, '107 Brogden Psychology Building')!.id).toBe('b');
     expect(resolvePlace(d, 'Psychology dept')!.known).toBe(false); // "PS" isn't a word in it
     expect(resolvePlace(d, '107 BPB')!.short).toBe('BPB');
+  });
+
+  it('know when a name is already used (by a name or alias, any capitalisation)', () => {
+    expect(nameTaken(d.places, ' com1 ')).toBe(true);
+    expect(nameTaken(d.places, 'bpb')).toBe(true);
+    expect(nameTaken(d.places, 'COM1', 'c')).toBe(false); // renaming COM1 itself
+    expect(nameTaken(d.places, 'Union South')).toBe(false);
   });
 
   it('rename the old name inside locations too, whole words only', () => {

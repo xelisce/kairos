@@ -62,6 +62,10 @@ function* candidates(data: AppData, busy: Interval[], durationMin: number, from:
   const { start: ds, end: de } = taskWindow(data.settings);
   // The window covers the whole day: a session may start late and end after it.
   const wholeDay = de - ds >= 24 * 60;
+  // Only blocks that could touch this search, so each step checks a handful, not all of them.
+  const lo = addMinutes(from, -bufferMin - 24 * 60);
+  const hi = addMinutes(until, bufferMin);
+  const near = busy.filter((b) => b.end > lo && b.start < hi);
   // Start a day early: last night's window may still be open after midnight.
   for (const day of eachDay(addDays(from, -1), startBefore)) {
     for (let m = ds; wholeDay ? m < de : m + durationMin <= de; m += STEP) {
@@ -72,7 +76,15 @@ function* candidates(data: AppData, busy: Interval[], durationMin: number, from:
       if (e > until) return;
       const bs = addMinutes(s, -bufferMin);
       const be = addMinutes(e, bufferMin);
-      if (!busy.some((b) => overlaps(bs, be, b.start, b.end))) yield { start: s, end: e };
+      const blocker = near.find((b) => overlaps(bs, be, b.start, b.end));
+      if (!blocker) {
+        yield { start: s, end: e };
+        continue;
+      }
+      // Skip the steps this block still covers (they'd all be blocked by it).
+      const clearAt = (blocker.end.getTime() + bufferMin * 60_000 - atMin(day, 0).getTime()) / 60_000;
+      const next = ds + Math.ceil((clearAt - ds) / STEP) * STEP;
+      if (next > m + STEP) m = next - STEP;
     }
   }
 }

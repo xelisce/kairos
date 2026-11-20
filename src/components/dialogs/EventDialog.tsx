@@ -7,6 +7,7 @@ import { at, fromLocal, toLocal, uid } from '../../lib/time';
 import { newDefaults } from '../../lib/newDefaults';
 import { DateTimeInput, DialogButtons, Field, LocationInput, Modal, Row, useModal, useUI, type ModalOf } from '../ui';
 import { locationSuggestions, upsert, useDraft } from './shared';
+import { MAX_TEXT } from '../../lib/limits';
 
 const TITLE_EXAMPLES: Partial<Record<EventCategory, string>> = {
   exam: 'e.g. Midterm 2',
@@ -46,7 +47,8 @@ export function EventDialog() {
   const existing = m.id ? data.events.find((e) => e.id === m.id) : undefined;
   const [ev, update] = useDraft<CalEvent>(() => existing ?? newEvent(data, m, new Date()));
 
-  const canSave = !!ev.title.trim() && ev.end > ev.start;
+  const problem = !ev.title.trim() ? 'Give it a name' : ev.end <= ev.start ? 'It ends before it starts' : undefined;
+  const canSave = !problem;
   const save = () => {
     if (!canSave) return;
     commit(existing ? `Edit ${ev.title}` : `Add ${ev.title}`, (d) => upsert(d.events, ev));
@@ -76,13 +78,14 @@ export function EventDialog() {
           }
           onCancel={close}
           onSave={save}
-          canSave={canSave}
+          problem={problem}
         />
       }
     >
       <Field label="What">
         <input
           autoFocus
+          maxLength={MAX_TEXT}
           value={ev.title}
           onChange={(e) => update({ title: e.target.value })}
           placeholder={TITLE_EXAMPLES[ev.category] ?? 'e.g. Dinner with friends'}

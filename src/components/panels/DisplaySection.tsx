@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useStore } from '../../store';
 import type { DisplaySettings } from '../../types';
 import { DEFAULT_DISPLAY, displayOf } from '../../lib/display';
+import { MAX_SWATCHES } from '../../lib/limits';
 
 type Toggle = 'silenceRoutines' | 'silenceTasks' | 'silenceTravel' | 'dragTravel' | 'showSpecialDays' | 'showLocations';
 
@@ -28,6 +29,8 @@ export function DisplaySection() {
   const [newColor, setNewColor] = useState('#6d5dfc');
   const presets = d.colorPresets;
   const customPresets = settings.display?.colorPresets !== undefined;
+  const full = presets.length >= MAX_SWATCHES;
+  const color = newColor.toLowerCase();
 
   return (
     <>
@@ -113,12 +116,13 @@ export function DisplaySection() {
         <button
           type="button"
           className="chip"
-          disabled={presets.includes(newColor.toLowerCase())}
-          onClick={() => set('colorPresets', [...presets, newColor.toLowerCase()])}
+          disabled={full || presets.includes(color)}
+          onClick={() => set('colorPresets', [...presets, color])}
         >
           + Add
         </button>
       </div>
+      {full && <p className="muted small">That’s the most ({MAX_SWATCHES}). Remove one to add another.</p>}
     </>
   );
 }

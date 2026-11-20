@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { parseDMY, toDMY } from '../../lib/time';
+import { MAX_YEAR, MIN_YEAR } from '../../lib/limits';
 
 /**
  * Date box that always reads dd/mm/yyyy, whatever the browser's region.
@@ -77,6 +78,8 @@ export function DateInput({
         className="hidden-picker"
         tabIndex={-1}
         aria-hidden="true"
+        min={`${MIN_YEAR}-01-01`}
+        max={`${MAX_YEAR}-12-31`}
         value={value}
         onChange={(e) => {
           if (e.target.value) onChange(e.target.value);

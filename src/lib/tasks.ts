@@ -13,7 +13,6 @@ export const sortedSessions = (t: Task) => [...t.sessions].sort((a, b) => a.star
 export const doneMinutes = (t: Task) =>
   t.done ? t.durationMin : t.sessions.filter((s) => s.done).reduce((n, s) => n + sessionMinutes(s), 0);
 
-/** Minutes covered by sessions (done or planned). */
 /** Time in sessions you placed yourself or finished: auto-schedule can't take these away. */
 export const fixedMinutes = (t: Task) =>
   t.sessions.filter((s) => s.done || s.pinned).reduce((n, s) => n + sessionMinutes(s), 0);
@@ -25,14 +24,21 @@ export const fitDuration = (t: Task): Task => {
   return mine > t.durationMin ? { ...t, durationMin: mine } : t;
 };
 
+/** Minutes covered by sessions (done or planned). */
 export const plannedMinutes = (t: Task) => t.sessions.reduce((n, s) => n + sessionMinutes(s), 0);
 
 /** Minutes that still need a session. */
 export const unplannedMinutes = (t: Task) => Math.max(0, t.durationMin - plannedMinutes(t));
 
-/** The limits the scheduler uses: a task that isn't split is one session of its whole length. */
-export const limitsOf = (t: Task): TaskSplit =>
-  t.split ?? { maxSessionMin: t.durationMin, maxPerDayMin: t.durationMin, minSessionMin: t.durationMin };
+/**
+ * The limits the scheduler uses: a task that isn't split is one session of its whole length.
+ * The shortest session is never more than the longest one or a day's allowance (or nothing would fit).
+ */
+export function limitsOf(t: Task): TaskSplit {
+  if (!t.split) return { maxSessionMin: t.durationMin, maxPerDayMin: t.durationMin, minSessionMin: t.durationMin };
+  const { maxSessionMin, maxPerDayMin, minSessionMin } = t.split;
+  return { maxSessionMin, maxPerDayMin, minSessionMin: Math.min(minSessionMin, maxSessionMin, maxPerDayMin) };
+}
 
 /** The next session that isn't done yet. */
 export const nextSession = (t: Task) => sortedSessions(t).find((s) => !s.done);

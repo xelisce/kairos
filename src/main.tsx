@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import './styles.css';
 import { hasLocalDb, startSync } from './lib/sync';
 import { applyTheme, savedTheme } from './lib/theme';
@@ -16,6 +17,8 @@ if ('serviceWorker' in navigator && import.meta.env.PROD && !hasLocalDb) {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </StrictMode>,
 );

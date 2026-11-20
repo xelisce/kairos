@@ -4,6 +4,7 @@ import { MODULE_COLORS } from '../../lib/defaults';
 import { uid } from '../../lib/time';
 import { ColorPicker, DialogButtons, Field, Modal, Row, useModal, useUI } from '../ui';
 import { upsert, useDraft } from './shared';
+import { MAX_TEXT } from '../../lib/limits';
 
 /** A course (called "Module" in the data model, as NUS used to). */
 export function CourseDialog() {
@@ -34,7 +35,8 @@ export function CourseDialog() {
     );
   }
 
-  const canSave = !!course.code.trim() && !!course.semesterId;
+  const problem = !course.code.trim() ? 'Give it a code' : !course.semesterId ? 'Pick a semester' : undefined;
+  const canSave = !problem;
   const save = (thenAddClass: boolean) => {
     if (!canSave) return;
     commit(existing ? `Edit ${course.code}` : `Add ${course.code}`, (d) =>
@@ -66,7 +68,7 @@ export function CourseDialog() {
           onDelete={existing ? remove : undefined}
           onCancel={close}
           onSave={() => save(false)}
-          canSave={canSave}
+          problem={problem}
           extra={
             !existing && (
               <button className="btn" onClick={() => save(true)} disabled={!canSave}>
@@ -81,6 +83,7 @@ export function CourseDialog() {
         <Field label="Code">
           <input
             autoFocus
+            maxLength={MAX_TEXT}
             value={course.code}
             onChange={(e) => update({ code: e.target.value })}
             placeholder="CS 642"
@@ -92,6 +95,7 @@ export function CourseDialog() {
       </Row>
       <Field label="Name">
         <input
+          maxLength={MAX_TEXT}
           value={course.name}
           onChange={(e) => update({ name: e.target.value })}
           placeholder="Introduction to Information Security"

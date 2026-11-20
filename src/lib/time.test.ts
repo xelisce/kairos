@@ -10,6 +10,8 @@ describe('dd/mm/yyyy', () => {
   it('rejects impossible dates', () => {
     expect(parseDMY('31/02/2026')).toBeNull();
     expect(parseDMY('11/20/2026')).toBeNull(); // there's no month 20
+    expect(parseDMY('20/11/2206')).toBeNull(); // a typo for 2026
+    expect(parseDMY('20/11/1926')).toBeNull();
   });
 
   it('shows day-first', () => {

@@ -17,6 +17,7 @@ import {
   useUI,
 } from '../ui';
 import { locationSuggestions, upsert, useDraft } from './shared';
+import { MAX_BLOCK_MIN, MAX_TEXT } from '../../lib/limits';
 
 const CATEGORIES: RoutineCategory[] = ['meal', 'hygiene', 'sleep', 'chores', 'exercise', 'other'];
 /** Changing any of these makes hand-made moves from today on stale. */
@@ -55,7 +56,8 @@ export function RoutineDialog() {
   const pinnedDays = Object.keys(r.overrides)
     .filter((dk) => dk >= today)
     .sort();
-  const canSave = !!r.title.trim() && r.days.length > 0;
+  const problem = !r.title.trim() ? 'Give it a name' : !r.days.length ? 'Pick at least one day' : undefined;
+  const canSave = !problem;
 
   const save = () => {
     if (!canSave) return;
@@ -81,7 +83,7 @@ export function RoutineDialog() {
           }
           onCancel={close}
           onSave={save}
-          canSave={canSave}
+          problem={problem}
         />
       }
     >
@@ -89,6 +91,7 @@ export function RoutineDialog() {
         <Field label="Name">
           <input
             autoFocus
+            maxLength={MAX_TEXT}
             value={r.title}
             onChange={(e) => update({ title: e.target.value })}
             placeholder="Lunch, Gym, Meal prep"
@@ -117,7 +120,12 @@ export function RoutineDialog() {
           <input type="time" value={r.preferredStart} onChange={(e) => update({ preferredStart: e.target.value })} />
         </Field>
         <Field label="Length (min)">
-          <NumberInput min={5} value={r.durationMin} onCommit={(durationMin) => update({ durationMin })} />
+          <NumberInput
+            min={5}
+            max={MAX_BLOCK_MIN}
+            value={r.durationMin}
+            onCommit={(durationMin) => update({ durationMin })}
+          />
         </Field>
       </Row>
       <label className="check">

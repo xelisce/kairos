@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useStore } from '../../store';
 import type { Place } from '../../types';
-import { renamePlace } from '../../lib/places';
+import { nameTaken, renamePlace } from '../../lib/places';
 import { uid } from '../../lib/time';
 import { Field, NumberInput, Row } from '../ui';
+import { MAX_BLOCK_MIN, MAX_TEXT } from '../../lib/limits';
 
 /** Places (with aliases) and usual travel times. */
 export function PlacesPanel() {
@@ -19,10 +20,11 @@ function PlacesSection() {
   const places = useStore((s) => s.data.places);
   const commit = useStore((s) => s.commit);
   const [name, setName] = useState('');
+  const taken = nameTaken(places, name);
 
   const add = () => {
     const n = name.trim();
-    if (!n) return;
+    if (!n || taken) return;
     commit(`Add ${n}`, (d) => {
       d.places.push({ id: uid(), name: n, aliases: [] });
     });
@@ -58,9 +60,15 @@ function PlacesSection() {
             <PlaceName
               name={p.name}
               home={!!p.isHome}
-              onRename={(n) => commit(`Rename ${p.name} → ${n}`, (d) => renamePlace(d, p.id, n))}
+              onRename={(n) =>
+                nameTaken(places, n, p.id)
+                  ? alert(`There's already a place called “${n}”.`)
+                  : commit(`Rename ${p.name} → ${n}`, (d) => renamePlace(d, p.id, n))
+              }
             />
             <input
+              // Re-made when the aliases change (undo, another device), so the box shows them.
+              key={p.aliases.join(',')}
               className="alias"
               defaultValue={p.aliases.join(', ')}
               placeholder="aliases, comma separated"
@@ -76,15 +84,17 @@ function PlacesSection() {
       </ul>
       <div className="quick">
         <input
+          maxLength={MAX_TEXT}
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="New place (e.g. COM1, CS building)"
           onKeyDown={(e) => e.key === 'Enter' && add()}
         />
-        <button className="btn" disabled={!name.trim()} onClick={add}>
+        <button className="btn" disabled={!name.trim() || taken} onClick={add}>
           Add
         </button>
       </div>
+      {taken && <p className="muted small">There's already a place called “{name.trim()}”.</p>}
     </>
   );
 }
@@ -108,6 +118,7 @@ function PlaceName({ name, home, onRename }: { name: string; home: boolean; onRe
       <input
         className="place-edit"
         autoFocus
+        maxLength={MAX_TEXT}
         value={text}
         aria-label="Place name"
         onChange={(e) => setText(e.target.value)}
@@ -193,6 +204,7 @@ function RoutesSection() {
               </span>
               <NumberInput
                 className="mins"
+                max={MAX_BLOCK_MIN}
                 value={r.minutes}
                 aria-label="Minutes"
                 onCommit={(v) => editRoute(r.id, `Route ${label} ${v}m`, (x) => (x.minutes = v))}

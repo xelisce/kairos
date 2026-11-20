@@ -10,6 +10,7 @@ import { fitDuration, sessionMinutes } from '../../lib/tasks';
 import { newDefaults } from '../../lib/newDefaults';
 import { SessionList } from './SessionList';
 import { locationSuggestions, upsert, useDraft } from './shared';
+import { MAX_BLOCK_MIN, MAX_TEXT } from '../../lib/limits';
 
 export function TaskDialog() {
   const m = useModal('task');
@@ -42,7 +43,12 @@ export function TaskDialog() {
       },
   );
 
-  const canSave = !!t.title.trim();
+  const problem = !t.title.trim()
+    ? 'Give it a name'
+    : t.deadline && t.earliest && t.deadline <= t.earliest
+      ? 'The deadline is before “Not before”'
+      : undefined;
+  const canSave = !problem;
   const save = () => {
     if (!canSave) return;
     commit(existing ? `Edit ${t.title}` : `Add ${t.title}`, (d) => {
@@ -84,13 +90,14 @@ export function TaskDialog() {
           }
           onCancel={close}
           onSave={save}
-          canSave={canSave}
+          problem={problem}
         />
       }
     >
       <Field label="What">
         <input
           autoFocus
+          maxLength={MAX_TEXT}
           value={t.title}
           onChange={(e) => update({ title: e.target.value })}
           onKeyDown={(e) => e.key === 'Enter' && save()}
@@ -198,6 +205,7 @@ export function TaskDialog() {
           <Field label="Longest session (min)">
             <NumberInput
               min={15}
+              max={MAX_BLOCK_MIN}
               value={t.split.maxSessionMin}
               onCommit={(maxSessionMin) => update({ split: { ...t.split!, maxSessionMin } })}
             />
@@ -205,6 +213,7 @@ export function TaskDialog() {
           <Field label="Most per day (min)">
             <NumberInput
               min={15}
+              max={MAX_BLOCK_MIN}
               value={t.split.maxPerDayMin}
               onCommit={(maxPerDayMin) => update({ split: { ...t.split!, maxPerDayMin } })}
             />
@@ -212,6 +221,7 @@ export function TaskDialog() {
           <Field label="Shortest session (min)">
             <NumberInput
               min={5}
+              max={MAX_BLOCK_MIN}
               value={t.split.minSessionMin}
               onCommit={(minSessionMin) => update({ split: { ...t.split!, minSessionMin } })}
             />

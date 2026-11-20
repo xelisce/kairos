@@ -11,6 +11,7 @@ import { DeletedSection } from './DeletedSection';
 import { NewItemsSection } from './NewItemsSection';
 import { DisplaySection } from './DisplaySection';
 import { savedTheme, setTheme, type Theme } from '../../lib/theme';
+import { MAX_BLOCK_MIN, MAX_GAP_MIN } from '../../lib/limits';
 
 type Section = 'settings' | 'deleted';
 
@@ -116,13 +117,17 @@ function SchedulingSection() {
       )}
       <Row>
         <Field label="Gap between things (min)">
-          <NumberInput value={settings.bufferMin} onCommit={(v) => set('bufferMin', v)} />
+          <NumberInput max={MAX_GAP_MIN} value={settings.bufferMin} onCommit={(v) => set('bufferMin', v)} />
         </Field>
         <Field label="Extra per trip (min)">
-          <NumberInput value={settings.travelBufferMin} onCommit={(v) => set('travelBufferMin', v)} />
+          <NumberInput max={MAX_GAP_MIN} value={settings.travelBufferMin} onCommit={(v) => set('travelBufferMin', v)} />
         </Field>
         <Field label="Unknown trip (min)">
-          <NumberInput value={settings.defaultTravelMin} onCommit={(v) => set('defaultTravelMin', v)} />
+          <NumberInput
+            max={MAX_BLOCK_MIN}
+            value={settings.defaultTravelMin}
+            onCommit={(v) => set('defaultTravelMin', v)}
+          />
         </Field>
       </Row>
     </>

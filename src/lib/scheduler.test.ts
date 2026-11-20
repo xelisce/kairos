@@ -118,6 +118,12 @@ describe('splitting a task into sessions', () => {
     const [t] = planTasks(d, fromLocal('2026-08-31T09:00'));
     expect(t.sessions.reduce((n, s) => n + sessionMinutes(s), 0)).toBe(120);
   });
+
+  it('still plans when the shortest session is set longer than the longest', () => {
+    const split = { maxSessionMin: 60, maxPerDayMin: 120, minSessionMin: 600 };
+    const [t] = planTasks(big({ durationMin: 180, split }), fromLocal('2026-08-31T09:00'));
+    expect(t.sessions.map(sessionMinutes)).toEqual([60, 60, 60]);
+  });
 });
 
 describe('regressions', () => {

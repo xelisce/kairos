@@ -8,6 +8,7 @@ import { newDefaults } from '../../lib/newDefaults';
 import { PLAN_KINDS, withPlans } from '../../lib/travelPlans';
 import { DateTimeInput, DialogButtons, Field, Modal, Row, useModal, useUI } from '../ui';
 import { upsert, useDraft } from './shared';
+import { MAX_TEXT } from '../../lib/limits';
 
 export function AwayDialog() {
   const m = useModal('away');
@@ -29,7 +30,13 @@ export function AwayDialog() {
 
   const plans = a.plans ?? [];
   const setPlans = (next: TravelPlan[]) => update({ plans: next });
-  const canSave = a.end > a.start && plans.every((p) => p.start);
+  const problem =
+    a.end <= a.start
+      ? 'It ends before it starts'
+      : plans.some((p) => !p.start)
+        ? 'Every travel plan needs a date'
+        : undefined;
+  const canSave = !problem;
   const name = a.title.trim() || 'Away';
   const save = () => {
     if (!canSave) return;
@@ -50,12 +57,13 @@ export function AwayDialog() {
       title={existing ? 'Edit time away' : 'Time away'}
       onClose={close}
       footer={
-        <DialogButtons onDelete={existing ? remove : undefined} onCancel={close} onSave={save} canSave={canSave} />
+        <DialogButtons onDelete={existing ? remove : undefined} onCancel={close} onSave={save} problem={problem} />
       }
     >
       <Field label="What (optional)">
         <input
           autoFocus
+          maxLength={MAX_TEXT}
           value={a.title}
           onChange={(e) => update({ title: e.target.value })}
           onKeyDown={(e) => e.key === 'Enter' && save()}
@@ -147,6 +155,7 @@ export function PlanFields({
         </Field>
         <Field label="What">
           <input
+            maxLength={MAX_TEXT}
             value={p.title}
             placeholder={PLAN_KINDS[p.kind].placeholder}
             onChange={(e) => onChange({ title: e.target.value })}
@@ -164,6 +173,7 @@ export function PlanFields({
       <Row>
         <Field label="Where (optional)">
           <input
+            maxLength={MAX_TEXT}
             value={p.where ?? ''}
             placeholder={p.kind === 'flight' ? 'e.g. MSN Terminal, gate B4' : 'Address or station'}
             onChange={(e) => onChange({ where: e.target.value })}
@@ -171,6 +181,7 @@ export function PlanFields({
         </Field>
         <Field label="Notes (optional)">
           <input
+            maxLength={MAX_TEXT}
             value={p.notes ?? ''}
             placeholder="Booking code, seat…"
             onChange={(e) => onChange({ notes: e.target.value })}

@@ -3,6 +3,8 @@ import { format } from 'date-fns';
 import { useStore } from '../../store';
 import { listCloudBackups, loadCloudBackup, useAccount } from '../../lib/cloud';
 import { hasLocalDb } from '../../lib/sync';
+import { isKairosData } from '../../lib/migrate';
+import type { AppData } from '../../types';
 
 /** Export / import a JSON copy, and restore automatic database backups. */
 export function BackupSection() {
@@ -19,13 +21,27 @@ export function BackupSection() {
     link.click();
     URL.revokeObjectURL(link.href);
   };
-  const importFile = async (file: File | undefined) => {
+  const importFile = async (input: HTMLInputElement) => {
+    const file = input.files?.[0];
+    input.value = ''; // so picking the same file again still works
     if (!file) return;
+    let raw: unknown;
     try {
-      replaceAll(JSON.parse(await file.text()), 'Import backup');
+      raw = JSON.parse(await file.text());
     } catch {
-      alert('That file is not a Kairos backup.');
+      raw = undefined;
     }
+    if (!isKairosData(raw)) {
+      alert('That file is not a Kairos backup. Nothing was changed.');
+      return;
+    }
+    const tasks = raw.tasks?.length ?? 0;
+    const events = raw.events?.length ?? 0;
+    if (
+      !confirm(`Replace everything with this backup (${tasks} tasks, ${events} events)? Undo brings back what you had.`)
+    )
+      return;
+    replaceAll(raw as AppData, 'Import backup');
   };
 
   return (
@@ -51,7 +67,7 @@ export function BackupSection() {
         </button>
         <label className="btn">
           Import
-          <input type="file" accept="application/json" hidden onChange={(e) => importFile(e.target.files?.[0])} />
+          <input type="file" accept="application/json" hidden onChange={(e) => void importFile(e.target)} />
         </label>
         {(account || hasLocalDb) && (
           <button className="btn" onClick={() => setShowBackups(!showBackups)}>

@@ -3,6 +3,7 @@
 // the planner still sees every warning.
 import type { DisplaySettings, Occ, Settings } from '../types';
 import { COLOR_PRESETS } from './labels';
+import { MAX_SWATCHES } from './limits';
 
 export const DEFAULT_DISPLAY: DisplaySettings = {
   silenceRoutines: false,
@@ -15,7 +16,11 @@ export const DEFAULT_DISPLAY: DisplaySettings = {
   colorPresets: COLOR_PRESETS,
 };
 
-export const displayOf = (s: Pick<Settings, 'display'>): DisplaySettings => ({ ...DEFAULT_DISPLAY, ...s.display });
+/** Your display settings, with defaults for anything you haven't set (and at most MAX_SWATCHES swatches). */
+export function displayOf(s: Pick<Settings, 'display'>): DisplaySettings {
+  const d = { ...DEFAULT_DISPLAY, ...s.display };
+  return d.colorPresets.length > MAX_SWATCHES ? { ...d, colorPresets: d.colorPresets.slice(0, MAX_SWATCHES) } : d;
+}
 
 /** Is this block's warning one you turned off? */
 export function isSilenced(o: Occ, d: DisplaySettings): boolean {

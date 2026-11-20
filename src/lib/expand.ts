@@ -203,6 +203,9 @@ function eventOccs(data: AppData, from: Date, to: Date): Candidate[] {
 
 function taskOccs(data: AppData, from: Date, to: Date, exclude?: Set<string>): Occ[] {
   const out: Occ[] = [];
+  // Cheap check on the text first ("2026-11-20T..."): most sessions are on other days.
+  const firstDay = dateKey(from);
+  const lastDay = dateKey(to);
   for (const t of data.tasks) {
     if (!t.onCalendar) continue;
     const mod = t.moduleId ? data.modules.find((m) => m.id === t.moduleId) : undefined;
@@ -210,6 +213,7 @@ function taskOccs(data: AppData, from: Date, to: Date, exclude?: Set<string>): O
     const sessions = sortedSessions(t);
     sessions.forEach((session, i) => {
       if (exclude?.has(session.id)) return;
+      if (session.end.slice(0, 10) < firstDay || session.start.slice(0, 10) > lastDay) return;
       const start = fromLocal(session.start);
       const end = fromLocal(session.end);
       if (!overlaps(start, end, from, to)) return;

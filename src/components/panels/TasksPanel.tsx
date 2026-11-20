@@ -11,6 +11,7 @@ import { fmtDur, fromLocal } from '../../lib/time';
 import { PLAN_KINDS, planTitle, sortedPlans } from '../../lib/travelPlans';
 import { useNow } from '../../hooks/useNow';
 import { useUI } from '../ui';
+import { MAX_TEXT } from '../../lib/limits';
 
 const LAST = '9999';
 const byDeadline = (a: Task, b: Task) => (a.deadline ?? LAST).localeCompare(b.deadline ?? LAST);
@@ -46,6 +47,7 @@ export function TasksPanel() {
     <div className="panel">
       <div className="quick">
         <input
+          maxLength={MAX_TEXT}
           value={quick}
           onChange={(e) => setQuick(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && add()}

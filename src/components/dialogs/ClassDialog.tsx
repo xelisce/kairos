@@ -44,7 +44,16 @@ export function ClassDialog() {
     }
   }, [weeksText, maxWeek, usStyle]);
 
-  const canSave = !!c.moduleId && c.end > c.start && c.days.length > 0 && 'weeks' in parsed && parsed.weeks.length > 0;
+  const problem = !c.moduleId
+    ? 'Pick a course'
+    : !c.days.length
+      ? 'Pick at least one day'
+      : c.end <= c.start
+        ? 'It ends before it starts'
+        : !('weeks' in parsed) || !parsed.weeks.length
+          ? 'Check the weeks'
+          : undefined;
+  const canSave = !problem;
   const save = () => {
     if (!canSave || !('weeks' in parsed)) return;
     commit(existing ? `Edit ${mod?.code} ${c.kind}` : `Add ${mod?.code} ${c.kind}`, (d) =>
@@ -79,7 +88,7 @@ export function ClassDialog() {
           }
           onCancel={close}
           onSave={save}
-          canSave={canSave}
+          problem={problem}
         />
       }
     >

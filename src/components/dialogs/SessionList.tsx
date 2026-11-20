@@ -5,6 +5,7 @@ import type { Task, TaskSession } from '../../types';
 import { plannedMinutes, sessionMinutes, sortedSessions } from '../../lib/tasks';
 import { fmtDur, fromLocal, toLocal, uid } from '../../lib/time';
 import { DateTimeInput, NumberInput } from '../ui';
+import { MAX_BLOCK_MIN } from '../../lib/limits';
 
 export function SessionList({ task, onChange }: { task: Task; onChange: (sessions: TaskSession[]) => void }) {
   const auto = task.autoPlan !== false;
@@ -51,6 +52,7 @@ export function SessionList({ task, onChange }: { task: Task; onChange: (session
               <span className="session-len">
                 <NumberInput
                   min={5}
+                  max={MAX_BLOCK_MIN}
                   value={len}
                   onCommit={(m) => edit(s.id, { end: toLocal(addMinutes(fromLocal(s.start), m)), pinned: true })}
                 />

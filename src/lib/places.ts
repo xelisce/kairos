@@ -20,6 +20,10 @@ const hasWord = (text: string, word: string) => wholeWord(word).test(text);
 
 const namesOf = (p: Place) => [p.name, ...p.aliases].map((x) => x.trim()).filter(Boolean);
 
+/** Is `name` already a saved place's name or alias (other than place `exceptId`)? Two would make matching ambiguous. */
+export const nameTaken = (places: Place[], name: string, exceptId?: string) =>
+  places.some((p) => p.id !== exceptId && namesOf(p).some((n) => n.toLowerCase() === name.trim().toLowerCase()));
+
 export function placeRef(p: Place): ResolvedPlace {
   const short = namesOf(p).reduce((a, b) => (b.length < a.length ? b : a), p.name);
   return { id: p.id, name: p.name, short, known: true };

@@ -32,18 +32,21 @@ export function Modal({
   );
 }
 
-/** The usual dialog footer: Delete (when editing) on the left, Cancel and Save on the right. */
+/**
+ * The usual dialog footer: Delete (when editing) on the left, Cancel and Save on the right.
+ * `problem`: why it can't be saved yet ("Ends before it starts"); Save stays off and says so.
+ */
 export function DialogButtons({
   onDelete,
   onCancel,
   onSave,
-  canSave,
+  problem,
   extra,
 }: {
   onDelete?: () => void;
   onCancel: () => void;
   onSave: () => void;
-  canSave: boolean;
+  problem?: string;
   /** Extra buttons before Save (e.g. "Save & add class"). */
   extra?: ReactNode;
 }) {
@@ -55,11 +58,12 @@ export function DialogButtons({
         </button>
       )}
       <span className="spacer" />
+      {problem && <span className="save-problem">{problem}</span>}
       {extra}
       <button className="btn" onClick={onCancel}>
         Cancel
       </button>
-      <button className="btn primary" onClick={onSave} disabled={!canSave}>
+      <button className="btn primary" onClick={onSave} disabled={!!problem} title={problem}>
         Save
       </button>
     </>

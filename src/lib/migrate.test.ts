@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AppData } from '../types';
-import { DATA_VERSION, normalize } from './migrate';
+import { DATA_VERSION, isKairosData, normalize } from './migrate';
 import { sampleData } from '../test/fixtures';
 
 describe('loading older data', () => {
@@ -54,5 +54,21 @@ describe('loading older data', () => {
       done: false,
     });
     expect('scheduled' in t).toBe(false);
+  });
+});
+
+describe('importing a file', () => {
+  it('accepts a Kairos backup', () => {
+    expect(isKairosData(sampleData())).toBe(true);
+    expect(isKairosData(JSON.parse(JSON.stringify(sampleData())))).toBe(true);
+  });
+
+  it('refuses other JSON, which would otherwise replace everything with nothing', () => {
+    expect(isKairosData({ name: 'my-package', version: '1.0.0' })).toBe(false);
+    expect(isKairosData(null)).toBe(false);
+    expect(isKairosData([])).toBe(false);
+    expect(isKairosData({ tasks: 5 })).toBe(false);
+    expect(isKairosData({ tasks: [1, 2] })).toBe(false);
+    expect(isKairosData({ tasks: [], settings: 'x' })).toBe(false);
   });
 });

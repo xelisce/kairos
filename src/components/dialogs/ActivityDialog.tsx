@@ -19,6 +19,7 @@ import {
 } from '../ui';
 import { SkippedDates } from './SkippedDates';
 import { locationSuggestions, upsert, useDraft } from './shared';
+import { MAX_TEXT } from '../../lib/limits';
 
 export function ActivityDialog() {
   const m = useModal('activity');
@@ -41,7 +42,14 @@ export function ActivityDialog() {
       },
   );
 
-  const canSave = !!a.title.trim() && (!a.recurring || a.days.length > 0) && a.end > a.start;
+  const problem = !a.title.trim()
+    ? 'Give it a name'
+    : a.recurring && !a.days.length
+      ? 'Pick at least one day'
+      : a.end <= a.start
+        ? 'It ends before it starts'
+        : undefined;
+  const canSave = !problem;
   const save = () => {
     if (!canSave) return;
     commit(existing ? `Edit ${a.title}` : `Add ${a.title}`, (d) =>
@@ -66,13 +74,14 @@ export function ActivityDialog() {
           }
           onCancel={close}
           onSave={save}
-          canSave={canSave}
+          problem={problem}
         />
       }
     >
       <Field label="Name">
         <input
           autoFocus
+          maxLength={MAX_TEXT}
           value={a.title}
           onChange={(e) => update({ title: e.target.value })}
           placeholder={a.recurring ? 'e.g. Wisconsin Robotics' : 'e.g. Hoofers'}
