@@ -5,14 +5,16 @@ import { addDays, addMinutes, format, startOfDay } from 'date-fns';
 import { ASSESSMENT_KINDS } from '../types';
 import type { AppData, Occ, Routine } from '../types';
 import { ASSESSMENT_EVENTS, CATEGORY_COLORS, EVENT_ICONS, EVENT_LABELS, KIND_ICONS, withIcon } from './labels';
-import { fitRoutine, routineOcc } from './routines';
+import { awayIntervals, minutesNotAway, touchesAway } from './away';
+import { fitRoutine, routineOcc, routineWindow } from './routines';
 import { at, dateKey, eachDay, fromLocal, overlaps, weekdayMon0 } from './time';
+import { sortedSessions } from './tasks';
 import { computeTravel } from './travel';
 import { weekIndex } from './weeks';
 
 export interface ExpandOpts {
-  /** Leave out these task ids (the scheduler uses this to re-place tasks). */
-  excludeTaskIds?: Set<string>;
+  /** Leave out these task sessions (the scheduler uses this while re-placing them). */
+  excludeSessionIds?: Set<string>;
 }
 
 /** A block plus whether it's skipped on that day. */
@@ -23,6 +25,9 @@ export function expand(data: AppData, from: Date, to: Date, opts: ExpandOpts = {
   const pFrom = addDays(startOfDay(from), -2);
   const pTo = addDays(startOfDay(to), 2);
 
+  // While you're away, classes, CCAs and routines don't happen (events and tasks stay).
+  const away = awayIntervals(data);
+  const notAway = (o: Occ) => !touchesAway(away, o.start, o.end);
   const fixed: Occ[] = [];
   // Skipped sessions: drawn faded, never count as busy (no travel, things can go on top).
   const skipped: Occ[] = [];
@@ -31,28 +36,49 @@ export function expand(data: AppData, from: Date, to: Date, opts: ExpandOpts = {
     else fixed.push(occ);
   };
 
-  classOccs(data, pFrom, pTo).forEach(add);
-  activityOccs(data, pFrom, pTo).forEach(add);
-  fixed.push(...eventOccs(data, pFrom, pTo), ...taskOccs(data, pFrom, pTo, opts.excludeTaskIds));
+  classOccs(data, pFrom, pTo)
+    .filter(([o]) => notAway(o))
+    .forEach(add);
+  activityOccs(data, pFrom, pTo)
+    .filter(([o]) => notAway(o))
+    .forEach(add);
+  eventOccs(data, pFrom, pTo).forEach(add);
+  fixed.push(...taskOccs(data, pFrom, pTo, opts.excludeSessionIds));
 
   // Routines: fixed ones (not auto-scheduled, or moved by hand) go in now;
   // flexible ones are fitted around everything once the first trips are known.
   const { pinned, flexible, skippedRoutines } = routineOccs(data, pFrom, pTo);
-  fixed.push(...pinned);
-  skippedRoutines.forEach((o) => add([o, true]));
+  fixed.push(...pinned.filter(notAway));
+  skippedRoutines.filter(notAway).forEach((o) => add([o, true]));
 
-  const firstTravel = computeTravel(data, fixed);
-  const busy = [...fixed, ...firstTravel];
+  // Tasks without a place happen wherever you are, so a trip waits until they're done.
+  const taskStays = fixed.filter((o) => o.source.type === 'task' && !o.location && !o.title.startsWith('✓'));
+  const firstTravel = computeTravel(data, fixed, taskStays);
+  // Away time is busy for fitting routines, so one that's partly in it moves to the free part.
+  const awayBlocks: Occ[] = away.map((a, i) => ({
+    id: `away:${i}`,
+    source: { type: 'event', eventId: `away:${i}` },
+    title: 'Away',
+    start: a.start,
+    end: a.end,
+    color: '',
+    movable: false,
+  }));
+  const busy = [...fixed, ...firstTravel, ...awayBlocks];
   const placed: Occ[] = [];
   for (const { r, day, dk } of flexible) {
+    // Not enough of its window left outside the away time: it doesn't happen that day.
+    const { start: ws, end: we } = routineWindow(r, day);
+    if (minutesNotAway(away, ws, we) < r.durationMin) continue;
     const occ = { ...fitRoutine(r, day, dk, busy), auto: true };
+    if (!notAway(occ)) continue;
     placed.push(occ);
     busy.push(occ);
   }
 
   // Final travel now that routines have their times. Routines without a place happen wherever
   // you are, so a trip that would overlap one waits until it's over (lunch at MH, then go home).
-  const stays = placed.filter((o) => !o.location);
+  const stays = [...taskStays, ...placed.filter((o) => !o.location)];
   const travel = computeTravel(data, [...fixed, ...placed], stays);
   return [...fixed, ...travel, ...placed, ...skipped].filter((o) => overlaps(o.start, o.end, from, to));
 }
@@ -84,7 +110,7 @@ function classOccs(data: AppData, from: Date, to: Date): Candidate[] {
           subtitle: kind !== c.kind ? `instead of ${c.kind}` : mod.name,
           start: moved ? fromLocal(moved.start) : at(day, c.start),
           end: moved ? fromLocal(moved.end) : at(day, c.end),
-          location: c.location,
+          location: c.locationOverrides?.[dk] ?? c.location,
           color: mod.color,
           movable: true,
           assessment: ASSESSMENT_KINDS.includes(kind),
@@ -113,7 +139,7 @@ function activityOccs(data: AppData, from: Date, to: Date): Candidate[] {
           title: a.title,
           start: moved ? fromLocal(moved.start) : at(day, a.start),
           end: moved ? fromLocal(moved.end) : at(day, a.end),
-          location: a.location,
+          location: a.locationOverrides?.[dk] ?? a.location,
           color: a.color,
           movable: true,
           detail: a.details?.[dk],
@@ -125,8 +151,8 @@ function activityOccs(data: AppData, from: Date, to: Date): Candidate[] {
   return out;
 }
 
-function eventOccs(data: AppData, from: Date, to: Date): Occ[] {
-  const out: Occ[] = [];
+function eventOccs(data: AppData, from: Date, to: Date): Candidate[] {
+  const out: Candidate[] = [];
   for (const e of data.events) {
     const start = fromLocal(e.start);
     const end = fromLocal(e.end);
@@ -135,23 +161,26 @@ function eventOccs(data: AppData, from: Date, to: Date): Occ[] {
     const act = e.activityId ? data.activities.find((a) => a.id === e.activityId) : undefined;
     // "CS 642 Midterm" unless the title already names the course.
     const coursePrefix = mod && !e.title.toUpperCase().includes(mod.code.toUpperCase()) ? `${mod.code} ` : '';
-    out.push({
-      id: `event:${e.id}`,
-      source: { type: 'event', eventId: e.id },
-      title: `${withIcon(EVENT_ICONS[e.category])}${coursePrefix}${e.title}`,
-      subtitle: mod
-        ? `${EVENT_LABELS[e.category]} · ${mod.name}`
-        : act && act.title !== e.title
-          ? act.title
-          : undefined,
-      start,
-      end,
-      location: e.location,
-      color: mod?.color ?? act?.color ?? CATEGORY_COLORS[e.category] ?? CATEGORY_COLORS.other,
-      movable: true,
-      assessment: ASSESSMENT_EVENTS.includes(e.category),
-      detail: e.notes?.split('\n')[0],
-    });
+    out.push([
+      {
+        id: `event:${e.id}`,
+        source: { type: 'event', eventId: e.id },
+        title: `${withIcon(EVENT_ICONS[e.category])}${coursePrefix}${e.title}`,
+        subtitle: mod
+          ? `${EVENT_LABELS[e.category]} · ${mod.name}`
+          : act && act.title !== e.title
+            ? act.title
+            : undefined,
+        start,
+        end,
+        location: e.location,
+        color: mod?.color ?? act?.color ?? CATEGORY_COLORS[e.category] ?? CATEGORY_COLORS.other,
+        movable: true,
+        assessment: ASSESSMENT_EVENTS.includes(e.category),
+        detail: e.notes?.split('\n')[0],
+      },
+      !!e.skipped,
+    ]);
   }
   return out;
 }
@@ -159,24 +188,32 @@ function eventOccs(data: AppData, from: Date, to: Date): Occ[] {
 function taskOccs(data: AppData, from: Date, to: Date, exclude?: Set<string>): Occ[] {
   const out: Occ[] = [];
   for (const t of data.tasks) {
-    if (!t.onCalendar || !t.scheduled || exclude?.has(t.id)) continue;
-    const start = fromLocal(t.scheduled.start);
-    const end = fromLocal(t.scheduled.end);
-    if (!overlaps(start, end, from, to)) continue;
+    if (!t.onCalendar) continue;
     const mod = t.moduleId ? data.modules.find((m) => m.id === t.moduleId) : undefined;
     const act = !mod && t.activityId ? data.activities.find((a) => a.id === t.activityId) : undefined;
-    const late = !t.done && t.deadline && end > fromLocal(t.deadline);
-    out.push({
-      id: `task:${t.id}`,
-      source: { type: 'task', taskId: t.id },
-      title: `${t.done ? '✓ ' : ''}${t.title}`,
-      subtitle: mod?.code ?? act?.title,
-      start,
-      end,
-      location: t.location,
-      color: mod?.color ?? act?.color ?? CATEGORY_COLORS[t.category] ?? CATEGORY_COLORS.other,
-      movable: true,
-      warning: late ? `Scheduled after the deadline (${format(fromLocal(t.deadline!), 'EEE d MMM HH:mm')})` : undefined,
+    const sessions = sortedSessions(t);
+    sessions.forEach((session, i) => {
+      if (exclude?.has(session.id)) return;
+      const start = fromLocal(session.start);
+      const end = fromLocal(session.end);
+      if (!overlaps(start, end, from, to)) return;
+      const done = t.done || session.done;
+      const late = !done && t.deadline && end > fromLocal(t.deadline);
+      const part = sessions.length > 1 ? ` · ${i + 1}/${sessions.length}` : '';
+      out.push({
+        id: `task:${t.id}:${session.id}`,
+        source: { type: 'task', taskId: t.id, sessionId: session.id },
+        title: `${done ? '✓ ' : ''}${t.title}${part}`,
+        subtitle: mod?.code ?? act?.title,
+        start,
+        end,
+        location: t.location,
+        color: mod?.color ?? act?.color ?? CATEGORY_COLORS[t.category] ?? CATEGORY_COLORS.other,
+        movable: true,
+        warning: late
+          ? `Scheduled after the deadline (${format(fromLocal(t.deadline!), 'EEE d MMM HH:mm')})`
+          : undefined,
+      });
     });
   }
   return out;
@@ -193,7 +230,11 @@ function routineOccs(data: AppData, from: Date, to: Date) {
       if (!base.enabled || !base.days.includes(weekdayMon0(day)) || base.deletedDates?.includes(dk)) continue;
       // This day's own length, if you changed it.
       const len = base.durationOverrides?.[dk];
-      const r = len ? { ...base, durationMin: len } : base;
+      const r: Routine = {
+        ...base,
+        durationMin: len ?? base.durationMin,
+        location: base.locationOverrides?.[dk] ?? base.location,
+      };
       const moved = r.overrides[dk];
       const start = moved ? fromLocal(moved.start) : at(day, r.preferredStart);
       const end = moved ? fromLocal(moved.end) : addMinutes(start, r.durationMin);

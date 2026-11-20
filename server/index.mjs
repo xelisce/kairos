@@ -163,6 +163,23 @@ const server = createServer(async (req, res) => {
   }
 });
 
+// Port taken: if it's another Kairos database server, use that one instead of failing.
+server.on('error', async (err) => {
+  if (err.code !== 'EADDRINUSE') throw err;
+  try {
+    const res = await fetch(`http://${HOST}:${PORT}/api/health`);
+    const health = await res.json();
+    if (health.ok) {
+      console.log(`Kairos database is already running on port ${PORT} (${health.db}); using that one.`);
+      process.exit(0);
+    }
+  } catch {
+    // Not a Kairos server: fall through.
+  }
+  console.error(`Port ${PORT} is used by another program. Close it, or set KAIROS_PORT to a free port.`);
+  process.exit(1);
+});
+
 server.listen(PORT, HOST, () => {
   console.log(`Kairos database: ${DB_PATH}`);
   console.log(`Kairos server:   http://${HOST}:${PORT}  (API at /api, app served from dist/ when built)`);

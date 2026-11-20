@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useStore } from './store';
 import { CalendarView } from './components/CalendarView';
+import { Taskline } from './components/Taskline';
+import { usePref } from './hooks/usePref';
 import { NowNext } from './components/NowNext';
 import { ModalHost } from './components/dialogs/ModalHost';
 import { ClassesPanel } from './components/panels/ClassesPanel';
@@ -79,6 +81,8 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('tasks');
   const [mobileTab, setMobileTab] = useState<Tab>('calendar');
   const [range, setRange] = useState<{ start: Date; end: Date } | null>(null);
+  const [{ view }, setView] = usePref<{ view: 'calendar' | 'taskline' }>('kairos:view', { view: 'calendar' });
+  const main = view === 'taskline' ? <Taskline /> : <CalendarView range={range} onRange={setRange} />;
   const narrow = useNarrow();
   const sb = useSidebar();
   // Let the calendar re-measure when the sidebar is resized or hidden.
@@ -141,7 +145,15 @@ export default function App() {
         <div className="brand">
           <img src="/icon.svg" alt="" width={24} height={24} /> Kairos
         </div>
-        {wk && (
+        <div className="segmented view-switch" role="group" aria-label="View">
+          <button className={view === 'calendar' ? 'on' : ''} onClick={() => setView({ view: 'calendar' })}>
+            🗓<span className="label"> Calendar</span>
+          </button>
+          <button className={view === 'taskline' ? 'on' : ''} onClick={() => setView({ view: 'taskline' })}>
+            📊<span className="label"> Taskline</span>
+          </button>
+        </div>
+        {wk && view === 'calendar' && (
           <span className="tag neutral" title={wk.sem.name}>
             {weekLabelText(wk.label)}
           </span>
@@ -174,8 +186,8 @@ export default function App() {
         <main className="mobile-main">
           {mobileTab === 'calendar' ? (
             <>
-              <NowNext />
-              <CalendarView range={range} onRange={setRange} />
+              {view === 'calendar' && <NowNext />}
+              {main}
             </>
           ) : (
             panel(mobileTab)
@@ -223,7 +235,7 @@ export default function App() {
               title="Drag to resize · double-click to reset"
             />
           )}
-          <CalendarView range={range} onRange={setRange} />
+          {main}
         </main>
       )}
       <ModalHost />

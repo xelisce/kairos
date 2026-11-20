@@ -28,4 +28,31 @@ describe('loading older data', () => {
     d.classes[0].skipDates = ['2026-09-02'];
     expect(normalize(d).classes[0].skipDates).toEqual(['2026-09-02']);
   });
+
+  it('turns an old single task slot into a session', () => {
+    const old = sampleData() as unknown as Record<string, unknown> & { tasks: Record<string, unknown>[] };
+    old.version = 2;
+    old.tasks = [
+      {
+        id: 't',
+        title: 'HW',
+        category: 'homework',
+        durationMin: 60,
+        onCalendar: true,
+        done: false,
+        createdAt: '2026-08-30T00:00',
+        pinned: true,
+        scheduled: { start: '2026-09-01T09:00', end: '2026-09-01T10:00' },
+      },
+    ];
+    const [t] = normalize(old as unknown as AppData).tasks;
+    expect(t.sessions).toHaveLength(1);
+    expect(t.sessions[0]).toMatchObject({
+      start: '2026-09-01T09:00',
+      end: '2026-09-01T10:00',
+      pinned: true,
+      done: false,
+    });
+    expect('scheduled' in t).toBe(false);
+  });
 });

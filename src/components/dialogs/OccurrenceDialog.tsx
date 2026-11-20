@@ -8,14 +8,17 @@ import {
   resetOcc,
   setDetail,
   setSessionKind,
+  setSessionLocation,
   setTaskOnCalendar,
   setTravel,
   skipOcc,
+  toggleSessionDone,
+  deleteSession,
   toggleTaskDone,
 } from '../../lib/actions';
 import { fmtDur, fmtTime } from '../../lib/time';
-import { Field, Modal, Row, useModal, useUI } from '../ui';
-import { kindOptions } from './shared';
+import { Field, LocationInput, Modal, Row, useModal, useUI } from '../ui';
+import { kindOptions, locationSuggestions } from './shared';
 
 export function OccurrenceDialog() {
   const { occ: o } = useModal('occ');
@@ -24,6 +27,8 @@ export function OccurrenceDialog() {
   const src = o.source;
 
   const task = src.type === 'task' ? data.tasks.find((t) => t.id === src.taskId) : undefined;
+  const session = src.type === 'task' ? task?.sessions.find((s) => s.id === src.sessionId) : undefined;
+  const multiSession = !!task && (!!task.split || task.sessions.length > 1);
   const series = src.type === 'class' ? data.classes.find((c) => c.id === src.seriesId) : undefined;
   const isSession = src.type === 'class' || src.type === 'routine' || src.type === 'activity';
   const savedNotes =
@@ -31,13 +36,22 @@ export function OccurrenceDialog() {
   const [detail, setDetailText] = useState(() =>
     src.type === 'event' || src.type === 'task' ? savedNotes : (o.detail ?? ''),
   );
+  const usualPlace =
+    src.type === 'class'
+      ? (series?.location ?? '')
+      : src.type === 'routine'
+        ? (data.routines.find((r) => r.id === src.routineId)?.location ?? '')
+        : src.type === 'activity'
+          ? (data.activities.find((a) => a.id === src.activityId)?.location ?? '')
+          : undefined;
+  const [place, setPlace] = useState(o.location ?? '');
   const [travelMin, setTravelMin] = useState(src.type === 'travel' ? String(src.minutes) : '');
 
   const moved =
     (src.type === 'class' && !!series?.overrides[src.date]) ||
     (src.type === 'routine' && !!data.routines.find((r) => r.id === src.routineId)?.overrides[src.date]) ||
     (src.type === 'activity' && !!data.activities.find((a) => a.id === src.activityId)?.overrides[src.date]) ||
-    (src.type === 'task' && !!task?.pinned);
+    (src.type === 'task' && !!session?.pinned);
 
   /** Run an action, then close. */
   const act = (fn: () => void) => () => {
@@ -74,15 +88,17 @@ export function OccurrenceDialog() {
       </p>
       {o.warning && <p className="warn-box">⚠️ {o.warning}</p>}
 
-      {src.type !== 'travel' && src.type !== 'routine' && (
+      {src.type !== 'travel' && (
         <Field
-          label={src.type === 'class' || src.type === 'activity' ? 'Details for this session only' : 'Details'}
+          label={isSession ? 'Details for this session only' : 'Details'}
           hint={
             src.type === 'activity'
               ? 'e.g. Guest talk by …, Full team meeting'
               : src.type === 'class'
                 ? 'e.g. Midterm review, bring laptop'
-                : undefined
+                : src.type === 'routine'
+                  ? 'e.g. Dinner with Alex'
+                  : undefined
           }
         >
           <div className="detail-row">
@@ -98,6 +114,24 @@ export function OccurrenceDialog() {
               className="btn"
               disabled={detail === (o.detail ?? savedNotes)}
               onClick={act(() => setDetail(o, detail))}
+            >
+              Save
+            </button>
+          </div>
+        </Field>
+      )}
+
+      {isSession && usualPlace !== undefined && (
+        <Field
+          label="Location for this session only"
+          hint={usualPlace ? `Usually: ${usualPlace}. Clear it to go back to that.` : 'Usually no place set.'}
+        >
+          <div className="detail-row">
+            <LocationInput value={place} onChange={setPlace} places={locationSuggestions(data)} />
+            <button
+              className="btn"
+              disabled={place.trim() === (o.location ?? '')}
+              onClick={act(() => setSessionLocation(o, place))}
             >
               Save
             </button>
@@ -163,12 +197,17 @@ export function OccurrenceDialog() {
 
       {src.type !== 'travel' && (
         <div className="actions">
-          {task && (
-            <button className="btn primary" onClick={act(() => toggleTaskDone(task.id))}>
-              {task.done ? 'Mark not done' : '✓ Mark done'}
+          {task && session && multiSession && (
+            <button className="btn primary" onClick={act(() => toggleSessionDone(task.id, session.id))}>
+              {session.done ? 'Session not done' : '✓ This session done'}
             </button>
           )}
-          {isSession && (
+          {task && (
+            <button className={multiSession ? 'btn' : 'btn primary'} onClick={act(() => toggleTaskDone(task.id))}>
+              {task.done ? 'Mark not done' : multiSession ? 'Whole task done' : '✓ Mark done'}
+            </button>
+          )}
+          {(isSession || src.type === 'event') && (
             <button
               className="btn"
               title={
@@ -181,12 +220,25 @@ export function OccurrenceDialog() {
               {o.skipped ? 'Un-skip' : 'Skip this one'}
             </button>
           )}
+          {task && session && multiSession && (
+            <button
+              className="btn danger"
+              title={
+                task.autoPlan === false
+                  ? 'Remove just this session'
+                  : 'Remove just this session (auto-schedule finds another time for it)'
+              }
+              onClick={act(() => deleteSession(task.id, session.id))}
+            >
+              Delete this session
+            </button>
+          )}
           <button
             className="btn danger"
             title="Remove it. Restore it from the Deleted tab."
             onClick={act(() => deleteOcc(o))}
           >
-            {isSession ? 'Delete this one' : 'Delete'}
+            {isSession ? 'Delete this one' : task && multiSession ? 'Delete whole task' : 'Delete'}
           </button>
           {moved && (
             <button className="btn" onClick={act(() => resetOcc(o))}>

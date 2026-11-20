@@ -1,5 +1,5 @@
 // Shared test data and helpers.
-import type { AppData } from '../types';
+import type { AppData, Task, TaskSession } from '../types';
 import { defaultData } from '../lib/defaults';
 import { parseLayout, parseWeeks } from '../lib/weeks';
 
@@ -46,3 +46,27 @@ export function sampleData(): AppData {
 export const clock = (d: Date) => d.getHours() * 60 + d.getMinutes();
 export const hm = (h: number, m = 0) => h * 60 + m;
 export const lengthMin = (o: { start: Date; end: Date }) => (o.end.getTime() - o.start.getTime()) / 60000;
+
+/** A task with sensible defaults; override what the test cares about. */
+export function task(over: Partial<Task> & Pick<Task, 'id'>): Task {
+  return {
+    title: over.id,
+    category: 'homework',
+    durationMin: 60,
+    onCalendar: true,
+    sessions: [],
+    done: false,
+    createdAt: '2026-08-30T00:00',
+    ...over,
+  };
+}
+
+/** A session from "start" to "end" (local times). */
+export const session = (id: string, start: string, end: string, extra: Partial<TaskSession> = {}): TaskSession => ({
+  id,
+  start,
+  end,
+  done: false,
+  pinned: false,
+  ...extra,
+});

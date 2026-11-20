@@ -79,6 +79,8 @@ export interface ClassSeries {
   kindOverrides: Record<LocalDate, ClassKind>;
   /** Per-date details, e.g. "Midterm review". */
   details?: Record<LocalDate, string>;
+  /** Per-date place, e.g. a room change, or dinner out instead of at home. */
+  locationOverrides?: Record<LocalDate, string>;
 }
 
 /**
@@ -105,6 +107,8 @@ export interface Activity {
   overrides: Record<LocalDate, TimeOverride>;
   /** Per-date details, e.g. "Guest talk" or "Full team meeting". */
   details?: Record<LocalDate, string>;
+  /** Per-date place, e.g. a room change, or dinner out instead of at home. */
+  locationOverrides?: Record<LocalDate, string>;
 }
 
 export type RoutineCategory = 'meal' | 'hygiene' | 'sleep' | 'chores' | 'exercise' | 'other';
@@ -133,6 +137,10 @@ export interface Routine {
   overrides: Record<LocalDate, TimeOverride>;
   /** Length changed for that day only (minutes). Still auto-scheduled, keeps this length until Reset. */
   durationOverrides?: Record<LocalDate, number>;
+  /** Per-date details, e.g. "Dinner with Alex". */
+  details?: Record<LocalDate, string>;
+  /** Per-date place, e.g. a room change, or dinner out instead of at home. */
+  locationOverrides?: Record<LocalDate, string>;
 }
 
 export type EventCategory =
@@ -151,11 +159,31 @@ export interface CalEvent {
   moduleId?: ID;
   /** Link to a CCA / club (a booked session). */
   activityId?: ID;
+  /** Skipped: still shown (faded), but other things can use that time. */
+  skipped?: boolean;
 }
 
 export type TaskCategory = 'homework' | 'admin' | 'personal' | 'other';
 
-/** Something to do that needs a slot: homework, bidding for modules, applications. */
+/** One block of work on a task. */
+export interface TaskSession {
+  id: ID;
+  start: LocalDateTime;
+  end: LocalDateTime;
+  done: boolean;
+  /** You placed it, so the scheduler leaves it alone. */
+  pinned: boolean;
+}
+
+/** How a task may be split into sessions. */
+export interface TaskSplit {
+  maxSessionMin: number;
+  maxPerDayMin: number;
+  /** Sessions shorter than this aren't made (except a last bit smaller than it). */
+  minSessionMin: number;
+}
+
+/** Something to do that needs time: homework, bidding for modules, applications. */
 export interface Task {
   id: ID;
   title: string;
@@ -164,18 +192,23 @@ export interface Task {
   moduleId?: ID;
   /** ...or under a CCA / club / activity (e.g. "Glaze pottery" under Pottery). */
   activityId?: ID;
+  /** Total time it needs (all sessions together). */
   durationMin: number;
   /** Hard deadline: scheduling after this is flagged red. */
   deadline?: LocalDateTime;
   /** Don't schedule before this. */
   earliest?: LocalDateTime;
-  /** The "on calendar" checkbox. When true, the scheduler finds it a slot. */
+  /** The "on calendar" checkbox. When true, the scheduler finds time for it. */
   onCalendar: boolean;
-  scheduled?: TimeOverride;
-  /** User dragged it, so the scheduler leaves it alone. */
-  pinned: boolean;
+  /** When you're working on it. One session unless `split` is set. */
+  sessions: TaskSession[];
+  /** Split into several sessions with these limits; unset = one session. */
+  split?: TaskSplit;
+  /** false: you add and place its sessions yourself; auto-schedule leaves it alone. */
+  autoPlan?: boolean;
+  /** The whole task is finished. */
   done: boolean;
-  /** Set when a missed task got moved forward automatically. */
+  /** Set when a missed session got moved forward automatically. */
   rolledForward?: boolean;
   location?: string;
   notes?: string;
@@ -235,6 +268,16 @@ export interface AppData {
   travelMoves: Record<string, LocalDateTime>;
   /** Deleted events, tasks, classes, routines and CCAs, restorable from the Deleted tab. */
   trash: TrashItem[];
+  /** Trips and holidays: no tasks planned, classes, CCAs and routines hidden. */
+  away: AwayRange[];
+}
+
+/** Time you're away (a trip, a holiday). */
+export interface AwayRange {
+  id: ID;
+  title: string;
+  start: LocalDateTime;
+  end: LocalDateTime;
 }
 
 export type TrashItem =
@@ -251,7 +294,7 @@ export type OccSource =
   | { type: 'routine'; routineId: ID; date: LocalDate }
   | { type: 'activity'; activityId: ID; date: LocalDate }
   | { type: 'event'; eventId: ID }
-  | { type: 'task'; taskId: ID }
+  | { type: 'task'; taskId: ID; sessionId: ID }
   | { type: 'travel'; key: string; minutes: number; from: string; to: string; overridden: boolean; moved: boolean };
 
 export interface Occ {

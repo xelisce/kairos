@@ -9,10 +9,10 @@ import type { EventResizeDoneArg } from '@fullcalendar/interaction';
 import { useStore } from '../store';
 import { expand } from '../lib/expand';
 import { moveOcc } from '../lib/actions';
-import { fmtTime } from '../lib/time';
+import { fmtTime, fromLocal } from '../lib/time';
 import { dayMarker } from '../lib/weeks';
 import { useUI } from './ui';
-import type { Occ } from '../types';
+import type { AwayRange, Occ } from '../types';
 
 export function CalendarView({
   range,
@@ -32,16 +32,23 @@ export function CalendarView({
   const byId = useMemo(() => new Map(occs.map((o) => [o.id, o])), [occs]);
 
   const events = useMemo(
-    () =>
-      occs.map((o) => ({
+    () => [
+      // Time away: a striped band behind everything. Click it to edit.
+      ...data.away.map((a) => ({
+        id: `away:${a.id}`,
+        start: fromLocal(a.start),
+        end: fromLocal(a.end),
+        display: 'background',
+        classNames: ['k-away'],
+        editable: false,
+        extendedProps: { away: a },
+      })),
+      ...occs.map((o) => ({
         id: o.id,
         title: o.title,
         start: o.start,
         end: o.end,
-        // Skipped sessions turn grey, whatever their usual color.
-        backgroundColor: o.skipped ? 'var(--skipped)' : o.source.type === 'travel' ? 'transparent' : o.color,
-        borderColor: o.warning ? 'var(--bad)' : o.color,
-        textColor: o.source.type === 'travel' ? 'var(--text-2)' : '#fff',
+        ...colorsOf(o),
         editable: o.movable,
         // Skipped: drawn behind everything, so other blocks can sit on top of it.
         display: o.skipped ? 'background' : 'auto',
@@ -51,10 +58,12 @@ export function CalendarView({
           isDone(o) ? 'k-done' : '',
           o.assessment ? 'k-assess' : '',
           o.skipped ? 'k-skipped' : '',
+          isOutlined(o) ? 'k-outline' : '',
         ].filter(Boolean),
         extendedProps: { occ: o },
       })),
-    [occs],
+    ],
+    [occs, data.away],
   );
 
   const onChange = (how: 'move' | 'resize') => (info: EventDropArg | EventResizeDoneArg) => {
@@ -104,6 +113,8 @@ export function CalendarView({
         eventDrop={onChange('move')}
         eventResize={onChange('resize')}
         eventClick={(info: EventClickArg) => {
+          const away = info.event.extendedProps.away as AwayRange | undefined;
+          if (away) return open({ kind: 'away', id: away.id });
           const o = byId.get(info.event.id);
           if (o) open({ kind: 'occ', occ: o });
         }}
@@ -148,6 +159,13 @@ export function CalendarView({
 const isDone = (o: Occ) => o.source.type === 'task' && o.title.startsWith('✓');
 
 function renderEvent(arg: EventContentArg) {
+  const away = arg.event.extendedProps.away as AwayRange | undefined;
+  if (away)
+    return (
+      <div className="ev ev-line ev-away" title="Away: no tasks planned. Click to edit.">
+        ✈️ {away.title || 'Away'}
+      </div>
+    );
   const o = arg.event.extendedProps.occ as Occ | undefined;
   // The placeholder block FullCalendar draws while you drag-select empty time has no occurrence.
   if (!o)
@@ -156,10 +174,14 @@ function renderEvent(arg: EventContentArg) {
         <div className="ev-meta">{arg.timeText}</div>
       </div>
     );
-  const mins = (o.end.getTime() - o.start.getTime()) / 60000;
+  // Use the block's current position, so the time follows along while you drag or stretch it.
+  const start = arg.event.start ?? o.start;
+  const end = arg.event.end ?? o.end;
+  const time = `${fmtTime(start)}–${fmtTime(end)}`;
+  const mins = (end.getTime() - start.getTime()) / 60000;
   const tip = [
     o.detail ? `${o.title} · ${o.detail}` : o.title,
-    `${fmtTime(o.start)}–${fmtTime(o.end)}${o.location ? `, ${o.location}` : ''}`,
+    `${time}${o.location ? `, ${o.location}` : ''}`,
     o.subtitle,
     o.warning && `⚠️ ${o.warning}`,
   ]
@@ -177,7 +199,7 @@ function renderEvent(arg: EventContentArg) {
     return (
       <div className="ev ev-line" title={tip}>
         {o.warning && '⚠️ '}
-        {o.title} · {fmtTime(o.start)}
+        {o.title} · {fmtTime(start)}
       </div>
     );
   }
@@ -189,7 +211,8 @@ function renderEvent(arg: EventContentArg) {
         {o.warning && '⚠️ '}
         {o.title}
         {o.detail && <span className="ev-detail"> · {o.detail}</span>}
-        <span className="ev-where">{where}</span>
+        {/* While dragging, show the time even on short blocks. */}
+        <span className="ev-where">{arg.isMirror ? ` · ${time}` : where}</span>
       </div>
     );
   }
@@ -207,10 +230,32 @@ function renderEvent(arg: EventContentArg) {
         {o.detail && <span className="ev-detail"> · {o.detail}</span>}
       </div>
       <div className="ev-meta">
-        {fmtTime(o.start)}–{fmtTime(o.end)}
+        {time}
         {where}
       </div>
       {mins >= 90 && o.subtitle && <div className="ev-meta ev-sub">{o.subtitle}</div>}
     </div>
   );
+}
+
+/**
+ * Tasks are outlined (a light tint of their color, with a solid border), so they look different
+ * from the course or club they belong to; classes, CCAs and events stay solid.
+ */
+const isOutlined = (o: Occ) => !o.skipped && o.source.type === 'task';
+
+function colorsOf(o: Occ) {
+  const border = o.warning ? 'var(--bad)' : o.color;
+  // Skipped sessions turn grey, whatever their usual color.
+  if (o.skipped) return { backgroundColor: 'var(--skipped)', borderColor: border, textColor: '#fff' };
+  if (o.source.type === 'travel')
+    return { backgroundColor: 'transparent', borderColor: border, textColor: 'var(--text-2)' };
+  if (isOutlined(o)) {
+    return {
+      backgroundColor: `color-mix(in srgb, ${o.color} 22%, var(--surface))`,
+      borderColor: border,
+      textColor: 'var(--text)',
+    };
+  }
+  return { backgroundColor: o.color, borderColor: border, textColor: '#fff' };
 }

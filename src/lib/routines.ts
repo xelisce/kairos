@@ -19,7 +19,16 @@ export function routineOcc(r: Routine, dk: string, start: Date, end: Date, warni
     color: r.color,
     movable: true,
     warning,
+    detail: r.details?.[dk],
   };
+}
+
+/** The routine's window on `day` (the end can be after midnight). */
+export function routineWindow(r: Routine, day: Date) {
+  const ws = hmToMin(r.windowStart);
+  let we = hmToMin(r.windowEnd);
+  if (we <= ws) we += 1440;
+  return { start: atMin(day, ws), end: atMin(day, we) };
 }
 
 /**

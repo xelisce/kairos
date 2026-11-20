@@ -4,6 +4,7 @@
 import { create } from 'zustand';
 import type { AppData } from '../types';
 import { applyRemote, useStore } from '../store';
+import { merge3 } from './merge';
 
 export type SyncStatus = 'connecting' | 'saving' | 'saved' | 'offline';
 
@@ -35,6 +36,22 @@ let retry: ReturnType<typeof setTimeout> | undefined;
 let inFlight = false;
 let again = false;
 let remoteApplying = false;
+/** The database's copy as of the last load or save: the common starting point when merging. */
+let synced: { data: AppData; json: string } | undefined;
+const remember = (data: AppData) => {
+  synced = { data: structuredClone(data), json: JSON.stringify(data) };
+};
+
+/** Switch to the database's copy (another window changed it, and we have nothing unsaved). */
+function takeRemote(data: AppData, version: number) {
+  meta = { version, dirty: false };
+  writeMeta(meta);
+  remoteApplying = true;
+  applyRemote(data);
+  remoteApplying = false;
+  // The app re-plans what it loads, so remember the copy as the app holds it.
+  remember(useStore.getState().data);
+}
 
 const setStatus = (status: SyncStatus, detail?: string) => useSync.setState({ status, detail });
 
@@ -45,25 +62,32 @@ async function push() {
   }
   inFlight = true;
   setStatus('saving');
+  const sent = useStore.getState().data;
   try {
     const res = await fetch('/api/data', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data: useStore.getState().data, baseVersion: meta.version }),
+      body: JSON.stringify({ data: sent, baseVersion: meta.version }),
     });
     if (res.status === 409) {
-      // Another window saved first: switch to the database's newer copy.
+      // Another window saved first: keep both windows' changes, then save the result.
       const cur = (await res.json()) as { data: AppData; version: number };
-      meta = { version: cur.version, dirty: false };
+      const local = useStore.getState().data;
+      // No starting point known (first save after being offline): keep everything from both.
+      const merged = merge3(synced?.data ?? ({} as AppData), local, cur.data);
+      meta = { version: cur.version, dirty: true };
       writeMeta(meta);
       remoteApplying = true;
-      applyRemote(cur.data);
+      applyRemote(merged);
       remoteApplying = false;
-      setStatus('saved', 'Updated with changes from another window');
+      synced = { data: cur.data, json: JSON.stringify(cur.data) };
+      again = true;
+      setStatus('saving', 'Merged with changes from another window');
     } else if (res.ok) {
       const { version } = (await res.json()) as { version: number };
       meta = { version, dirty: false };
       writeMeta(meta);
+      remember(sent);
       setStatus('saved');
     } else {
       throw new Error(`HTTP ${res.status}`);
@@ -84,6 +108,9 @@ async function push() {
 }
 
 function schedulePush() {
+  // Nothing really changed (the 5-minute re-plan often gives the same plan): don't save, so
+  // other windows don't have to merge for nothing.
+  if (synced && !meta.dirty && JSON.stringify(useStore.getState().data) === synced.json) return;
   meta = { ...meta, dirty: true };
   writeMeta(meta);
   clearTimeout(timer);
@@ -113,13 +140,14 @@ export async function startSync() {
           /* ignore */
         }
       }
-      meta = { version: cur.version, dirty: false };
-      writeMeta(meta);
-      remoteApplying = true;
-      applyRemote(cur.data);
-      remoteApplying = false;
+      takeRemote(cur.data, cur.version);
       setStatus('saved');
     }
+    // Coming back to this window: pick up what other windows saved meanwhile.
+    window.addEventListener('focus', () => void pull());
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') void pull();
+    });
   } catch {
     setStatus('offline');
     clearTimeout(retry);
@@ -135,14 +163,25 @@ async function startSyncRetry() {
     const cur = (await res.json()) as { data: AppData | null; version: number };
     if (cur.data === null || meta.dirty) await push();
     else {
-      meta = { version: cur.version, dirty: false };
-      writeMeta(meta);
-      remoteApplying = true;
-      applyRemote(cur.data);
-      remoteApplying = false;
+      takeRemote(cur.data, cur.version);
       setStatus('saved');
     }
   } catch {
     retry = setTimeout(startSyncRetry, 10_000);
+  }
+}
+
+/** Load the database's copy if another window saved since; unsaved changes here get merged on save. */
+async function pull() {
+  if (inFlight) return;
+  try {
+    const res = await fetch('/api/data');
+    if (!res.ok) return;
+    const cur = (await res.json()) as { data: AppData | null; version: number };
+    if (!cur.data || cur.version === meta.version) return;
+    if (meta.dirty) void push();
+    else takeRemote(cur.data, cur.version);
+  } catch {
+    /* offline: the next save retries */
   }
 }

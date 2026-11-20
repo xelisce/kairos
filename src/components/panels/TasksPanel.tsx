@@ -4,13 +4,15 @@ import { useStore } from '../../store';
 import type { AppData, Task } from '../../types';
 import { quickAddTask, setTaskOnCalendar, toggleTaskDone } from '../../lib/actions';
 import { taskWarning } from '../../lib/scheduler';
+import { doneMinutes, nextSession } from '../../lib/tasks';
 import { fmtDur, fromLocal } from '../../lib/time';
 import { useNow } from '../../hooks/useNow';
 import { useUI } from '../ui';
 
 const LAST = '9999';
 const byDeadline = (a: Task, b: Task) => (a.deadline ?? LAST).localeCompare(b.deadline ?? LAST);
-const bySlot = (a: Task, b: Task) => (a.scheduled?.start ?? LAST).localeCompare(b.scheduled?.start ?? LAST);
+const nextStart = (t: Task) => nextSession(t)?.start ?? LAST;
+const bySlot = (a: Task, b: Task) => nextStart(a).localeCompare(nextStart(b));
 
 export function TasksPanel() {
   const data = useStore((s) => s.data);
@@ -60,6 +62,7 @@ export function TasksPanel() {
         On calendar <span className="count">{planned.length}</span>
       </h3>
       {list(planned)}
+      <AwayList />
       <button className="linkish" onClick={() => setShowDone(!showDone)}>
         {showDone ? 'Hide' : 'Show'} done ({done.length})
       </button>
@@ -68,10 +71,47 @@ export function TasksPanel() {
   );
 }
 
+/** Trips and holidays coming up (no tasks planned then), plus a button to add one. */
+function AwayList() {
+  const away = useStore((s) => s.data.away);
+  const open = useUI((s) => s.open);
+  const now = useNow(60_000);
+  const upcoming = away.filter((a) => fromLocal(a.end) > now).sort((x, y) => x.start.localeCompare(y.start));
+  const when = (v: string) => format(fromLocal(v), 'EEE d MMM HH:mm');
+  return (
+    <>
+      <h3 className="away-head">
+        Away <span className="count">{upcoming.length}</span>
+        <button className="linkish" onClick={() => open({ kind: 'away' })}>
+          + Time away
+        </button>
+      </h3>
+      {upcoming.length === 0 ? (
+        <p className="muted small">Going on a trip? Add it here and no tasks get planned then.</p>
+      ) : (
+        <ul className="tasks">
+          {upcoming.map((a) => (
+            <li key={a.id} className="task">
+              <button className="task-main" onClick={() => open({ kind: 'away', id: a.id })}>
+                <span className="task-title">✈️ {a.title || 'Away'}</span>
+                <span className="task-meta">
+                  {when(a.start)} → {when(a.end)}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
 function TaskRow({ task: t, data }: { task: Task; data: AppData }) {
   const open = useUI((s) => s.open);
   const now = useNow(60_000);
   const warning = taskWarning(t, now, data.settings.warnHours);
+  const next = nextSession(t);
+  const openSessions = t.sessions.filter((s) => !s.done);
   const course = data.modules.find((m) => m.id === t.moduleId);
   const activity = !course && t.activityId ? data.activities.find((a) => a.id === t.activityId) : undefined;
   return (
@@ -95,11 +135,18 @@ function TaskRow({ task: t, data }: { task: Task; data: AppData }) {
         <span className="task-meta">
           {fmtDur(t.durationMin)}
           {t.deadline && <> · due {format(fromLocal(t.deadline), 'EEE d MMM HH:mm')}</>}
-          {t.scheduled && t.onCalendar && (
+          {next && t.onCalendar && (
             <>
               {' '}
-              · 🗓 {format(fromLocal(t.scheduled.start), 'EEE HH:mm')}
-              {t.pinned ? ' 📌' : ''}
+              · 🗓 {format(fromLocal(next.start), 'EEE HH:mm')}
+              {next.pinned ? ' 📌' : ''}
+              {openSessions.length > 1 ? ` (+${openSessions.length - 1} more)` : ''}
+            </>
+          )}
+          {t.split && (
+            <>
+              {' '}
+              · {fmtDur(doneMinutes(t))} of {fmtDur(t.durationMin)} done
             </>
           )}
           {t.rolledForward && <> · moved forward</>}

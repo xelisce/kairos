@@ -99,4 +99,17 @@ describe('fitting routines', () => {
     expect([clock(lunch.start), lunch.warning]).toEqual([hm(14, 15), undefined]);
     expect([clock(home.start), home.warning]).toEqual([hm(15), undefined]);
   });
+
+  it('one day can be somewhere else (dinner out), with travel there and back', () => {
+    const d = onlyRoutine('Dinner');
+    Object.assign(d.routines[0], { location: 'Home', details: { '2026-11-20': 'Dinner with Alex' } });
+    d.routines[0].locationOverrides = { '2026-11-20': 'Ramen place' };
+    const fri = expand(d, fromLocal('2026-11-20'), fromLocal('2026-11-21'));
+    const dinner = fri.find((o) => o.title === 'Dinner')!;
+    expect(dinner.location).toBe('Ramen place');
+    expect(dinner.detail).toBe('Dinner with Alex');
+    expect(fri.filter((o) => o.source.type === 'travel').map((o) => o.title)).toEqual(['🚶 Ramen place', '🚶 Home']);
+    const sat = expand(d, fromLocal('2026-11-21'), fromLocal('2026-11-22'));
+    expect(sat.find((o) => o.title === 'Dinner')!.location).toBe('Home');
+  });
 });

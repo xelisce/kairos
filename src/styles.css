@@ -1209,6 +1209,358 @@ body.resizing {
 }
 
 /* Skipped sessions: faded behind everything */
+.away-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.away-head .linkish {
+  margin-left: auto;
+  font-size: 0.85em;
+}
+/* ---------- Taskline ---------- */
+.taskline {
+  --tl-label: 230px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+.narrow .taskline {
+  --tl-label: 130px;
+}
+.tl-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.tl-toolbar select {
+  max-width: 220px;
+}
+.tl-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.9em;
+  white-space: nowrap;
+}
+.tl-legend {
+  margin-left: auto;
+  white-space: nowrap;
+}
+.tl-scroll {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+.tl-body {
+  position: relative;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.tl-fill {
+  flex: 1;
+  border-bottom: none;
+}
+.tl-fill .tl-label {
+  box-shadow: none;
+}
+.tl-row {
+  display: flex;
+  min-height: 34px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+}
+.tl-label {
+  position: sticky;
+  left: 0;
+  /* Above bars, dots and ◆ scrolling underneath. */
+  z-index: 8;
+  /* Covers the row's bottom border, so nothing behind (the today line) shows through the gap. */
+  box-shadow: 0 1px 0 0 color-mix(in srgb, var(--border) 50%, var(--surface));
+  flex: 0 0 var(--tl-label);
+  width: var(--tl-label);
+  padding: 4px 8px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.tl-track {
+  position: relative;
+  flex: 0 0 auto;
+}
+.tl-head {
+  position: sticky;
+  top: 0;
+  z-index: 9;
+  background: var(--surface);
+  font-size: 0.8em;
+}
+.tl-head .tl-label {
+  z-index: 10;
+  font-weight: 600;
+}
+.tl-head .tl-track {
+  min-height: 46px;
+}
+.tl-week {
+  position: absolute;
+  top: 0;
+  height: 22px;
+  padding: 3px 4px;
+  border-left: 1px solid var(--border);
+  white-space: nowrap;
+  overflow: clip;
+  color: var(--text-2);
+}
+/* Week/day names stay visible at the left edge while their week or day is on screen. */
+.tl-sticky {
+  position: sticky;
+  left: calc(var(--tl-label) + 4px);
+}
+.tl-day {
+  position: absolute;
+  top: 22px;
+  bottom: 0;
+  padding: 3px 3px;
+  border-left: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  white-space: nowrap;
+  overflow: clip;
+  color: var(--text-2);
+  font-size: 0.92em;
+}
+.tl-day.weekend {
+  background: color-mix(in srgb, var(--skipped) 30%, transparent);
+  color: var(--text);
+}
+.tl-weekend {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: color-mix(in srgb, var(--skipped) 18%, transparent);
+}
+.tl-today-col {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.tl-hour {
+  position: absolute;
+  bottom: 1px;
+  transform: translateX(-50%);
+  font-size: 9px;
+  opacity: 0.6;
+}
+.tl-week.break {
+  font-style: italic;
+}
+.tl-week small {
+  opacity: 0.7;
+}
+.tl-overlay {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--tl-label);
+  pointer-events: none;
+  z-index: 1;
+}
+.tl-shade {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background-image: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--skipped) 14%, transparent) 0 6px,
+    transparent 6px 12px
+  );
+}
+.tl-today {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--bad);
+  opacity: 0.8;
+}
+.tl-group-head {
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
+}
+.tl-group-head .tl-label {
+  font-weight: 700;
+}
+.tl-chip {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+}
+.tl-marker {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  cursor: pointer;
+  font-size: 15px;
+  white-space: nowrap;
+}
+.tl-marker small {
+  margin-left: 3px;
+  font-size: 11px;
+  color: var(--text);
+}
+.tl-task {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0;
+  text-align: left;
+  border: none;
+  border-right: 1px solid var(--border);
+  border-radius: 0;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+}
+.tl-task:hover {
+  background: color-mix(in srgb, var(--surface) 85%, var(--text));
+}
+.tl-title,
+.tl-meta {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tl-title {
+  font-size: 0.9em;
+}
+.tl-meta {
+  font-size: 0.75em;
+  color: var(--text-2);
+}
+.tl-bar-row.done .tl-bar,
+.tl-bar-row.done .tl-title {
+  opacity: 0.55;
+}
+.tl-bar {
+  position: absolute;
+  top: 50%;
+  height: 14px;
+  transform: translateY(-50%);
+  z-index: 2;
+  border: 1.5px solid;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--c) 22%, transparent);
+  cursor: pointer;
+}
+.tl-dot {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  border-radius: 50%;
+  border: 2px solid var(--c);
+  background: var(--c);
+  color: #fff;
+  font-size: 9px;
+  line-height: 8px;
+  text-align: center;
+  cursor: grab;
+  touch-action: none;
+}
+.tl-dot.missed {
+  background: var(--bg);
+}
+.tl-dot.late {
+  border-color: var(--bad);
+  background: var(--bad);
+}
+.tl-dot.late.missed {
+  background: var(--bg);
+}
+.tl-dot.dragging,
+.tl-deadline.dragging {
+  cursor: grabbing;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  z-index: 6;
+}
+.tl-deadline {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 4;
+  font-size: 15px;
+  color: var(--text);
+  cursor: ew-resize;
+  touch-action: none;
+  user-select: none;
+  white-space: nowrap;
+}
+.tl-deadline.overdue {
+  color: var(--bad);
+}
+.tl-deadline small {
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  transform: translateX(-50%);
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+}
+.tl-empty {
+  padding: 24px;
+}
+.tl-toolbar .segmented,
+.view-switch {
+  margin-bottom: 0;
+  flex: none;
+}
+.tl-toolbar .segmented button,
+.view-switch button {
+  white-space: nowrap;
+  padding: 6px 10px;
+  color: var(--text);
+}
+.tl-toolbar .segmented button.on,
+.view-switch button.on {
+  color: #fff;
+}
+.narrow .view-switch .label {
+  display: none;
+}
+/* Time away: a striped band behind everything */
+.fc .fc-bg-event.k-away {
+  background-color: var(--skipped) !important;
+  opacity: 0.22;
+  cursor: pointer;
+  background-image: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.25) 0 8px, transparent 8px 16px) !important;
+}
+.fc .fc-bg-event.k-away:hover {
+  opacity: 0.35;
+}
+.ev-away {
+  color: var(--text);
+  font-weight: 600;
+  padding: 2px 4px;
+}
 .fc .fc-bg-event.k-skipped {
   opacity: 0.32;
   cursor: pointer;
@@ -1252,4 +1604,71 @@ body.resizing {
   .fc .fc-daygrid-event {
     transition: none;
   }
+}
+
+/* Task sessions list (task dialog) */
+.sessions {
+  list-style: none;
+  margin: 4px 0 10px;
+  padding: 0;
+}
+.sessions li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 0;
+  flex-wrap: wrap;
+}
+.sessions li.done label {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+.sessions.editable li {
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+.sessions.editable li.done .datetimeinput,
+.sessions.editable li.done .session-here {
+  margin-top: 14px;
+}
+.row-inline {
+  display: flex;
+  gap: 8px;
+}
+.row-inline select {
+  flex: 1;
+  min-width: 0;
+}
+.session-len {
+  opacity: 0.55;
+}
+.session-len {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.85em;
+  color: var(--text-2);
+}
+.session-len input {
+  width: 4.5em;
+}
+.sessions .pin {
+  min-width: 2.6em;
+  font-size: 0.85em;
+}
+.sessions-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+/* Tasks: outlined, so they look different from their (solid) course or club */
+.fc-event.k-outline {
+  border-width: 2px;
+  border-style: solid;
+}
+.fc-event.k-outline .ev-meta {
+  opacity: 0.8;
 }
