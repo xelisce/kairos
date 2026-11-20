@@ -154,10 +154,14 @@ function renderEvent(arg: EventContentArg) {
         <div className="ev-meta">{arg.timeText}</div>
       </div>
     );
-  const mins = (o.end.getTime() - o.start.getTime()) / 60000;
+  // Use the block's current position, so the time follows along while you drag or stretch it.
+  const start = arg.event.start ?? o.start;
+  const end = arg.event.end ?? o.end;
+  const time = `${fmtTime(start)}–${fmtTime(end)}`;
+  const mins = (end.getTime() - start.getTime()) / 60000;
   const tip = [
     o.detail ? `${o.title} · ${o.detail}` : o.title,
-    `${fmtTime(o.start)}–${fmtTime(o.end)}${o.location ? `, ${o.location}` : ''}`,
+    `${time}${o.location ? `, ${o.location}` : ''}`,
     o.subtitle,
     o.warning && `⚠️ ${o.warning}`,
   ]
@@ -175,7 +179,7 @@ function renderEvent(arg: EventContentArg) {
     return (
       <div className="ev ev-line" title={tip}>
         {o.warning && '⚠️ '}
-        {o.title} · {fmtTime(o.start)}
+        {o.title} · {fmtTime(start)}
       </div>
     );
   }
@@ -187,7 +191,8 @@ function renderEvent(arg: EventContentArg) {
         {o.warning && '⚠️ '}
         {o.title}
         {o.detail && <span className="ev-detail"> · {o.detail}</span>}
-        <span className="ev-where">{where}</span>
+        {/* While dragging, show the time even on short blocks. */}
+        <span className="ev-where">{arg.isMirror ? ` · ${time}` : where}</span>
       </div>
     );
   }
@@ -205,7 +210,7 @@ function renderEvent(arg: EventContentArg) {
         {o.detail && <span className="ev-detail"> · {o.detail}</span>}
       </div>
       <div className="ev-meta">
-        {fmtTime(o.start)}–{fmtTime(o.end)}
+        {time}
         {where}
       </div>
       {mins >= 90 && o.subtitle && <div className="ev-meta ev-sub">{o.subtitle}</div>}
