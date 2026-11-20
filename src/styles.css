@@ -1878,8 +1878,18 @@ body.resizing {
 .plan-title {
   font-size: 13px;
 }
+/* Travel plans: a solid card (the away stripes don't show through) with dark text in light
+   mode and light text in dark mode. FullCalendar colors event text with its own variable. */
 .fc .fc-event.k-plan {
-  background: var(--surface-2);
+  --fc-event-text-color: var(--text);
+  background: var(--surface);
   border: 1px dashed var(--accent);
   color: var(--text);
+}
+.fc .fc-event.k-plan .ev-title {
+  color: var(--text);
+}
+.fc .fc-event.k-plan .ev-meta {
+  color: var(--text-2);
+  opacity: 1;
 }
