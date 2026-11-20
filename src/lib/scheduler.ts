@@ -10,6 +10,7 @@ import { addDays, addMinutes, format, startOfDay } from 'date-fns';
 import type { AppData, Occ, Settings, Task, TaskSession } from '../types';
 import { awayIntervals } from './away';
 import { expand } from './expand';
+import { blockersOf, planOrder, readyAfter } from './dependencies';
 import { doneMinutes, limitsOf, plannedMinutes, sessionMinutes, unplannedMinutes } from './tasks';
 import { atMin, dateKey, eachDay, fmtDur, fromLocal, hmToMin, overlaps, toLocal, uid } from './time';
 
@@ -260,7 +261,7 @@ export function planTasks(data: AppData, now: Date): Task[] {
   }
   dayCache.clear();
 
-  // Pass 2: earliest deadline first, then oldest.
+  // Pass 2: earliest deadline first, then oldest; a task always after the ones it depends on.
   const start = ceilTo(now, STEP);
   const byDeadline = (a: Task, b: Task) => {
     const da = a.deadline ? fromLocal(a.deadline).getTime() : Infinity;
@@ -268,14 +269,26 @@ export function planTasks(data: AppData, now: Date): Task[] {
     return da - db || a.createdAt.localeCompare(b.createdAt);
   };
   const placeTask = (t: Task) => {
+    // Waits for the tasks it depends on (they're planned first): sessions before they end move.
+    const after = readyAfter(t, tasks);
+    if (after) {
+      const early = t.sessions.filter((s) => mayMove(s, now) && fromLocal(s.start) < after);
+      t.sessions = t.sessions.filter((s) => !early.includes(s));
+      for (const s of early) {
+        const i = busy.findIndex((b) => b.start.getTime() === fromLocal(s.start).getTime());
+        if (i >= 0) busy.splice(i, 1);
+        forgetDays({ start: fromLocal(s.start), end: fromLocal(s.end) });
+      }
+    }
     if (unplannedMinutes(t) <= 0) return;
-    const from = t.earliest && fromLocal(t.earliest) > start ? fromLocal(t.earliest) : start;
+    let from = t.earliest && fromLocal(t.earliest) > start ? fromLocal(t.earliest) : start;
+    if (after && after > from) from = ceilTo(after, STEP);
     const deadline = t.deadline ? fromLocal(t.deadline) : null;
     placeSessions(t, from, deadline && deadline < horizon ? deadline : horizon);
     // Not enough room before the deadline: keep going after it; the calendar flags those red.
     if (unplannedMinutes(t) > 0 && deadline && deadline < horizon) placeSessions(t, deadline, horizon);
   };
-  for (const t of [...active].sort(byDeadline)) placeTask(t);
+  for (const t of planOrder(active, byDeadline)) placeTask(t);
 
   // Pass 3: sessions were checked one at a time, so together they can still clash (one makes dinner
   // move earlier, and the trip home then lands on another). Check the finished layout; re-place any
@@ -306,7 +319,7 @@ export function planTasks(data: AppData, now: Date): Task[] {
     );
     dayCache.clear();
     checksUsed.clear();
-    for (const t of [...active].sort(byDeadline)) placeTask(t);
+    for (const t of planOrder(active, byDeadline)) placeTask(t);
   }
   return tasks;
 }
@@ -350,9 +363,21 @@ function clashingSessions(occs: Occ[], tasks: Task[], now: Date): Set<string> {
   return out;
 }
 
-/** Status shown next to a task in lists. */
-export function taskWarning(t: Task, now: Date, warnHours: number): { level: 'bad' | 'warn'; text: string } | null {
+/** Status shown next to a task in lists. `all`: every task, to check what it depends on. */
+export function taskWarning(
+  t: Task,
+  now: Date,
+  warnHours: number,
+  all: Task[] = [],
+): { level: 'bad' | 'warn'; text: string } | null {
   if (t.done) return null;
+  const blockers = blockersOf(t, all);
+  const after = readyAfter(t, all);
+  if (t.onCalendar && after && t.sessions.some((s) => !s.done && fromLocal(s.start) < after)) {
+    return { level: 'bad', text: `Planned before ${blockers.map((b) => b.title).join(', ')} is done` };
+  }
+  const unplannedBlocker = blockers.find((b) => !b.onCalendar || unplannedMinutes(b) > 0);
+  if (unplannedBlocker) return { level: 'warn', text: `Waiting on ${unplannedBlocker.title} (not planned yet)` };
   const dl = t.deadline ? fromLocal(t.deadline) : null;
   if (dl && dl < now) return { level: 'bad', text: 'Deadline passed' };
   const open = t.sessions.filter((s) => !s.done);

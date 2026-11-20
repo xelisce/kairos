@@ -255,3 +255,56 @@ describe('tasks any time of day', () => {
     expect(fromLocal(s.start) >= fromLocal('2026-09-01T07:30')).toBe(true);
   });
 });
+
+describe('tasks that depend on others', () => {
+  const milestones = () => {
+    const d = sampleData();
+    d.routines = [];
+    d.settings.bufferMin = 0;
+    // Milestone 3 is due first, but needs Milestone 2 done before it.
+    d.tasks.push(
+      task({ id: 'm3', title: 'Milestone 3', durationMin: 60, deadline: '2026-09-03T23:59', dependsOn: ['m2'] }),
+      task({
+        id: 'm2',
+        title: 'Milestone 2',
+        durationMin: 120,
+        deadline: '2026-09-05T23:59',
+        earliest: '2026-09-01T14:00',
+      }),
+    );
+    return d;
+  };
+
+  it('are only scheduled after what they depend on', () => {
+    const tasks = planTasks(milestones(), fromLocal('2026-08-31T09:00'));
+    const [m2] = tasks.find((t) => t.id === 'm2')!.sessions;
+    const [m3] = tasks.find((t) => t.id === 'm3')!.sessions;
+    expect(m2.start).toBe('2026-09-01T14:00');
+    expect(fromLocal(m3.start) >= fromLocal(m2.end)).toBe(true);
+  });
+
+  it('move when what they depend on moves later', () => {
+    const d = milestones();
+    d.tasks.find((t) => t.id === 'm3')!.sessions = [session('early', '2026-08-31T15:00', '2026-08-31T16:00')];
+    const tasks = planTasks(d, fromLocal('2026-08-31T09:00'));
+    const [m3] = tasks.find((t) => t.id === 'm3')!.sessions;
+    expect(m3.id).not.toBe('early');
+    expect(fromLocal(m3.start) >= fromLocal('2026-09-01T16:00')).toBe(true);
+  });
+
+  it('wait for nothing once it is done', () => {
+    const d = milestones();
+    d.tasks.find((t) => t.id === 'm2')!.done = true;
+    const [m3] = planTasks(d, fromLocal('2026-08-31T09:00')).find((t) => t.id === 'm3')!.sessions;
+    expect(m3.start).toBe('2026-08-31T09:00');
+  });
+
+  it('say so in the list', () => {
+    const d = milestones();
+    d.tasks.find((t) => t.id === 'm2')!.onCalendar = false;
+    const m3 = d.tasks.find((t) => t.id === 'm3')!;
+    expect(taskWarning(m3, fromLocal('2026-08-31T09:00'), 48, d.tasks)?.text).toBe(
+      'Waiting on Milestone 2 (not planned yet)',
+    );
+  });
+});

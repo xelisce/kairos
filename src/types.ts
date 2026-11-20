@@ -198,6 +198,8 @@ export interface Task {
   deadline?: LocalDateTime;
   /** Don't schedule before this. */
   earliest?: LocalDateTime;
+  /** Tasks that must be finished first: this one is only scheduled after their sessions. */
+  dependsOn?: ID[];
   /** The "on calendar" checkbox. When true, the scheduler finds time for it. */
   onCalendar: boolean;
   /** When you're working on it. One session unless `split` is set. */
@@ -280,6 +282,25 @@ export interface AwayRange {
   title: string;
   start: LocalDateTime;
   end: LocalDateTime;
+  /** The travel schedule: flights, bus rides, where you stay, who you visit... */
+  plans?: TravelPlan[];
+}
+
+export type TravelPlanKind = 'flight' | 'train' | 'bus' | 'drive' | 'stay' | 'visit' | 'other';
+
+/** One part of a trip. Only the kind and start are needed. */
+export interface TravelPlan {
+  id: ID;
+  kind: TravelPlanKind;
+  /** e.g. "UA 1234 MSN → SFO", "Megabus to Chicago", "Aunt May's". */
+  title: string;
+  start: LocalDateTime;
+  /** Empty: just a point in time (shown as a short block). */
+  end?: LocalDateTime;
+  /** Where: an address, terminal or gate. */
+  where?: string;
+  /** Booking code, seat, who to call... */
+  notes?: string;
 }
 
 export type TrashItem =

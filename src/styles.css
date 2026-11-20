@@ -1835,3 +1835,51 @@ body.resizing {
     animation: none;
   }
 }
+
+/* ---------- Travel plans (under time away) ---------- */
+.plans-head {
+  margin: 16px 0 4px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-2);
+}
+.plan-edit {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}
+.away-item {
+  flex-direction: column;
+  align-items: stretch;
+}
+.away-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.plan-list {
+  list-style: none;
+  margin: 4px 0 2px 26px;
+  padding: 0;
+  border-left: 2px solid var(--border);
+}
+.plan-list li {
+  display: flex;
+  gap: 8px;
+  padding: 4px 0 4px 10px;
+}
+.plan-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.plan-title {
+  font-size: 13px;
+}
+.fc .fc-event.k-plan {
+  background: var(--surface-2);
+  border: 1px dashed var(--accent);
+  color: var(--text);
+}

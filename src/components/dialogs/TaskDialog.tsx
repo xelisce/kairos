@@ -2,6 +2,7 @@ import { addMinutes } from 'date-fns';
 import { useStore } from '../../store';
 import type { Task, TaskCategory } from '../../types';
 import { trashItem } from '../../lib/actions';
+import { dependsOn } from '../../lib/dependencies';
 import { fromLocal, toLocal, uid } from '../../lib/time';
 import { DateTimeInput, DialogButtons, Field, LocationInput, Modal, NumberInput, Row, useModal, useUI } from '../ui';
 import { DEFAULT_SPLIT, fitDuration, sessionMinutes } from '../../lib/tasks';
@@ -153,6 +154,11 @@ export function TaskDialog() {
           />
         </Field>
       </Row>
+      <DependsOnPicker
+        task={t}
+        tasks={data.tasks}
+        onChange={(ids) => update({ dependsOn: ids.length ? ids : undefined })}
+      />
       <label className="check">
         <input type="checkbox" checked={t.onCalendar} onChange={(e) => update({ onCalendar: e.target.checked })} /> Put
         on calendar
@@ -207,5 +213,55 @@ export function TaskDialog() {
         <textarea rows={2} value={t.notes ?? ''} onChange={(e) => update({ notes: e.target.value || undefined })} />
       </Field>
     </Modal>
+  );
+}
+
+/** "Do these first": tasks this one waits for. Chosen ones show as chips; pick more from the list. */
+function DependsOnPicker({ task, tasks, onChange }: { task: Task; tasks: Task[]; onChange: (ids: string[]) => void }) {
+  const chosen = task.dependsOn ?? [];
+  const byId = new Map(tasks.map((x) => [x.id, x]));
+  // Not itself, not one already chosen, and not one that waits for this task (that would be a loop).
+  const options = tasks
+    .filter((x) => x.id !== task.id && !x.done && !chosen.includes(x.id) && !dependsOn(x, task.id, tasks))
+    .sort((a, b) => (a.deadline ?? '9999').localeCompare(b.deadline ?? '9999') || a.title.localeCompare(b.title));
+  return (
+    <Field label="Do these first (optional)" hint="It won't be scheduled until these tasks' sessions are over">
+      <div className="chips">
+        {chosen.map((id) => {
+          const dep = byId.get(id);
+          if (!dep) return null;
+          return (
+            <span key={id} className="chip">
+              {dep.done ? '✓ ' : ''}
+              {dep.title}{' '}
+              <button
+                className="linkish"
+                aria-label={`Remove ${dep.title}`}
+                onClick={() => onChange(chosen.filter((x) => x !== id))}
+              >
+                ✕
+              </button>
+            </span>
+          );
+        })}
+        {options.length > 0 && (
+          <select
+            value=""
+            aria-label="Add a task to do first"
+            onChange={(e) => e.target.value && onChange([...chosen, e.target.value])}
+          >
+            <option value="">+ Add a task…</option>
+            {options.map((x) => (
+              <option key={x.id} value={x.id}>
+                {x.title}
+              </option>
+            ))}
+          </select>
+        )}
+        {!options.length && !chosen.length && (
+          <span className="muted small">No other open tasks to pick (tasks waiting for this one can't be picked).</span>
+        )}
+      </div>
+    </Field>
   );
 }

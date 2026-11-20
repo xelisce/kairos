@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -12,7 +12,8 @@ import { moveOcc } from '../lib/actions';
 import { fmtTime, fromLocal } from '../lib/time';
 import { dayMarker } from '../lib/weeks';
 import { useUI } from './ui';
-import type { AwayRange, Occ } from '../types';
+import type { AwayRange, Occ, TravelPlan } from '../types';
+import { PLAN_KINDS, planBlocks, planTitle } from '../lib/travelPlans';
 
 export function CalendarView({
   range,
@@ -43,6 +44,20 @@ export function CalendarView({
         editable: false,
         extendedProps: { away: a },
       })),
+      // Its travel plans (flights, bus rides...) as blocks on top. Click one to edit the trip.
+      ...data.away.flatMap((a) =>
+        (a.plans ?? []).flatMap((p) =>
+          planBlocks(p).map((b) => ({
+            id: `away:${a.id}:${p.id}:${b.key}`,
+            title: b.label,
+            start: b.start,
+            end: b.end,
+            classNames: ['k-plan'],
+            editable: false,
+            extendedProps: { away: a, plan: p, label: b.label },
+          })),
+        ),
+      ),
       ...occs.map((o) => ({
         id: o.id,
         title: o.title,
@@ -72,10 +87,19 @@ export function CalendarView({
     moveOcc(o, info.event.start, info.event.end ?? info.event.start, how);
   };
 
+  const [swipe, setSwipe] = useState<'next' | 'prev' | null>(null);
+  /** Show the next / previous day (or week, in week view), sliding in from that side. */
+  const go = (dir: 'next' | 'prev') => {
+    const api = calRef.current?.getApi();
+    if (!api) return;
+    if (dir === 'next') api.next();
+    else api.prev();
+    setSwipe(dir);
+  };
+
   // Swipe left / right on a phone: next / previous day. A quick, mostly sideways flick only, so
   // scrolling the day up and down and long-press dragging blocks still work as before.
   const swipeStart = useRef<{ x: number; y: number; t: number } | null>(null);
-  const [swipe, setSwipe] = useState<'next' | 'prev' | null>(null);
   const onTouchStart = (e: React.TouchEvent) => {
     const t = e.touches[0];
     swipeStart.current = e.touches.length === 1 ? { x: t.clientX, y: t.clientY, t: Date.now() } : null;
@@ -88,16 +112,45 @@ export function CalendarView({
     const dx = t.clientX - s.x;
     const dy = t.clientY - s.y;
     if (Date.now() - s.t > 600 || Math.abs(dx) < 60 || Math.abs(dx) < 2 * Math.abs(dy)) return;
-    const api = calRef.current?.getApi();
-    if (!api) return;
-    const dir = dx < 0 ? 'next' : 'prev';
-    if (dir === 'next') api.next();
-    else api.prev();
-    setSwipe(dir);
+    go(dx < 0 ? 'next' : 'prev');
   };
+
+  // Two-finger swipe on a laptop trackpad (or Shift + mouse wheel): sideways scrolling, which the
+  // calendar has no other use for. One swipe moves once: the scrolling that keeps coming after the
+  // fingers lift is ignored until it stops.
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const goRef = useRef(go);
+  goRef.current = go;
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    let sum = 0;
+    let moved = false;
+    let quiet: ReturnType<typeof setTimeout> | undefined;
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return; // pinch zoom, or scrolling the day
+      e.preventDefault(); // and don't let the browser treat it as Back / Forward
+      clearTimeout(quiet);
+      quiet = setTimeout(() => {
+        sum = 0;
+        moved = false;
+      }, 250);
+      if (moved) return;
+      sum += e.deltaMode === 1 ? e.deltaX * 16 : e.deltaX; // Firefox can count in lines
+      if (Math.abs(sum) < 80) return;
+      moved = true;
+      goRef.current(sum > 0 ? 'next' : 'prev');
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      clearTimeout(quiet);
+    };
+  }, []);
 
   return (
     <div
+      ref={wrapRef}
       className={`calendar-wrap ${swipe ? `swipe-${swipe}` : ''}`}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
@@ -188,6 +241,19 @@ export function CalendarView({
 const isDone = (o: Occ) => o.source.type === 'task' && o.title.startsWith('✓');
 
 function renderEvent(arg: EventContentArg) {
+  const plan = arg.event.extendedProps.plan as TravelPlan | undefined;
+  if (plan)
+    return (
+      <div className="ev" title={[planTitle(plan), plan.where, plan.notes].filter(Boolean).join(' · ')}>
+        <div className="ev-title">
+          {PLAN_KINDS[plan.kind].icon} {arg.event.extendedProps.label as string}
+        </div>
+        <div className="ev-meta">
+          {arg.timeText}
+          {plan.where && ` · ${plan.where}`}
+        </div>
+      </div>
+    );
   const away = arg.event.extendedProps.away as AwayRange | undefined;
   if (away)
     return (
