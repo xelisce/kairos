@@ -9,10 +9,10 @@ import type { EventResizeDoneArg } from '@fullcalendar/interaction';
 import { useStore } from '../store';
 import { expand } from '../lib/expand';
 import { moveOcc } from '../lib/actions';
-import { fmtTime } from '../lib/time';
+import { fmtTime, fromLocal } from '../lib/time';
 import { dayMarker } from '../lib/weeks';
 import { useUI } from './ui';
-import type { Occ } from '../types';
+import type { AwayRange, Occ } from '../types';
 
 export function CalendarView({
   range,
@@ -32,8 +32,18 @@ export function CalendarView({
   const byId = useMemo(() => new Map(occs.map((o) => [o.id, o])), [occs]);
 
   const events = useMemo(
-    () =>
-      occs.map((o) => ({
+    () => [
+      // Time away: a striped band behind everything. Click it to edit.
+      ...data.away.map((a) => ({
+        id: `away:${a.id}`,
+        start: fromLocal(a.start),
+        end: fromLocal(a.end),
+        display: 'background',
+        classNames: ['k-away'],
+        editable: false,
+        extendedProps: { away: a },
+      })),
+      ...occs.map((o) => ({
         id: o.id,
         title: o.title,
         start: o.start,
@@ -52,7 +62,8 @@ export function CalendarView({
         ].filter(Boolean),
         extendedProps: { occ: o },
       })),
-    [occs],
+    ],
+    [occs, data.away],
   );
 
   const onChange = (how: 'move' | 'resize') => (info: EventDropArg | EventResizeDoneArg) => {
@@ -102,6 +113,8 @@ export function CalendarView({
         eventDrop={onChange('move')}
         eventResize={onChange('resize')}
         eventClick={(info: EventClickArg) => {
+          const away = info.event.extendedProps.away as AwayRange | undefined;
+          if (away) return open({ kind: 'away', id: away.id });
           const o = byId.get(info.event.id);
           if (o) open({ kind: 'occ', occ: o });
         }}
@@ -146,6 +159,13 @@ export function CalendarView({
 const isDone = (o: Occ) => o.source.type === 'task' && o.title.startsWith('✓');
 
 function renderEvent(arg: EventContentArg) {
+  const away = arg.event.extendedProps.away as AwayRange | undefined;
+  if (away)
+    return (
+      <div className="ev ev-line ev-away" title="Away: no tasks planned. Click to edit.">
+        ✈️ {away.title || 'Away'}
+      </div>
+    );
   const o = arg.event.extendedProps.occ as Occ | undefined;
   // The placeholder block FullCalendar draws while you drag-select empty time has no occurrence.
   if (!o)

@@ -62,11 +62,47 @@ export function TasksPanel() {
         On calendar <span className="count">{planned.length}</span>
       </h3>
       {list(planned)}
+      <AwayList />
       <button className="linkish" onClick={() => setShowDone(!showDone)}>
         {showDone ? 'Hide' : 'Show'} done ({done.length})
       </button>
       {showDone && list(done)}
     </div>
+  );
+}
+
+/** Trips and holidays coming up (no tasks planned then), plus a button to add one. */
+function AwayList() {
+  const away = useStore((s) => s.data.away);
+  const open = useUI((s) => s.open);
+  const now = useNow(60_000);
+  const upcoming = away.filter((a) => fromLocal(a.end) > now).sort((x, y) => x.start.localeCompare(y.start));
+  const when = (v: string) => format(fromLocal(v), 'EEE d MMM HH:mm');
+  return (
+    <>
+      <h3 className="away-head">
+        Away <span className="count">{upcoming.length}</span>
+        <button className="linkish" onClick={() => open({ kind: 'away' })}>
+          + Time away
+        </button>
+      </h3>
+      {upcoming.length === 0 ? (
+        <p className="muted small">Going on a trip? Add it here and no tasks get planned then.</p>
+      ) : (
+        <ul className="tasks">
+          {upcoming.map((a) => (
+            <li key={a.id} className="task">
+              <button className="task-main" onClick={() => open({ kind: 'away', id: a.id })}>
+                <span className="task-title">✈️ {a.title || 'Away'}</span>
+                <span className="task-meta">
+                  {when(a.start)} → {when(a.end)}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
   );
 }
 

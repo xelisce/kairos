@@ -23,6 +23,14 @@ export function routineOcc(r: Routine, dk: string, start: Date, end: Date, warni
   };
 }
 
+/** The routine's window on `day` (the end can be after midnight). */
+export function routineWindow(r: Routine, day: Date) {
+  const ws = hmToMin(r.windowStart);
+  let we = hmToMin(r.windowEnd);
+  if (we <= ws) we += 1440;
+  return { start: atMin(day, ws), end: atMin(day, we) };
+}
+
 /**
  * Place a flexible routine on `day`:
  * 1. its usual time, or the nearest fully free time inside its window;

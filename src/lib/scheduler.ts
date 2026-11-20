@@ -8,6 +8,7 @@
 // to fit too: a candidate is checked by laying out that day with the session in it.
 import { addDays, addMinutes, format, startOfDay } from 'date-fns';
 import type { AppData, Occ, Task, TaskSession } from '../types';
+import { awayIntervals } from './away';
 import { expand } from './expand';
 import { doneMinutes, limitsOf, plannedMinutes, sessionMinutes, unplannedMinutes } from './tasks';
 import { atMin, dateKey, eachDay, fmtDur, fromLocal, hmToMin, overlaps, toLocal, uid } from './time';
@@ -91,9 +92,13 @@ export function planTasks(data: AppData, now: Date): Task[] {
   const movableIds = new Set(active.flatMap((t) => t.sessions.filter((s) => mayMove(s, now)).map((s) => s.id)));
   // Hard blocks: everything except skipped sessions, routines that can slide out of the way,
   // and the auto sessions being (re)planned.
-  const busy: Interval[] = expand({ ...data, tasks }, now, horizon, { excludeSessionIds: movableIds })
-    .filter((o) => !o.skipped && !o.auto)
-    .map((o) => ({ start: o.start, end: o.end }));
+  // Time you're away blocks tasks too.
+  const busy: Interval[] = [
+    ...awayIntervals(data),
+    ...expand({ ...data, tasks }, now, horizon, { excludeSessionIds: movableIds })
+      .filter((o) => !o.skipped && !o.auto)
+      .map((o) => ({ start: o.start, end: o.end })),
+  ];
 
   // Lay out one day with the current sessions. Cached per day; cleared when a session lands there.
   const dayCache = new Map<string, number>();
@@ -257,6 +262,7 @@ export function planTasks(data: AppData, now: Date): Task[] {
     busy.splice(
       0,
       busy.length,
+      ...awayIntervals(data),
       ...expand({ ...data, tasks }, now, horizon)
         .filter((o) => !o.skipped && !o.auto)
         .map((o) => ({ start: o.start, end: o.end })),

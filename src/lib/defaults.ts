@@ -102,6 +102,7 @@ export function defaultData(): AppData {
     travelOverrides: {},
     travelMoves: {},
     trash: [],
+    away: [],
   };
 }
 

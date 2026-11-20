@@ -1,6 +1,7 @@
 // Renders whichever dialog is open. `key` resets a dialog's form when it's opened for something else.
 import { useUI } from '../ui';
 import { ActivityDialog } from './ActivityDialog';
+import { AwayDialog } from './AwayDialog';
 import { ClassDialog } from './ClassDialog';
 import { CourseDialog } from './CourseDialog';
 import { EventDialog } from './EventDialog';
@@ -33,6 +34,8 @@ export function ModalHost() {
       return <ActivityDialog key={modal.id ?? 'new'} />;
     case 'nusmods':
       return <NusmodsDialog />;
+    case 'away':
+      return <AwayDialog key={modal.id ?? 'new'} />;
     case 'newChoice':
       return <NewChoiceDialog />;
   }

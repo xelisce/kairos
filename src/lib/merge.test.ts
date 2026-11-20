@@ -5,7 +5,9 @@ import { sampleData, session, task } from '../test/fixtures';
 describe('merging two windows’ changes', () => {
   const base = () => {
     const d = sampleData();
-    d.events = [{ id: 'e', title: 'Public Skate', category: 'cca', start: '2026-11-20T17:15', end: '2026-11-20T18:15' }];
+    d.events = [
+      { id: 'e', title: 'Public Skate', category: 'cca', start: '2026-11-20T17:15', end: '2026-11-20T18:15' },
+    ];
     d.tasks = [task({ id: 't', sessions: [session('s', '2026-11-21T09:00', '2026-11-21T10:00')] })];
     return d;
   };
@@ -26,7 +28,9 @@ describe('merging two windows’ changes', () => {
     const here = structuredClone(b);
     here.events.push({ id: 'x', title: 'Quiz', category: 'quiz', start: '2026-11-23T10:00', end: '2026-11-23T11:00' });
     const there = structuredClone(b);
-    there.events = [{ id: 'y', title: 'Hangout', category: 'hangout', start: '2026-11-24T19:00', end: '2026-11-24T21:00' }];
+    there.events = [
+      { id: 'y', title: 'Hangout', category: 'hangout', start: '2026-11-24T19:00', end: '2026-11-24T21:00' },
+    ];
     expect(merge3(b, here, there).events.map((e) => e.id)).toEqual(['x', 'y']);
   });
 

@@ -266,6 +266,16 @@ export interface AppData {
   travelMoves: Record<string, LocalDateTime>;
   /** Deleted events, tasks, classes, routines and CCAs, restorable from the Deleted tab. */
   trash: TrashItem[];
+  /** Trips and holidays: no tasks planned, classes, CCAs and routines hidden. */
+  away: AwayRange[];
+}
+
+/** Time you're away (a trip, a holiday). */
+export interface AwayRange {
+  id: ID;
+  title: string;
+  start: LocalDateTime;
+  end: LocalDateTime;
 }
 
 export type TrashItem =

@@ -24,6 +24,7 @@ export function normalize(raw: Partial<AppData>): AppData {
   }
   d.travelMoves ??= {};
   if (!Array.isArray(d.trash)) d.trash = [];
+  if (!Array.isArray(d.away)) d.away = [];
 
   if (!(d.version >= 2)) {
     // Before version 2, "skip" removed the session, which is now "delete": keep how the calendar looked.

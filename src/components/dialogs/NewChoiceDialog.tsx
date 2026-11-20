@@ -29,6 +29,9 @@ export function NewChoiceDialog() {
             <small>{c.hint}</small>
           </button>
         ))}
+        <button className="btn big" onClick={() => open({ kind: 'away', start, end })}>
+          ✈️ Away from here<small>trip, holiday: no tasks planned</small>
+        </button>
       </div>
     </Modal>
   );

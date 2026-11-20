@@ -5,7 +5,8 @@ import { addDays, addMinutes, format, startOfDay } from 'date-fns';
 import { ASSESSMENT_KINDS } from '../types';
 import type { AppData, Occ, Routine } from '../types';
 import { ASSESSMENT_EVENTS, CATEGORY_COLORS, EVENT_ICONS, EVENT_LABELS, KIND_ICONS, withIcon } from './labels';
-import { fitRoutine, routineOcc } from './routines';
+import { awayIntervals, minutesNotAway, touchesAway } from './away';
+import { fitRoutine, routineOcc, routineWindow } from './routines';
 import { at, dateKey, eachDay, fromLocal, overlaps, weekdayMon0 } from './time';
 import { sortedSessions } from './tasks';
 import { computeTravel } from './travel';
@@ -24,6 +25,9 @@ export function expand(data: AppData, from: Date, to: Date, opts: ExpandOpts = {
   const pFrom = addDays(startOfDay(from), -2);
   const pTo = addDays(startOfDay(to), 2);
 
+  // While you're away, classes, CCAs and routines don't happen (events and tasks stay).
+  const away = awayIntervals(data);
+  const notAway = (o: Occ) => !touchesAway(away, o.start, o.end);
   const fixed: Occ[] = [];
   // Skipped sessions: drawn faded, never count as busy (no travel, things can go on top).
   const skipped: Occ[] = [];
@@ -32,24 +36,42 @@ export function expand(data: AppData, from: Date, to: Date, opts: ExpandOpts = {
     else fixed.push(occ);
   };
 
-  classOccs(data, pFrom, pTo).forEach(add);
-  activityOccs(data, pFrom, pTo).forEach(add);
+  classOccs(data, pFrom, pTo)
+    .filter(([o]) => notAway(o))
+    .forEach(add);
+  activityOccs(data, pFrom, pTo)
+    .filter(([o]) => notAway(o))
+    .forEach(add);
   eventOccs(data, pFrom, pTo).forEach(add);
   fixed.push(...taskOccs(data, pFrom, pTo, opts.excludeSessionIds));
 
   // Routines: fixed ones (not auto-scheduled, or moved by hand) go in now;
   // flexible ones are fitted around everything once the first trips are known.
   const { pinned, flexible, skippedRoutines } = routineOccs(data, pFrom, pTo);
-  fixed.push(...pinned);
-  skippedRoutines.forEach((o) => add([o, true]));
+  fixed.push(...pinned.filter(notAway));
+  skippedRoutines.filter(notAway).forEach((o) => add([o, true]));
 
   // Tasks without a place happen wherever you are, so a trip waits until they're done.
   const taskStays = fixed.filter((o) => o.source.type === 'task' && !o.location && !o.title.startsWith('✓'));
   const firstTravel = computeTravel(data, fixed, taskStays);
-  const busy = [...fixed, ...firstTravel];
+  // Away time is busy for fitting routines, so one that's partly in it moves to the free part.
+  const awayBlocks: Occ[] = away.map((a, i) => ({
+    id: `away:${i}`,
+    source: { type: 'event', eventId: `away:${i}` },
+    title: 'Away',
+    start: a.start,
+    end: a.end,
+    color: '',
+    movable: false,
+  }));
+  const busy = [...fixed, ...firstTravel, ...awayBlocks];
   const placed: Occ[] = [];
   for (const { r, day, dk } of flexible) {
+    // Not enough of its window left outside the away time: it doesn't happen that day.
+    const { start: ws, end: we } = routineWindow(r, day);
+    if (minutesNotAway(away, ws, we) < r.durationMin) continue;
     const occ = { ...fitRoutine(r, day, dk, busy), auto: true };
+    if (!notAway(occ)) continue;
     placed.push(occ);
     busy.push(occ);
   }
