@@ -3,6 +3,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { create } from 'zustand';
 import type { AppData } from '../types';
+import { isNativeApp, SITE_URL } from './native';
 
 const { VITE_SUPABASE_URL: url, VITE_SUPABASE_PUBLISHABLE_KEY: key } = import.meta.env;
 
@@ -66,7 +67,8 @@ export async function signUp(email: string, password: string) {
   const { data, error } = await client().auth.signUp({
     email,
     password,
-    options: { emailRedirectTo: window.location.origin },
+    // The app's own address only works inside the app, so the email link opens the website.
+    options: { emailRedirectTo: isNativeApp ? SITE_URL : window.location.origin },
   });
   if (error) throw new Error(explain(error.message));
   // Supabase hides "already registered" by returning a user with no identities.

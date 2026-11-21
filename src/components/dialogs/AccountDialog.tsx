@@ -1,7 +1,8 @@
 // Sign in so the laptop and phone share the same data (saved in the cloud), or sign out.
 import { useState } from 'react';
 import { signIn, signOut, signUp, useAccount } from '../../lib/cloud';
-import { useSync } from '../../lib/sync';
+import { KEPT_HERE } from '../../lib/native';
+import { hasLocalDb, useSync } from '../../lib/sync';
 import { Field, Modal, useUI } from '../ui';
 
 export function AccountDialog() {
@@ -45,7 +46,7 @@ export function AccountDialog() {
           {status === 'saved'
             ? 'Everything is saved in the cloud. Sign in with the same account on your other devices to see the same calendar.'
             : status === 'offline'
-              ? "Can't reach the cloud right now. Changes are kept in this browser and saved once you're back online."
+              ? `Can't reach the cloud right now. Changes are kept ${KEPT_HERE} and saved once you're back online.`
               : 'Saving to the cloud…'}
         </p>
         <div className="row-inline">
@@ -55,7 +56,10 @@ export function AccountDialog() {
           </button>
         </div>
         <p className="muted small">
-          Signing out goes back to the local database on this computer. Your cloud data stays in your account.
+          {hasLocalDb
+            ? 'Signing out goes back to the local database on this computer.'
+            : `Signing out keeps changes only ${KEPT_HERE}.`}{' '}
+          Your cloud data stays in your account.
         </p>
       </Modal>
     );
@@ -65,7 +69,7 @@ export function AccountDialog() {
     <Modal title="Sign in to sync" onClose={close}>
       <p className="muted small">
         Sign in to keep your calendar in the cloud, so your laptop and phone show the same thing. The first time,
-        what&apos;s on this computer is uploaded to your account.
+        what&apos;s on this device is uploaded to your account.
       </p>
       <form
         onSubmit={(e) => {

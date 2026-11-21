@@ -13,7 +13,20 @@ npm start        # build, then serve app + database at http://127.0.0.1:5175
 npm run check    # type-check, lint and test
 npm test         # tests only
 npm run format   # Prettier
+npm run apk      # build the Android app -> android/app/build/outputs/apk/debug/app-debug.apk
 ```
+
+### Android app
+
+The phone app is the same site wrapped by [Capacitor](https://capacitorjs.com) (`capacitor.config.json`,
+`android/`). It signs in to the same account and saves to the cloud like the website. Building it needs
+JDK 21 (Gradle finds it through `org.gradle.java.home` in `~/.gradle/gradle.properties`) and the Android
+SDK (`android/local.properties` has `sdk.dir`, git-ignored). After changing the web code, `npm run apk`
+builds the site, copies it into the Android project and builds a debug APK.
+
+To install it, copy the APK to the phone and open it (allow installing from that app when asked), or
+with USB debugging on: `adb install -r android/app/build/outputs/apk/debug/app-debug.apk`. App icons
+come from `assets/` (`npx capacitor-assets generate --android`).
 
 Live at **https://kairos-xelisce.vercel.app**. Sign in (click the save badge at the top) and your data
 is saved to your account, so every device shows the same calendar, and changes on one show on the
@@ -75,6 +88,7 @@ into their windows, then trips between places).
 | `src/lib/cloud.ts`        | Supabase: sign-in, loading/saving your data, backups, live updates                |
 | `src/lib/merge.ts`        | Three-way merge when two windows or devices change the data at once               |
 | `src/lib/storage.ts`      | localStorage that never throws                                                    |
+| `src/lib/native.ts`       | Running inside the Android app: where data is kept, saving files via share sheet  |
 | `supabase/schema.sql`     | Cloud tables, row security and the versioned save function                        |
 | `public/sw.js`            | Offline support: keeps the app's files so it opens without a connection           |
 | `src/lib/labels.ts`       | Colors, icons and names                                                           |

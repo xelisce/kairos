@@ -9,6 +9,8 @@
     "start": "npm run build && npm run server",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
+    "android": "npm run build && cap sync android",
+    "apk": "npm run android && cd android && \"./gradlew\" assembleDebug",
     "test": "vitest run",
     "lint": "eslint .",
     "format": "prettier --write .",
@@ -16,6 +18,10 @@
     "check": "tsc -b && eslint . && vitest run"
   },
   "dependencies": {
+    "@capacitor/android": "^8.6.2",
+    "@capacitor/core": "^8.6.2",
+    "@capacitor/filesystem": "^8.1.5",
+    "@capacitor/share": "^8.0.3",
     "@fullcalendar/core": "^6.1.22",
     "@fullcalendar/daygrid": "^6.1.22",
     "@fullcalendar/interaction": "^6.1.22",
@@ -28,6 +34,8 @@
     "zustand": "^4.5.7"
   },
   "devDependencies": {
+    "@capacitor/assets": "^4.0.0",
+    "@capacitor/cli": "^8.6.2",
     "@eslint/js": "^9.39.5",
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",

@@ -1,5 +1,6 @@
 import { supabase, useAccount } from '../lib/cloud';
 import { useSync } from '../lib/sync';
+import { KEPT_HERE } from '../lib/native';
 import { useUI } from './ui';
 
 const LOCAL = {
@@ -12,7 +13,7 @@ const LOCAL = {
   },
   signedout: {
     label: 'Not signed in',
-    tip: 'Changes are only kept in this browser. Sign in to save them to your account',
+    tip: `Changes are only kept ${KEPT_HERE}. Sign in to save them to your account`,
   },
 } as const;
 
@@ -22,7 +23,7 @@ const CLOUD = {
   saved: { label: 'Synced', tip: 'Saved in the cloud: your other devices see the same' },
   offline: {
     label: 'Offline',
-    tip: "Can't reach the cloud. Changes are kept in this browser and saved once you're back online",
+    tip: `Can't reach the cloud. Changes are kept ${KEPT_HERE} and saved once you're back online`,
   },
   signedout: LOCAL.signedout,
 } as const;

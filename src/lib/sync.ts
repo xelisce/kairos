@@ -3,6 +3,7 @@
 // fallback for when neither can be reached; unsaved changes made then are saved once it's back.
 import { create } from 'zustand';
 import type { AppData } from '../types';
+import { isNativeApp } from './native';
 import { applyRemote, useStore } from '../store';
 import { loadCloud, saveCloud, supabase, watchAccount, watchCloud, type Account, type SaveResult } from './cloud';
 import { merge3 } from './merge';
@@ -11,8 +12,11 @@ import { readJson, readRaw, removeStored, writeStored } from './storage';
 /** 'signedout': on the hosted site with nobody signed in, so changes stay in this browser only. */
 export type SyncStatus = 'connecting' | 'saving' | 'saved' | 'offline' | 'signedout';
 
-/** The local database only exists when Kairos runs on this computer (npm run dev / npm start). */
-export const hasLocalDb = ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname);
+/**
+ * The local database only exists when Kairos runs on this computer (npm run dev / npm start).
+ * The Android app is also served from "localhost", but has no database server behind it.
+ */
+export const hasLocalDb = !isNativeApp && ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname);
 
 export const useSync = create<{ status: SyncStatus; cloud: boolean; detail?: string }>(() => ({
   status: 'connecting',

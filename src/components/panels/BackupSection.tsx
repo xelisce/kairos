@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import { useStore } from '../../store';
 import { listCloudBackups, loadCloudBackup, useAccount } from '../../lib/cloud';
 import { hasLocalDb } from '../../lib/sync';
+import { KEPT_HERE, saveTextFile } from '../../lib/native';
 import { isKairosData } from '../../lib/migrate';
 import type { AppData } from '../../types';
 
@@ -13,14 +14,8 @@ export function BackupSection() {
   const [showBackups, setShowBackups] = useState(false);
   const account = useAccount((s) => s.account);
 
-  const exportFile = () => {
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `kairos-backup-${format(new Date(), 'yyyy-MM-dd')}.json`;
-    link.click();
-    URL.revokeObjectURL(link.href);
-  };
+  const exportFile = () =>
+    void saveTextFile(`kairos-backup-${format(new Date(), 'yyyy-MM-dd')}.json`, JSON.stringify(data, null, 2));
   const importFile = async (input: HTMLInputElement) => {
     const file = input.files?.[0];
     input.value = ''; // so picking the same file again still works
@@ -58,7 +53,7 @@ export function BackupSection() {
             folder), with an automatic backup at most once an hour. Sign in to save to the cloud instead.
           </>
         ) : (
-          <>You're not signed in, so changes are only kept in this browser. Export a copy, or sign in.</>
+          <>You're not signed in, so changes are only kept {KEPT_HERE}. Export a copy, or sign in.</>
         )}
       </p>
       <div className="panel-actions">
