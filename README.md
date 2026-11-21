@@ -61,45 +61,45 @@ records an undo step and re-runs the task scheduler. The calendar never stores b
 them out for whatever range is on screen (classes by academic week, CCAs, events, tasks, routines fitted
 into their windows, then trips between places).
 
-| Path                      | What                                                                              |
-| ------------------------- | --------------------------------------------------------------------------------- |
-| `src/types.ts`            | Data model                                                                        |
-| `src/store.ts`            | State, undo/redo (30 steps), browser fallback copy                                |
-| `src/lib/expand.ts`       | Data → calendar blocks for a date range                                           |
-| `src/lib/routines.ts`     | Fitting meals, shower… into their windows                                         |
-| `src/lib/travel.ts`       | Trips between places                                                              |
-| `src/lib/places.ts`       | Matching a location to a saved place (names, aliases), route times, renaming      |
-| `src/lib/tasks.ts`        | Task sessions, progress and split limits                                          |
-| `src/lib/dependencies.ts` | Tasks that wait for others: what blocks a task, and the order to plan them        |
-| `src/lib/away.ts`         | Time away: which hours are blocked                                                |
-| `src/lib/travelPlans.ts`  | A trip's travel plans: kinds, sorting, calendar blocks, stretching the trip       |
-| `src/lib/display.ts`      | Settings > Display (silenced warnings, swatches, special days...)                 |
-| `src/lib/newDefaults.ts`  | What new tasks, events, routines and trips start with (Settings > New items)      |
-| `src/lib/limits.ts`       | Upper limits on typed values (swatches, lengths, years)                           |
-| `src/lib/theme.ts`        | Light / dark / same as device                                                     |
-| `src/lib/taskline.ts`     | Data for the Taskline view (bars, dots, groups)                                   |
-| `src/lib/time.ts`         | Local date/time helpers and dd/mm/yyyy parsing                                    |
-| `src/lib/defaults.ts`     | A new user's starting data (routines, home, a semester)                           |
-| `src/lib/scheduler.ts`    | Auto-scheduling tasks (stable, earliest deadline first, checks each day's layout) |
-| `src/lib/actions.ts`      | Every edit the UI makes (move, skip, delete, re-plan, reset…)                     |
-| `src/lib/weeks.ts`        | Week patterns (`3-13`, `odd`), semester layouts, presets, special days            |
-| `src/lib/migrate.ts`      | Upgrading saved data from older versions                                          |
-| `src/lib/sync.ts`         | Saving: to the cloud when signed in, else the local database; merges conflicts    |
-| `src/lib/cloud.ts`        | Supabase: sign-in, loading/saving your data, backups, live updates                |
-| `src/lib/merge.ts`        | Three-way merge when two windows or devices change the data at once               |
-| `src/lib/storage.ts`      | localStorage that never throws                                                    |
-| `src/lib/native.ts`       | Running inside the Android app: where data is kept, saving files via share sheet  |
-| `supabase/schema.sql`     | Cloud tables, row security and the versioned save function                        |
-| `public/sw.js`            | Offline support: keeps the app's files so it opens without a connection           |
-| `src/lib/labels.ts`       | Colors, icons and names                                                           |
-| `src/lib/nusmods.ts`      | Import from a NUSMods share link                                                  |
-| `src/components/`         | `CalendarView`, `NowNext`, top-bar buttons, `ErrorBoundary`                       |
-| `src/hooks/`              | Small React hooks (narrow screen, sidebar, undo shortcuts, saved prefs, clock)    |
-| `src/components/dialogs/` | One file per dialog; `ModalHost` shows the open one                               |
-| `src/components/panels/`  | Sidebar tabs (Tasks, Classes, Routines, Places, Settings with Deleted inside)     |
-| `src/components/ui/`      | Shared building blocks (dialog frame, inputs, dd/mm/yyyy dates, dialog state)     |
-| `server/index.mjs`        | Local database server (SQLite + hourly backups); also serves the built app        |
-| `src/**/*.test.ts`        | Tests, next to the code they test (`src/test/fixtures.ts` has shared sample data) |
+| Path                      | What                                                                                          |
+| ------------------------- | --------------------------------------------------------------------------------------------- |
+| `src/types.ts`            | Data model                                                                                    |
+| `src/store.ts`            | State, undo/redo (30 steps), browser fallback copy                                            |
+| `src/lib/expand.ts`       | Data → calendar blocks for a date range                                                       |
+| `src/lib/routines.ts`     | Fitting meals, shower… into their windows                                                     |
+| `src/lib/travel.ts`       | Trips between places                                                                          |
+| `src/lib/places.ts`       | Matching a location to a saved place (names, aliases), route times, renaming                  |
+| `src/lib/tasks.ts`        | Task sessions, progress and split limits                                                      |
+| `src/lib/dependencies.ts` | Tasks that wait for others: what blocks a task, and the order to plan them                    |
+| `src/lib/away.ts`         | Time away: which hours are blocked                                                            |
+| `src/lib/travelPlans.ts`  | A trip's travel plans: kinds, sorting, calendar blocks, stretching the trip                   |
+| `src/lib/display.ts`      | Settings > Display (silenced warnings, swatches, special days...)                             |
+| `src/lib/newDefaults.ts`  | What new tasks, events, routines and trips start with (Settings > New items)                  |
+| `src/lib/limits.ts`       | Upper limits on typed values (swatches, lengths, years)                                       |
+| `src/lib/theme.ts`        | Light / dark / same as device                                                                 |
+| `src/lib/taskline.ts`     | Data for the Taskline view (bars, dots, groups)                                               |
+| `src/lib/time.ts`         | Local date/time helpers and dd/mm/yyyy parsing                                                |
+| `src/lib/defaults.ts`     | A new user's starting data (routines, home, a semester)                                       |
+| `src/lib/scheduler.ts`    | Auto-scheduling tasks (stable, earliest deadline first, checks each day's layout)             |
+| `src/lib/actions.ts`      | Every edit the UI makes (move, skip, delete, re-plan, reset…)                                 |
+| `src/lib/weeks.ts`        | Week patterns (`3-13`, `odd`), semester layouts, presets, special days                        |
+| `src/lib/migrate.ts`      | Upgrading saved data from older versions                                                      |
+| `src/lib/sync.ts`         | Saving: to the cloud when signed in, else the local database; merges conflicts                |
+| `src/lib/cloud.ts`        | Supabase: sign-in, loading/saving your data, backups, live updates                            |
+| `src/lib/merge.ts`        | Three-way merge when two windows or devices change the data at once                           |
+| `src/lib/storage.ts`      | localStorage that never throws                                                                |
+| `src/lib/native.ts`       | Running inside the Android app: where data is kept, saving files via share sheet              |
+| `supabase/schema.sql`     | Cloud tables, row security and the versioned save function                                    |
+| `public/sw.js`            | Offline support: keeps the app's files so it opens without a connection                       |
+| `src/lib/labels.ts`       | Colors, icons and names                                                                       |
+| `src/lib/nusmods.ts`      | Import from a NUSMods share link                                                              |
+| `src/components/`         | `CalendarView`, `NowNext`, top-bar buttons, `ErrorBoundary`                                   |
+| `src/hooks/`              | Small React hooks (narrow screen, sidebar, undo shortcuts, saved prefs, clock, calendar zoom) |
+| `src/components/dialogs/` | One file per dialog; `ModalHost` shows the open one                                           |
+| `src/components/panels/`  | Sidebar tabs (Tasks, Classes, Routines, Places, Settings with Deleted inside)                 |
+| `src/components/ui/`      | Shared building blocks (dialog frame, inputs, dd/mm/yyyy dates, dialog state)                 |
+| `server/index.mjs`        | Local database server (SQLite + hourly backups); also serves the built app                    |
+| `src/**/*.test.ts`        | Tests, next to the code they test (`src/test/fixtures.ts` has shared sample data)             |
 
 ## Roadmap
 

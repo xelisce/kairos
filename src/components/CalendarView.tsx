@@ -13,6 +13,7 @@ import { fmtTime, fromLocal } from '../lib/time';
 import { dayMarker } from '../lib/weeks';
 import { displayOf, shown } from '../lib/display';
 import { useUI } from './ui';
+import { useCalendarZoom } from '../hooks/useCalendarZoom';
 import type { AwayRange, DisplaySettings, Occ, TravelPlan } from '../types';
 import { PLAN_KINDS, planBlocks, planTitle } from '../lib/travelPlans';
 
@@ -160,10 +161,14 @@ export function CalendarView({
     };
   }, []);
 
+  // Taller or shorter hours: pinch, Ctrl + scroll, or the − / + buttons.
+  const zoom = useCalendarZoom(wrapRef, calRef);
+
   return (
     <div
       ref={wrapRef}
       className={`calendar-wrap ${swipe ? `swipe-${swipe}` : ''}`}
+      style={{ '--hour-px': `${zoom.hourPx}px` } as React.CSSProperties}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
       onAnimationEnd={() => setSwipe(null)}
@@ -173,10 +178,18 @@ export function CalendarView({
         plugins={[timeGridPlugin, dayGridPlugin, interactionPlugin]}
         initialView={narrow ? 'timeGridDay' : 'timeGridWeek'}
         views={{ timeGrid3: { type: 'timeGrid', duration: { days: 3 }, buttonText: '3 days' } }}
+        customButtons={{
+          zoomOut: { text: '−', hint: 'Shorter hours (or pinch, or Ctrl + scroll)', click: zoom.zoomOut },
+          zoomIn: { text: '+', hint: 'Taller hours (or pinch, or Ctrl + scroll)', click: zoom.zoomIn },
+        }}
         headerToolbar={
           narrow
-            ? { left: 'prev,next today', center: '', right: 'timeGridDay,timeGrid3' }
-            : { left: 'prev,next today', center: 'title', right: 'timeGridDay,timeGrid3,timeGridWeek,dayGridMonth' }
+            ? { left: 'prev,next today', center: 'zoomOut,zoomIn', right: 'timeGridDay,timeGrid3' }
+            : {
+                left: 'prev,next today zoomOut,zoomIn',
+                center: 'title',
+                right: 'timeGridDay,timeGrid3,timeGridWeek,dayGridMonth',
+              }
         }
         firstDay={1}
         // Day before month everywhere: "Mon 16/11", "16 – 22 Nov 2026".

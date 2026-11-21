@@ -793,6 +793,29 @@ body {
 .fc .fc-timegrid-slot-minor {
   border-top-style: none;
 }
+/* Zoom (useCalendarZoom): each 15-minute row is a quarter of --hour-px. The hour labels float over
+   their rows, so they don't push short rows taller when zoomed out. */
+.calendar-wrap .fc .fc-timegrid-slot {
+  height: calc(var(--hour-px, 84px) / 4);
+  /* FullCalendar puts a space in every row, which would keep it one line tall. */
+  line-height: 0;
+}
+.calendar-wrap .fc .fc-timegrid-slot-label {
+  position: relative;
+  vertical-align: top;
+}
+.calendar-wrap .fc .fc-timegrid-slot-label-frame {
+  position: absolute;
+  top: 2px;
+  right: 0;
+  left: 0;
+  text-align: right;
+  line-height: 1.4;
+}
+.calendar-wrap .fc-view-harness {
+  /* A two-finger pinch zooms the hours instead of the page. */
+  touch-action: pan-x pan-y;
+}
 .fc-event {
   border-radius: 6px;
   border-width: 1px;
