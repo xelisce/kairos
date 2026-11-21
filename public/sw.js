@@ -4,7 +4,7 @@
 // - Pages: from the network when online (so you always get the latest version), else the saved copy.
 // - Built files (/assets/*, named by content so they never change): saved the first time, then reused.
 // - Anything else on another site (Supabase, fonts, routing) is left alone.
-const CACHE = 'kairos-app-v1';
+const CACHE = 'kairos-app-v2';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(saveApp().then(() => self.skipWaiting()));
@@ -80,5 +80,20 @@ self.addEventListener('fetch', (event) => {
         return res;
       })
       .catch(async () => (await caches.match(req)) ?? Response.error()),
+  );
+});
+
+// A notification was clicked: bring Kairos to the front, and pass on which button was pressed
+// (Done, +15 min, Snooze) so the open tab can do it.
+self.addEventListener('notificationclick', (event) => {
+  const { notification, action } = event;
+  notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((tabs) => {
+      const tab = tabs[0];
+      if (!tab) return self.clients.openWindow('/');
+      if (action) tab.postMessage({ type: 'kairos-notification', action, note: notification.data });
+      return action ? undefined : tab.focus();
+    }),
   );
 });

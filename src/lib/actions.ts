@@ -423,6 +423,30 @@ export function toggleSessionDone(taskId: string, sessionId: string) {
   });
 }
 
+/** Done from a notification: ticks the session (never unticks it). */
+export function markSessionDone(taskId: string, sessionId: string) {
+  const s = findSession(useStore.getState().data, taskId, sessionId);
+  if (s && !s.done) toggleSessionDone(taskId, sessionId);
+}
+
+/**
+ * More time from a notification (+15 min): the session ends later and stays where it is, and the
+ * task's total time grows by as much, so its other sessions keep their length.
+ */
+export function extendSession(taskId: string, sessionId: string, min: number) {
+  const t = findTask(useStore.getState().data, taskId);
+  if (!t || !findSession(useStore.getState().data, taskId, sessionId)) return;
+  commit(`${min} more minutes on ${t.title}`, (d) => {
+    const task = findTask(d, taskId);
+    const s = findSession(d, taskId, sessionId);
+    if (!task || !s) return;
+    s.end = toLocal(addMinutes(fromLocal(s.end), min));
+    s.pinned = true;
+    task.durationMin += min;
+    task.done = false;
+  });
+}
+
 /** Add a session at a time you choose (it stays put). The task's total grows if needed. */
 export function addSession(taskId: string, start: Date, end: Date) {
   const t = findTask(useStore.getState().data, taskId);

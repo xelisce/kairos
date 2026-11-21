@@ -6,6 +6,8 @@ import {
   addSession,
   deleteOcc,
   deleteSession,
+  extendSession,
+  markSessionDone,
   moveOcc,
   replan,
   replanRange,
@@ -220,5 +222,42 @@ describe('task sessions', () => {
     load(d);
     deleteSession('t', 'a');
     expect(data().tasks[0].sessions.map((s) => s.id)).toEqual(['b']);
+  });
+});
+
+describe('notification buttons', () => {
+  const twoSessions = () => {
+    const d = sampleData();
+    d.tasks.push(
+      task({
+        id: 't',
+        durationMin: 120,
+        split: DEFAULT_SPLIT,
+        sessions: [
+          session('a', '2027-01-04T09:00', '2027-01-04T10:00'),
+          session('b', '2027-01-05T09:00', '2027-01-05T10:00'),
+        ],
+      }),
+    );
+    return d;
+  };
+
+  it('+15 min makes the session longer and adds the time to the task', () => {
+    load(twoSessions());
+    extendSession('t', 'a', 15);
+    const t = data().tasks[0];
+    expect(t.durationMin).toBe(135);
+    const a = t.sessions.find((s) => s.id === 'a')!;
+    expect([a.start, a.end, a.pinned]).toEqual(['2027-01-04T09:00', '2027-01-04T10:15', true]);
+    // The other session keeps its length.
+    const b = t.sessions.find((s) => s.id === 'b')!;
+    expect(lengthMin({ start: fromLocal(b.start), end: fromLocal(b.end) })).toBe(60);
+  });
+
+  it('Done ticks the session, and pressing it twice leaves it ticked', () => {
+    load(twoSessions());
+    markSessionDone('t', 'a');
+    markSessionDone('t', 'a');
+    expect(data().tasks[0].sessions.find((s) => s.id === 'a')!.done).toBe(true);
   });
 });

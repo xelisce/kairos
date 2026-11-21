@@ -1989,3 +1989,41 @@ body.resizing {
   display: flex;
   gap: 8px;
 }
+
+/* Settings > Notifications: a toggle with its timing beside it. */
+.notify-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin: 4px 0;
+}
+.notify-row .check {
+  margin: 0;
+}
+.notify-num {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.92em;
+}
+.notify-num input.notify-min {
+  width: 4.2em;
+  padding: 2px 6px;
+}
+.notify-num input[type='time'] {
+  padding: 2px 6px;
+}
+.notify-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  margin: 0 0 6px 4px;
+}
+.notify-chips .check {
+  margin: 2px 0;
+}
+.sub {
+  margin-left: 26px;
+}

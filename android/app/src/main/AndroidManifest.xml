@@ -32,4 +32,6 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Notifications on time (calendar apps get this without asking, like Google Calendar). -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
 </manifest>

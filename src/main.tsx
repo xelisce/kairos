@@ -6,9 +6,11 @@ import './styles.css';
 import { hasLocalDb, startSync } from './lib/sync';
 import { isNativeApp } from './lib/native';
 import { applyTheme, savedTheme } from './lib/theme';
+import { startNotifications } from './lib/notify';
 
 applyTheme(savedTheme());
 startSync();
+startNotifications();
 
 // Online, keep the app's files so it opens without a connection (see public/sw.js). Not on this
 // computer: the dev server reloads files itself, and a saved copy would only get in the way. Not in

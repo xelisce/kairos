@@ -10,6 +10,7 @@ import { BackupSection } from './BackupSection';
 import { DeletedSection } from './DeletedSection';
 import { NewItemsSection } from './NewItemsSection';
 import { DisplaySection } from './DisplaySection';
+import { NotificationsSection } from './NotificationsSection';
 import { savedTheme, setTheme, type Theme } from '../../lib/theme';
 import { MAX_BLOCK_MIN, MAX_GAP_MIN } from '../../lib/limits';
 
@@ -39,6 +40,7 @@ export function SettingsPanel() {
         <>
           <AppearanceSection />
           <DisplaySection />
+          <NotificationsSection />
           <SchedulingSection />
           <NewItemsSection />
           <BackupSection />

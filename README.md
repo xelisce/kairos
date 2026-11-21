@@ -61,45 +61,47 @@ records an undo step and re-runs the task scheduler. The calendar never stores b
 them out for whatever range is on screen (classes by academic week, CCAs, events, tasks, routines fitted
 into their windows, then trips between places).
 
-| Path                      | What                                                                                          |
-| ------------------------- | --------------------------------------------------------------------------------------------- |
-| `src/types.ts`            | Data model                                                                                    |
-| `src/store.ts`            | State, undo/redo (30 steps), browser fallback copy                                            |
-| `src/lib/expand.ts`       | Data → calendar blocks for a date range                                                       |
-| `src/lib/routines.ts`     | Fitting meals, shower… into their windows                                                     |
-| `src/lib/travel.ts`       | Trips between places                                                                          |
-| `src/lib/places.ts`       | Matching a location to a saved place (names, aliases), route times, renaming                  |
-| `src/lib/tasks.ts`        | Task sessions, progress and split limits                                                      |
-| `src/lib/dependencies.ts` | Tasks that wait for others: what blocks a task, and the order to plan them                    |
-| `src/lib/away.ts`         | Time away: which hours are blocked                                                            |
-| `src/lib/travelPlans.ts`  | A trip's travel plans: kinds, sorting, calendar blocks, stretching the trip                   |
-| `src/lib/display.ts`      | Settings > Display (silenced warnings, swatches, special days...)                             |
-| `src/lib/newDefaults.ts`  | What new tasks, events, routines and trips start with (Settings > New items)                  |
-| `src/lib/limits.ts`       | Upper limits on typed values (swatches, lengths, years)                                       |
-| `src/lib/theme.ts`        | Light / dark / same as device                                                                 |
-| `src/lib/taskline.ts`     | Data for the Taskline view (bars, dots, groups)                                               |
-| `src/lib/time.ts`         | Local date/time helpers and dd/mm/yyyy parsing                                                |
-| `src/lib/defaults.ts`     | A new user's starting data (routines, home, a semester)                                       |
-| `src/lib/scheduler.ts`    | Auto-scheduling tasks (stable, earliest deadline first, checks each day's layout)             |
-| `src/lib/actions.ts`      | Every edit the UI makes (move, skip, delete, re-plan, reset…)                                 |
-| `src/lib/weeks.ts`        | Week patterns (`3-13`, `odd`), semester layouts, presets, special days                        |
-| `src/lib/migrate.ts`      | Upgrading saved data from older versions                                                      |
-| `src/lib/sync.ts`         | Saving: to the cloud when signed in, else the local database; merges conflicts                |
-| `src/lib/cloud.ts`        | Supabase: sign-in, loading/saving your data, backups, live updates                            |
-| `src/lib/merge.ts`        | Three-way merge when two windows or devices change the data at once                           |
-| `src/lib/storage.ts`      | localStorage that never throws                                                                |
-| `src/lib/native.ts`       | Running inside the Android app: where data is kept, saving files via share sheet              |
-| `supabase/schema.sql`     | Cloud tables, row security and the versioned save function                                    |
-| `public/sw.js`            | Offline support: keeps the app's files so it opens without a connection                       |
-| `src/lib/labels.ts`       | Colors, icons and names                                                                       |
-| `src/lib/nusmods.ts`      | Import from a NUSMods share link                                                              |
-| `src/components/`         | `CalendarView`, `NowNext`, top-bar buttons, `ErrorBoundary`                                   |
-| `src/hooks/`              | Small React hooks (narrow screen, sidebar, undo shortcuts, saved prefs, clock, calendar zoom) |
-| `src/components/dialogs/` | One file per dialog; `ModalHost` shows the open one                                           |
-| `src/components/panels/`  | Sidebar tabs (Tasks, Classes, Routines, Places, Settings with Deleted inside)                 |
-| `src/components/ui/`      | Shared building blocks (dialog frame, inputs, dd/mm/yyyy dates, dialog state)                 |
-| `server/index.mjs`        | Local database server (SQLite + hourly backups); also serves the built app                    |
-| `src/**/*.test.ts`        | Tests, next to the code they test (`src/test/fixtures.ts` has shared sample data)             |
+| Path                       | What                                                                                               |
+| -------------------------- | -------------------------------------------------------------------------------------------------- |
+| `src/types.ts`             | Data model                                                                                         |
+| `src/store.ts`             | State, undo/redo (30 steps), browser fallback copy                                                 |
+| `src/lib/expand.ts`        | Data → calendar blocks for a date range                                                            |
+| `src/lib/routines.ts`      | Fitting meals, shower… into their windows                                                          |
+| `src/lib/travel.ts`        | Trips between places                                                                               |
+| `src/lib/places.ts`        | Matching a location to a saved place (names, aliases), route times, renaming                       |
+| `src/lib/tasks.ts`         | Task sessions, progress and split limits                                                           |
+| `src/lib/dependencies.ts`  | Tasks that wait for others: what blocks a task, and the order to plan them                         |
+| `src/lib/away.ts`          | Time away: which hours are blocked                                                                 |
+| `src/lib/travelPlans.ts`   | A trip's travel plans: kinds, sorting, calendar blocks, stretching the trip                        |
+| `src/lib/display.ts`       | Settings > Display (silenced warnings, swatches, special days...)                                  |
+| `src/lib/newDefaults.ts`   | What new tasks, events, routines and trips start with (Settings > New items)                       |
+| `src/lib/limits.ts`        | Upper limits on typed values (swatches, lengths, years)                                            |
+| `src/lib/theme.ts`         | Light / dark / same as device                                                                      |
+| `src/lib/taskline.ts`      | Data for the Taskline view (bars, dots, groups)                                                    |
+| `src/lib/time.ts`          | Local date/time helpers and dd/mm/yyyy parsing                                                     |
+| `src/lib/defaults.ts`      | A new user's starting data (routines, home, a semester)                                            |
+| `src/lib/scheduler.ts`     | Auto-scheduling tasks (stable, earliest deadline first, checks each day's layout)                  |
+| `src/lib/actions.ts`       | Every edit the UI makes (move, skip, delete, re-plan, reset…)                                      |
+| `src/lib/weeks.ts`         | Week patterns (`3-13`, `odd`), semester layouts, presets, special days                             |
+| `src/lib/migrate.ts`       | Upgrading saved data from older versions                                                           |
+| `src/lib/sync.ts`          | Saving: to the cloud when signed in, else the local database; merges conflicts                     |
+| `src/lib/cloud.ts`         | Supabase: sign-in, loading/saving your data, backups, live updates                                 |
+| `src/lib/merge.ts`         | Three-way merge when two windows or devices change the data at once                                |
+| `src/lib/storage.ts`       | localStorage that never throws                                                                     |
+| `src/lib/native.ts`        | Running inside the Android app: where data is kept, saving files via share sheet                   |
+| `src/lib/notifications.ts` | Which notifications to send and when (Settings > Notifications), for the app and the website       |
+| `src/lib/notify.ts`        | Delivering them: phone alarms in the Android app, the open tab on the website; Done / +15 / Snooze |
+| `supabase/schema.sql`      | Cloud tables, row security and the versioned save function                                         |
+| `public/sw.js`             | Offline support: keeps the app's files so it opens without a connection                            |
+| `src/lib/labels.ts`        | Colors, icons and names                                                                            |
+| `src/lib/nusmods.ts`       | Import from a NUSMods share link                                                                   |
+| `src/components/`          | `CalendarView`, `NowNext`, top-bar buttons, `ErrorBoundary`                                        |
+| `src/hooks/`               | Small React hooks (narrow screen, sidebar, undo shortcuts, saved prefs, clock, calendar zoom)      |
+| `src/components/dialogs/`  | One file per dialog; `ModalHost` shows the open one                                                |
+| `src/components/panels/`   | Sidebar tabs (Tasks, Classes, Routines, Places, Settings with Deleted inside)                      |
+| `src/components/ui/`       | Shared building blocks (dialog frame, inputs, dd/mm/yyyy dates, dialog state)                      |
+| `server/index.mjs`         | Local database server (SQLite + hourly backups); also serves the built app                         |
+| `src/**/*.test.ts`         | Tests, next to the code they test (`src/test/fixtures.ts` has shared sample data)                  |
 
 ## Roadmap
 
@@ -112,9 +114,10 @@ into their windows, then trips between places).
 - **v3 (done):** web app in the cloud (plus a proper phone layout: swipe the calendar for the next/previous day, pinch to zoom the Taskline, its settings in a ⚙ dialog): sign in and your data is saved to your account (Supabase), so every device sees the same calendar; hosted online so it opens in any browser, including your phone; live updates (a change on one device shows on the others within seconds); works offline and saves once you're back online
 - **v4 (done):** settings: silence warnings, with separate toggles for daily routines, tasks and travel; whether travel blocks can be dragged; hide special-day indicators (holidays, break and exam weeks); hide locations on calendar blocks; your own color presets; how faded skipped sessions are; clearing a routine's place for one day leaves it with no place (a separate Reset brings back the usual one)
 - **v5 (done):** native Android app (Capacitor): the same app as an icon on your phone, signed in to the same account; installed straight from an APK (no Play Store needed)
-- **v6:** notifications, scheduled a day or two ahead and updated whenever your calendar changes: "leave in 10 min" (travel), "lunch now" (routines), "session starting" (tasks); a toggle for each kind. In the Android app they're exact phone alarms (asks to allow exact alarms, which Android 14 blocks by default); on the website they come through the browser (web push, so they arrive even with the tab closed)
-- **v7:** Android home-screen widgets; optimizations (smarter planning, performance); timezones: times are saved with their timezone, and the calendar shows them in the zone you're in, so moving between Madison and Singapore (or a flight across zones) doesn't shift anything. Includes a setting for your current timezone (or follow the device), daylight-saving changes handled everywhere (planner, travel, Taskline), and events booked in another zone shown at the right local time
+- **v6:** notifications, worked out again whenever your calendar changes: "leave in 10 min" (travel), classes, CCAs, events, exams, routines, task sessions starting and ending (Done / +15 min, which also adds the time to the task's total), deadlines, trip travel plans (flights a day before); each kind with its own toggle and timing, quiet hours, snooze. In the Android app they're exact phone alarms; on the website they show while a Kairos tab is open
+- **v6.1:** flights get a check-in time and a baggage claim time (how long after landing you're out with your bags), with defaults in Settings > New items, and notifications for them; hotel stays for trips: the hotel's check-in and check-out windows plus when you plan to actually check in and out, with defaults in Settings > New items, and notifications for checking in and out
+- **v7:** a morning summary of your day (a notification when you wake up, possibly written by AI: what's on, when to leave, what's due); Android home-screen widgets; optimizations (smarter planning, performance); timezones: times are saved with their timezone, and the calendar shows them in the zone you're in, so moving between Madison and Singapore (or a flight across zones) doesn't shift anything. Includes a setting for your current timezone (or follow the device), daylight-saving changes handled everywhere (planner, travel, Taskline), and events booked in another zone shown at the right local time
 - **v8:** a tutorial for every device: a short walkthrough the first time you open Kairos, made for where you are (the website on a phone, the website on a laptop, and the Android app), showing that device's own gestures and buttons (e.g. swipe for the next day and pinch the Taskline on a phone; drag, scroll-to-zoom and keyboard shortcuts on a laptop; notifications and widgets in the app). Can be replayed any time from settings
 - **v9:** gamification (streaks, points, rewards for finishing tasks and leaving on time); export a finished semester (its courses, classes, tasks and events) to a file and take it off the calendar and timeline, with import to bring it back; title autocomplete for events and tasks: as you type, a faded suggestion from your past titles appears and Tab accepts it (like code completion in VS Code)
-- **v10:** schedule import scripts: custom scripts that fetch timings from a website (e.g. Sub Zero ice rink "Public Skate" sessions) and add them as events. Shows a list of found timings to approve before anything is added; only future timings; you choose how far ahead (next 1 week, 2 weeks, 1 month, 2 months, 6 months…); flight lookup: type a flight number and date in a trip's travel plans (e.g. UA 1234 on 24 Nov) and Kairos fills in the departure and arrival times, airports and terminals from a flight-data service, for you to check before saving; themes: pick a whole look for the app (colors, fonts, how blocks are drawn) from a few built-in themes, or make your own; fonts as part of a theme: choose the app's font (a few built-in ones, or any Google Font) and text size, separately for headings, calendar blocks and body text
+- **v10:** schedule import scripts: custom scripts that fetch timings from a website (e.g. Sub Zero ice rink "Public Skate" sessions) and add them as events. Shows a list of found timings to approve before anything is added; only future timings; you choose how far ahead (next 1 week, 2 weeks, 1 month, 2 months, 6 months…); flight lookup: type a flight number and date in a trip's travel plans (e.g. UA 1234 on 24 Nov) and Kairos fills in the departure and arrival times, airports and terminals from a flight-data service, for you to check before saving; a redesigned app icon and app style; themes: pick a whole look for the app (colors, fonts, how blocks are drawn) from a few built-in themes, or make your own; fonts as part of a theme: choose the app's font (a few built-in ones, or any Google Font) and text size, separately for headings, calendar blocks and body text
 - **v11:** one-way Google Calendar sync that updates automatically: pick which Google calendars to bring in; their events show read-only in Kairos and count as busy time for the planner

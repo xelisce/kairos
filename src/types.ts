@@ -245,6 +245,8 @@ export interface Settings {
   newDefaults?: Partial<NewItemDefaults>;
   /** How the calendar looks (see lib/display.ts); only what you changed. */
   display?: Partial<DisplaySettings>;
+  /** When you get notifications, separately for the Android app and the website; only what you changed. */
+  notifications?: { app?: Partial<NotifySettings>; web?: Partial<NotifySettings> };
   /** Gap kept between scheduled things. */
   bufferMin: number;
   /** Extra minutes added to every trip (get out of the door, find the room). */
@@ -275,6 +277,50 @@ export interface DisplaySettings {
   skippedOpacity: number;
   /** Swatches in the color picker. */
   colorPresets: string[];
+}
+
+/** When notifications come (Settings > Notifications). Minutes are "this long before". */
+export interface NotifySettings {
+  /** Travel: a heads-up `leaveMin` before you need to go, then "Leave now". */
+  leave: boolean;
+  leaveMin: number;
+  classes: boolean;
+  classMin: number;
+  /** No class notification when a "Time to leave" for it already went out. */
+  classSkipIfLeave: boolean;
+  ccas: boolean;
+  ccaMin: number;
+  ccaSkipIfLeave: boolean;
+  events: boolean;
+  eventMin: number;
+  /** Exams, quizzes, presentations (classes or events): before, and the evening before. */
+  exams: boolean;
+  examMin: number;
+  examEvening: boolean;
+  examEveningAt: HHMM;
+  /** Routines when they start, by category. */
+  routines: Record<RoutineCategory, boolean>;
+  /** Before the sleep routine. */
+  windDown: boolean;
+  windDownMin: number;
+  sessionStart: boolean;
+  /** "Done? Mark it" when a session ends, with Done / +15 min. */
+  sessionEnd: boolean;
+  /** A task that isn't done this many hours before its deadline (two reminders). */
+  deadlines: boolean;
+  deadlineHours: [number, number];
+  /** Trip travel plans: flights this many hours before, trains / buses / drives / other this many minutes. */
+  flights: boolean;
+  flightHours: number;
+  plans: boolean;
+  planMin: number;
+  /** Nothing between these times. */
+  quiet: boolean;
+  quietStart: HHMM;
+  quietEnd: HHMM;
+  /** Nothing while the sleep routine is on. */
+  quietSleep: boolean;
+  snoozeMin: number;
 }
 
 /** What new things start with (Settings > New items). */
