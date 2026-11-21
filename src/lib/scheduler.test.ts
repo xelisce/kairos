@@ -45,6 +45,45 @@ describe('auto-scheduling a task', () => {
   });
 });
 
+describe('late nights', () => {
+  // Mon 23 Nov: busy until 22:00, a shower that may run until 01:00, sleep 02:00–10:00, then busy
+  // again until a trip. Only Monday night is free: the report (due before the trip) needs it more than
+  // a task with no deadline does, and the shower still has to fit.
+  const lateNight = () => {
+    const d = defaultData();
+    d.settings.anyTime = true;
+    d.routines = d.routines.filter((r) => r.title === 'Shower' || r.title === 'Sleep');
+    Object.assign(
+      d.routines.find((r) => r.title === 'Shower')!,
+      { windowEnd: '01:00', durationMin: 30 },
+    );
+    Object.assign(
+      d.routines.find((r) => r.title === 'Sleep')!,
+      { preferredStart: '02:00', windowStart: '02:00' },
+    );
+    d.events = [
+      { id: 'e1', title: 'Busy', category: 'admin', start: '2026-11-23T10:00', end: '2026-11-23T22:00' },
+      { id: 'e2', title: 'Busy', category: 'admin', start: '2026-11-24T10:00', end: '2026-11-24T23:59' },
+    ];
+    d.tasks = [
+      task({ id: 'r', title: 'Report', durationMin: 90, deadline: '2026-11-24T23:59', createdAt: '2026-11-20T18:10' }),
+      task({ id: 'k', title: 'Side project', durationMin: 105, createdAt: '2026-11-19T17:20' }),
+    ];
+    return d;
+  };
+
+  it('a session after midnight can’t squeeze out the evening’s shower', () => {
+    const d = lateNight();
+    const now = fromLocal('2026-11-23T09:00');
+    const tasks = planTasks(d, now);
+    const report = tasks.find((t) => t.id === 'r')!;
+    expect(taskWarning(report, now, 48, tasks)).toBeNull();
+    expect(fromLocal(report.sessions[0].end) <= fromLocal('2026-11-24T02:00')).toBe(true);
+    const occs = expand({ ...d, tasks }, fromLocal('2026-11-23'), fromLocal('2026-11-25'));
+    expect(occs.filter((o) => o.warning && !o.skipped)).toEqual([]);
+  });
+});
+
 describe('missed sessions', () => {
   const missed = (pinned = false) => {
     const d = sampleData();

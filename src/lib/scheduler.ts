@@ -90,6 +90,19 @@ function* candidates(data: AppData, busy: Interval[], durationMin: number, from:
 }
 
 const isTravel = (o: Occ) => o.source.type === 'travel';
+const minutesIntoDay = (d: Date) => d.getHours() * 60 + d.getMinutes();
+
+/** Latest time of day (minutes) that a routine window from the evening before still runs to; 0 if none crosses midnight. */
+function overnightRoutineEnd(data: AppData) {
+  let latest = 0;
+  for (const r of data.routines) {
+    if (!r.enabled) continue;
+    const ws = hmToMin(r.windowStart);
+    const we = hmToMin(r.windowEnd);
+    if (we <= ws) latest = Math.max(latest, we);
+  }
+  return latest;
+}
 
 /** Problems on one day: warnings (routines squeezed out, trips too short...). */
 const warningsOn = (occs: Occ[], skipId?: string) =>
@@ -133,20 +146,30 @@ export function planTasks(data: AppData, now: Date): Task[] {
     if (i >= 0) busy.splice(i, 1);
   };
 
-  // Lay out the day(s) a slot is on (two when it crosses midnight) with the current sessions.
-  // Warning counts are cached per range; cleared when a session lands on one of its days.
-  const dayCache = new Map<string, number>();
-  const lastDay = (slot: Interval) => addMinutes(slot.end, -1);
-  const layout = (slot: Interval, list: Task[]) =>
-    expand({ ...data, tasks: list }, startOfDay(slot.start), addDays(startOfDay(lastDay(slot)), 1));
-  const baseline = (slot: Interval) => {
-    const k = `${dateKey(slot.start)}|${dateKey(lastDay(slot))}`;
-    if (!dayCache.has(k)) dayCache.set(k, warningsOn(layout(slot, tasks)));
-    return dayCache.get(k)!;
+  // Lay out the day(s) a slot touches with the current sessions: the day(s) it's on (two when it
+  // crosses midnight), plus the day before when it's early enough to be in last night's routines
+  // (a shower until 01:00, sleep until 11:30). Warning counts are cached per range.
+  const overnightEnd = overnightRoutineEnd(data);
+  const daysOf = (slot: Interval) => {
+    const first = startOfDay(slot.start);
+    const from = minutesIntoDay(slot.start) < overnightEnd ? addDays(first, -1) : first;
+    return { from, to: addDays(startOfDay(addMinutes(slot.end, -1)), 1) };
   };
+  const dayCache = new Map<string, { from: Date; to: Date; n: number }>();
+  const layout = (slot: Interval, list: Task[]) => {
+    const { from, to } = daysOf(slot);
+    return expand({ ...data, tasks: list }, from, to);
+  };
+  const baseline = (slot: Interval) => {
+    const { from, to } = daysOf(slot);
+    const k = `${dateKey(from)}|${dateKey(to)}`;
+    if (!dayCache.has(k)) dayCache.set(k, { from, to, n: warningsOn(layout(slot, tasks)) });
+    return dayCache.get(k)!.n;
+  };
+  /** A session landed on `slot`: forget the counts for every range it touches. */
   const forgetDays = (slot: Interval) => {
-    const days = [dateKey(slot.start), dateKey(lastDay(slot))];
-    for (const k of [...dayCache.keys()]) if (k.split('|').some((d) => days.includes(d))) dayCache.delete(k);
+    const { from, to } = daysOf(slot);
+    for (const [k, r] of dayCache) if (r.from < to && from < r.to) dayCache.delete(k);
   };
 
   /** Would a new session of `t` at `slot` work? Its trips fit, nothing overlaps it, no new warnings that day. */
@@ -304,14 +327,24 @@ export function planTasks(data: AppData, now: Date): Task[] {
     const final = expand({ ...data, tasks }, now, horizon);
     const clashing = clashingSessions(final, tasks, now);
     // A day with more warnings than it has without its auto sessions (dinner pushed late, a trip
-    // that makes you late...): move that day's latest auto session somewhere else.
+    // that makes you late...): move one auto session from that day (or that night, until last
+    // night's routines are over) somewhere else: the one that can wait longest.
     const autoIds = new Set(movableSessionIds(tasks, now));
     const without = expand({ ...data, tasks }, now, horizon, { excludeSessionIds: autoIds });
+    const overnightEnd = overnightRoutineEnd(data);
+    const deadlineOf = new Map(active.map((t) => [t.id, t.deadline ? fromLocal(t.deadline).getTime() : Infinity]));
     for (const dk of daysWithMoreWarnings(final, without)) {
-      const latest = final
-        .filter((o) => o.source.type === 'task' && autoIds.has(o.source.sessionId) && dateKey(o.start) === dk)
-        .sort((x, y) => y.start.getTime() - x.start.getTime())[0];
-      if (latest?.source.type === 'task') clashing.add(latest.source.sessionId);
+      const dayStart = fromLocal(dk);
+      const nightEnd = addMinutes(addDays(dayStart, 1), overnightEnd);
+      const onThatDay = final.filter(
+        (o) => o.source.type === 'task' && autoIds.has(o.source.sessionId) && o.start >= dayStart && o.start < nightEnd,
+      );
+      const pick = onThatDay.sort((x, y) => {
+        const dx = x.source.type === 'task' ? (deadlineOf.get(x.source.taskId) ?? Infinity) : Infinity;
+        const dy = y.source.type === 'task' ? (deadlineOf.get(y.source.taskId) ?? Infinity) : Infinity;
+        return dy - dx || y.start.getTime() - x.start.getTime();
+      })[0];
+      if (pick?.source.type === 'task') clashing.add(pick.source.sessionId);
     }
     if (!clashing.size) break;
     for (const t of active) t.sessions = t.sessions.filter((x) => !clashing.has(x.id));
